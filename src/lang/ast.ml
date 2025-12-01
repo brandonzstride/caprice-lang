@@ -1,0 +1,45 @@
+
+type t = 
+  | EUnit
+  | EInt of int
+  | EBool of bool
+  | EVar of Ident.t
+  | EBinop of { left : t ; binop : Binop.t ; right : t }
+  | EIf of { if_ : t ; then_ : t ; else_ : t }
+  | ELet of Ident.t let_expr
+  | ELetTyped of typed_var let_expr
+  | ELetRec of Ident.t let_expr (* no mutual recursion yet *)
+  | ELetRecTyped of typed_var let_expr
+  | EAppl of { func : t ; arg : t }
+  | EMatch of { subject : t ; patterns : (Pattern.t * t) list }
+  | EProject of { record : t ; label : Labels.Record.t }
+  | ERecord of t Labels.Record.Map.t
+  (* | EModule *)
+  | ENot of t
+  | EPick_i
+  | EFunction of { param : Ident.t ; body : t }
+  | EVariant of { label : Labels.Variant.t ; payload : t }
+  | EAssert of t
+  | EAssume of t
+  (* Types *)
+  | EType
+  | ETypeInt
+  | ETypeBool
+  | ETypeTop
+  | ETypeBottom
+  | ETypeUnit
+  | ETypeRecord of t Labels.Record.Map.t
+  (* | ETypeModule *)
+  | ETypeFun of { domain : t ; codomain : t }
+  | ETypeRefine of { var : Ident.t ; tau : t ; predicate : t }
+  | ETypeMu of { var : Ident.t ; body : t }
+  | ETypeVariant of (Labels.Variant.t * t) list
+  (* | ETypeSingle *)
+
+and typed_var = { var : Ident.t ; tau : t }
+
+and 'a let_expr = { var : 'a ; defn : t ; body : t }
+
+and statement =
+  | SUntyped of { var : Ident.t ; defn : t }
+  | STyped of { var : Ident.t ; tau : t ; defn : t }

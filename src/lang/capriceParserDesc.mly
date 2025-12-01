@@ -1,9 +1,12 @@
 %{
-  (*
   open Ast
   open Binop
+  (*
   open Pattern
   *)
+  let empty_record = Labels.Record.Map.empty
+  let add_record_entry (k, v) = Labels.Record.Map.add k v
+  let new_record (k, v) = Labels.Record.Map.singleton k v
 %}
 
 %token <string> IDENTIFIER
@@ -92,8 +95,8 @@
 %right prec_variant           /* variants, lists */
 %right ARROW LONG_ARROW       /* -> for type declaration, and --> for deterministic */
 
-%start <int list> prog
-%start <int list option> delim_expr
+%start <statement list> prog
+%start <statement list option> delim_expr
 
 %%
 
@@ -103,14 +106,230 @@ prog:
 
 delim_expr:
   | EOF
-      { None }
+    { None }
   | prog EOF
-      { Some ($1) }
+    { Some ($1) }
   ;
 
 statement_list:
   | statement { [ $1 ] }
   | statement statement_list { $1 :: $2 }
+  ;
 
 statement:
-  | UNIT_KEYWORD { 0 }
+  | LET l_ident EQUALS expr
+    { SUntyped { var = $2 ; defn = $4 } }
+  | LET typed_binding EQUALS expr
+    { STyped { var = fst $2 ; tau = snd $2 ; defn = $4 } }
+  ;
+
+%inline typed_binding:
+  | l_ident COLON expr
+    { ($1, $3) }
+  | OPEN_PAREN l_ident COLON expr CLOSE_PAREN
+    { ($2, $4) }
+  ;
+
+expr:
+  | appl_expr /* Includes primary expressions */
+    { $1 }
+  | op_expr
+    { $1 }
+  | type_expr
+    { $1 }
+  | IF expr THEN expr ELSE expr %prec prec_if
+    { EIf { if_ = $2 ; then_ = $4 ; else_ = $6 } }
+  | FUNCTION l_ident ARROW expr %prec prec_fun 
+    { EFunction { param = $2 ; body = $4 } }
+  | LET typed_binding EQUALS expr IN expr %prec prec_let
+    { ELetTyped { var = { var = fst $2 ; tau = snd $2 } ; defn = $4 ; body = $6 } }
+  | LET l_ident EQUALS expr IN expr %prec prec_let
+    { ELet { var = $2 ; defn = $4 ; body = $6 } }
+  ;
+
+%inline type_expr:
+  | PIPE separated_nonempty_list(PIPE, single_variant_type) (* pipe optional before first variant *)
+      { ETypeVariant $2 }
+  | separated_nonempty_list(PIPE, single_variant_type)
+      { ETypeVariant $1 }
+  | MU l_ident DOT expr %prec prec_mu
+      { ETypeMu { var = $2 ; body = $4 } }
+  | expr ARROW expr
+      { ETypeFun { domain = $1 ; codomain = $3 } }
+  ;
+
+single_variant_type:
+  | variant_label OF expr %prec prec_variant 
+    { $1, $3 }
+  ;
+
+appl_expr:
+  | appl_expr primary_expr
+    { EAppl { func = $1 ; arg = $2 } }
+  | ASSERT primary_expr
+    { EAssert $2 }
+  | ASSUME primary_expr
+    { EAssume $2 }
+  | primary_expr
+    { $1 }
+  ;
+
+/* In a primary_expr, only primitives, vars, records, and lists do not need
+   surrounding parentheses. */
+primary_expr:
+  | INT
+    { EInt $1 }
+  | BOOL
+    { EBool $1 }
+  | ident_usage
+    { $1 }
+  | INPUT
+    { EPick_i }
+  | TYPE
+    { EType }
+  | INT_KEYWORD
+    { ETypeInt }
+  | BOOL_KEYWORD
+    { ETypeBool }
+  | UNIT_KEYWORD
+    { ETypeUnit }
+  // | TOP_KEYWORD
+  //   { ETypeTop }
+  | BOTTOM_KEYWORD
+    { ETypeBottom }
+  // | LIST
+  //   { ETypeList }
+  // | ABSTRACT
+  //   { EAbstractType }
+  // | SINGLETYPE_KEYWORD
+  //   { ETypeSingle }
+  | OPEN_PAREN CLOSE_PAREN
+    { EUnit }
+  | OPEN_BRACE COLON CLOSE_BRACE
+    { ETypeRecord empty_record }
+  | OPEN_BRACE record_body CLOSE_BRACE
+    { ERecord $2 }
+  | OPEN_BRACE CLOSE_BRACE
+    { ERecord empty_record }
+  // | OPEN_BRACKET separated_nonempty_list(SEMICOLON, expr) CLOSE_BRACKET
+  //   { EList $2 : t }
+  // | OPEN_BRACKET CLOSE_BRACKET
+  //   { EList [] : t }
+  | OPEN_PAREN expr CLOSE_PAREN
+    { $2 }
+  // | OPEN_BRACE expr PIPE expr CLOSE_BRACE
+  //   { ETypeRefine { tau = $2 ; predicate = $4 } : t }
+  // | STRUCT list(statement) END (* may be empty *)
+  //   { EModule $2 }
+  // | SIG list(val_item) END
+  //   { ETypeModule $2 }
+  | record_type_or_refinement
+    { $1 }
+  | primary_expr DOT record_label
+    { EProject { record = $1 ; label = $3 } }
+  ;
+
+op_expr:
+  | variant_label expr %prec prec_variant
+      { EVariant { label = $1 ; payload = $2 } }
+  | expr ASTERISK expr
+      { EBinop { left = $1 ; binop = BTimes ; right = $3 } }
+  | expr SLASH expr
+      { EBinop { left = $1 ; binop = BDivide ; right = $3 } }
+  | expr PERCENT expr
+      { EBinop { left = $1 ; binop = BModulus ; right = $3 } }
+  | expr PLUS expr
+      { EBinop { left = $1 ; binop = BPlus ; right = $3 } }
+  | expr MINUS expr
+      { EBinop { left = $1 ; binop = BMinus ; right = $3 } }
+  // | expr DOUBLE_COLON expr
+  //     { EListCons ($1, $3) : t }
+  | expr EQUAL_EQUAL expr
+      { EBinop { left = $1 ; binop = BEqual ; right = $3 } }
+  | expr NOT_EQUAL expr
+      { EBinop { left = $1 ; binop = BNeq ; right = $3 } }
+  | expr GREATER expr
+      { EBinop { left = $1 ; binop = BGreaterThan ; right = $3 } }
+  | expr GREATER_EQUAL expr
+      { EBinop { left = $1 ; binop = BGeq ; right = $3 } }
+  | expr LESS expr
+      { EBinop { left = $1 ; binop = BLessThan ; right = $3 } }
+  | expr LESS_EQUAL expr
+      { EBinop { left = $1 ; binop = BLeq ; right = $3 } }
+  | NOT expr
+      { ENot $2 }
+  | expr DOUBLE_AMPERSAND expr
+      { EBinop { left = $1 ; binop = BAnd ; right = $3 } }
+  | expr DOUBLE_PIPE expr
+      { EBinop { left = $1 ; binop = BOr ; right = $3 } }
+  // | expr PIPELINE expr (* Note: evaluation order is that e' is evaluated first in e |> e' *)
+  //     { EAppl { func = $3 ; arg = $1 } : t }
+  | MINUS INT
+      { EInt (-$2) }
+  ;
+
+%inline record_type_or_refinement:
+  (* exactly one label *)
+  | OPEN_BRACE record_type_item CLOSE_BRACE
+      { ETypeRecord (new_record $2) }
+  (* more than one label *)
+  | OPEN_BRACE record_type_item SEMICOLON record_type_body CLOSE_BRACE
+      { ETypeRecord (add_record_entry $2 $4) }
+  (* refinement type with binding for tau, which looks like a record type at first, so that's why we expand the rules above *)
+  | OPEN_BRACE l_ident COLON expr PIPE expr CLOSE_BRACE
+      { ETypeRefine { var = $2 ; tau = $4 ; predicate = $6 } }
+  ;
+
+%inline record_type_item:
+  | record_label COLON expr
+      { $1, $3 }
+  ;
+
+%inline record_expr_item:
+  | record_label EQUALS expr
+      { $1, $3 }
+  ;
+
+record_type_body:
+  | record_type_item
+      { new_record $1 }
+  | record_type_item SEMICOLON record_type_body
+      { add_record_entry $1 $3 }
+
+%inline record_label:
+  | ident
+    { Labels.Record.RecordLabel $1 }
+  ;
+
+%inline ident_usage:
+  | ident
+    { EVar $1 }
+  ;
+
+%inline l_ident: (* like "lvalue". These are idents that can be assigned to *)
+  | ident
+    { $1 }
+  | UNDERSCORE
+    { Ident.Ident "_" }
+  ;
+
+%inline ident: (* these are idents that can be used as values *)
+  | IDENTIFIER
+    { Ident.Ident $1 }
+  ;
+
+/* **** Records, lists, and variants **** */
+
+/* e.g. { x = 1 ; y = 2 ; z = 3 } */
+record_body:
+  | record_expr_item
+    { new_record $1 }
+  | record_expr_item SEMICOLON record_body
+    { add_record_entry $1 $3 }
+  ;
+
+/* e.g. `Variant 0 */
+variant_label:
+  | BACKTICK ident
+    { Labels.Variant.VariantLabel $2 }
+  ;
