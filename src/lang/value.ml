@@ -28,7 +28,7 @@ type _ t =
 
 and closure = { body : Ast.t ; env : env }
 
-and env = any Ident.Map.t
+and env = any Env.t
 
 and any = Any : 'a t -> any [@@unboxed]
 
