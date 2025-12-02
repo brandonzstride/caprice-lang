@@ -4,7 +4,7 @@ module type KEY = sig
   val uid : t -> int
 end
 
-module X = Utils.Separate.Make_with_compare (Int)
+module X = Utils.Separate.Comparable.Make (Int)
 
 module T = struct
   type ('a, 'k) t = 'a X.t

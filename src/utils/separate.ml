@@ -50,16 +50,18 @@ module Make (X : Types.T) : S with type x = X.t = struct
   let extract_list = extract_list
 end
 
-module Make_with_compare (X : Comparable.S) = struct
-  include Make (X)
+module Comparable = struct
+  module Make (X : Comparable.S) = struct
+    include Make (X)
 
-  let compare (type a) (x : a t) (y : a t) : int =
-    match x, y with
-    | I xi, I yi
-    | B xi, B yi -> X.compare xi yi
+    let compare (type a) (x : a t) (y : a t) : int =
+      match x, y with
+      | I xi, I yi
+      | B xi, B yi -> X.compare xi yi
 
-  let equal (type a) (x : a t) (y : a t) : bool =
-    match x, y with
-    | I xi, I yi
-    | B xi, B yi -> X.equal xi yi
+    let equal (type a) (x : a t) (y : a t) : bool =
+      match x, y with
+      | I xi, I yi
+      | B xi, B yi -> X.equal xi yi
+  end
 end
