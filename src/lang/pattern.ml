@@ -2,5 +2,5 @@
 type t =
   | PAny
   | PVariable of Ident.t
-  | PVariant of { label : Labels.Variant.t ; payload_id : Ident.t }
+  | PVariant of t Features.Variant.t (* payload is another pattern *)
   (* Will add lists, too *)

@@ -1,4 +1,11 @@
 
+(*
+  This include is only to work with Menhir.
+  Menhir cannot find the qualified subdirectory Features,
+  and aliasing it here does not work, either.
+*)
+include Features 
+
 type t = 
   | EUnit
   | EInt of int
@@ -18,7 +25,7 @@ type t =
   | ENot of t
   | EPick_i
   | EFunction of { param : Ident.t ; body : t }
-  | EVariant of { label : Labels.Variant.t ; payload : t }
+  | EVariant of t Variant.t
   | EAssert of t
   | EAssume of t
   (* Types *)
@@ -30,10 +37,10 @@ type t =
   | ETypeUnit
   | ETypeRecord of t Labels.Record.Map.t
   (* | ETypeModule *)
-  | ETypeFun of { domain : t ; codomain : t }
-  | ETypeRefine of { var : Ident.t ; tau : t ; predicate : t }
+  | ETypeFun of (t, t) Funtype.t
+  | ETypeRefine of (t, t) Refinement.t
   | ETypeMu of { var : Ident.t ; body : t }
-  | ETypeVariant of (Labels.Variant.t * t) list
+  | ETypeVariant of t Variant.t list
   (* | ETypeSingle *)
 
 and typed_var = { var : Ident.t ; tau : t }

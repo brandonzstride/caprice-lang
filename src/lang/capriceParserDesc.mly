@@ -4,9 +4,6 @@
   (*
   open Pattern
   *)
-  let empty_record = Labels.Record.Map.empty
-  let add_record_entry (k, v) = Labels.Record.Map.add k v
-  let new_record (k, v) = Labels.Record.Map.singleton k v
 %}
 
 %token <string> IDENTIFIER
@@ -160,7 +157,7 @@ expr:
 
 single_variant_type:
   | variant_label OF expr %prec prec_variant 
-    { $1, $3 }
+    { { label = $1 ; payload = $3 } }
   ;
 
 appl_expr:
@@ -206,11 +203,11 @@ primary_expr:
   | OPEN_PAREN CLOSE_PAREN
     { EUnit }
   | OPEN_BRACE COLON CLOSE_BRACE
-    { ETypeRecord empty_record }
+    { ETypeRecord Record.empty }
   | OPEN_BRACE record_body CLOSE_BRACE
     { ERecord $2 }
   | OPEN_BRACE CLOSE_BRACE
-    { ERecord empty_record }
+    { ERecord Record.empty }
   // | OPEN_BRACKET separated_nonempty_list(SEMICOLON, expr) CLOSE_BRACKET
   //   { EList $2 : t }
   // | OPEN_BRACKET CLOSE_BRACKET
@@ -271,10 +268,10 @@ op_expr:
 %inline record_type_or_refinement:
   (* exactly one label *)
   | OPEN_BRACE record_type_item CLOSE_BRACE
-      { ETypeRecord (new_record $2) }
+      { ETypeRecord (Record.Parsing.singleton $2) }
   (* more than one label *)
   | OPEN_BRACE record_type_item SEMICOLON record_type_body CLOSE_BRACE
-      { ETypeRecord (add_record_entry $2 $4) }
+      { ETypeRecord (Record.Parsing.add_entry $2 $4) }
   (* refinement type with binding for tau, which looks like a record type at first, so that's why we expand the rules above *)
   | OPEN_BRACE l_ident COLON expr PIPE expr CLOSE_BRACE
       { ETypeRefine { var = $2 ; tau = $4 ; predicate = $6 } }
@@ -292,9 +289,9 @@ op_expr:
 
 record_type_body:
   | record_type_item
-      { new_record $1 }
+      { Record.Parsing.singleton $1 }
   | record_type_item SEMICOLON record_type_body
-      { add_record_entry $1 $3 }
+      { Record.Parsing.add_entry $1 $3 }
 
 %inline record_label:
   | ident
@@ -323,9 +320,9 @@ record_type_body:
 /* e.g. { x = 1 ; y = 2 ; z = 3 } */
 record_body:
   | record_expr_item
-    { new_record $1 }
+    { Record.Parsing.singleton $1 }
   | record_expr_item SEMICOLON record_body
-    { add_record_entry $1 $3 }
+    { Record.Parsing.add_entry $1 $3 }
   ;
 
 /* e.g. `Variant 0 */

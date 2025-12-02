@@ -38,6 +38,9 @@ let equal a b =
   Repr.phys_equal a b (* physical equality *)
   || Repr.equal a b (* polymorphic equality *)
 
+let compare a b =
+  Repr.compare a b (* polymorphic compare is also fine *)
+
 let const_int i = Const_int i
 let const_bool b = Const_bool b
 let symbol s = Key s
@@ -172,4 +175,14 @@ module Make_solver (X : SOLVABLE) = struct
     | Const_bool false -> Unsat
     | Const_bool true -> Sat Model.empty
     | e -> X.solve [ M.transform e ]
+end
+
+module Set = struct
+  module Make (K : Symbol.KEY) = struct
+    (* type k = K.t *)
+    include Baby.W.Set.Make (struct
+      type nonrec t = (bool, K.t) t (* boolean formulas *)
+      let compare = compare
+    end)
+  end
 end

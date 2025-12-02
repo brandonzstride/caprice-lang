@@ -5,6 +5,8 @@
  (libraries
   ; internal
   utils
+  ; external
+  baby
   )
  (synopsis "SMT module for Caprice")
  (inline_tests)

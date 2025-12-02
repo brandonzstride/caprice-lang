@@ -1,4 +1,6 @@
 
+open Features
+
 (*
   The `Atom_cell` is the payload of int and bool values.
   It is expected to be identity or a pair of concrete and
@@ -20,11 +22,11 @@ module Make (Atom_cell : Utils.Comparable.S1) = struct
     | VInt : int Atom_cell.t -> data t
     | VBool : bool Atom_cell.t -> data t
     | VFunClosure : { var : Ident.t ; body : closure } -> data t
-    | VVariant : { label : Labels.Variant.t ; payload : any } -> data t
-    | VRecord : any Labels.Record.Map.t -> data t
+    | VVariant : any Variant.t -> data t
+    | VRecord : any Record.t -> data t
     | VFunFix : { fvar : Ident.t ; param : Ident.t ; closure : closure } -> data t (* no mutual recursion yet *)
     (* generated values *)
-    | VGenFun : { domain : typeval t ; codomain : typeval t } -> data t
+    | VGenFun : (typeval t, typeval t) Funtype.t -> data t
     | VGenPoly : { id : int ; nonce : int } -> data t
     (* type values only *)
     | VType : typeval t
@@ -34,9 +36,10 @@ module Make (Atom_cell : Utils.Comparable.S1) = struct
     | VTypeInt : typeval t
     | VTypeBool : typeval t
     | VTypeMu : { var : Ident.t ; closure : closure } -> typeval t
-    | VTypeFun : { domain : typeval t ; codomain : typeval t } -> typeval t
-    | VTypeRecord : typeval t Labels.Record.Map.t -> typeval t
-    | VTypeRefine : { var : Ident.t ; tval : typeval t ; predicate : closure } -> typeval t
+    | VTypeFun : (typeval t, typeval t) Funtype.t -> typeval t
+    | VTypeRecord : typeval t Record.t -> typeval t
+    | VTypeVariant : typeval t Variant.t list -> typeval t
+    | VTypeRefine : (typeval t, closure) Refinement.t -> typeval t
 
   and closure = { body : Ast.t ; env : env }
 
@@ -70,22 +73,25 @@ module Make (Atom_cell : Utils.Comparable.S1) = struct
       | VTypeMu _
       | VTypeFun _
       | VTypeRecord _
+      | VTypeVariant _
       | VTypeRefine _) as x -> typeval x
 
-  type match_result =
-    | Match
-    | Match_bindings of env
-    | No_match
+  module Match_result = struct
+    type t =
+      | Match
+      | Match_bindings of env
+      | No_match
+  end
 
-  let matches (type a) (v : a t) (p : Pattern.t) : match_result =
+  let rec matches : type a. a t -> Pattern.t -> Match_result.t = fun v p ->
     match p, v with
     | _, VGenPoly _ -> No_match (* generated polymorphic values cannot be matched on *)
     | PAny, _ -> Match
     | PVariable id, v -> Match_bindings (Env.singleton id (to_any v))
-    | PVariant { label = pattern_label ; payload_id },
-      VVariant { label = subject_label ; payload } ->
+    | PVariant { label = pattern_label ; payload = payload_pattern },
+      VVariant { label = subject_label ; payload = Any v } ->
         if Labels.Variant.equal pattern_label subject_label
-        then Match_bindings (Env.singleton payload_id payload)
+        then matches v payload_pattern
         else No_match
     | _ -> No_match
 end
