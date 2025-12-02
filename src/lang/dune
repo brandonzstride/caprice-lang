@@ -9,7 +9,12 @@
  (public_name caprice.lang)
  (synopsis "Caprice Language Definition")
  (modules (:standard))
- (libraries baby)
+ (libraries 
+  ; internal
+  utils 
+  ; external
+  baby
+ )
  (preprocess (pps ppx_deriving.eq ppx_deriving.ord))
 )
   
