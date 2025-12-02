@@ -1,0 +1,18 @@
+(include_subdirs qualified)
+
+(library
+ (name concolic)
+ (public_name caprice.concolic)
+ (libraries
+  ; internal
+  lang
+  smt
+  overlays
+  ; external
+  psq
+ )
+ (synopsis "Concolic evaluator for Caprice")
+ (inline_tests)
+ (instrumentation (backend landmarks --auto)) ; use `dune build --instrument-with landmarks` to get instrumentation
+ (instrumentation (backend bisect_ppx))
+ (preprocess (pps ppx_deriving.eq ppx_deriving.ord)))

@@ -19,5 +19,6 @@
   baby
   menhir
   ppx_deriving
+  psq
   z3
   ))

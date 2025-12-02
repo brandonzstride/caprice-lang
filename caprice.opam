@@ -9,6 +9,7 @@ depends: [
   "baby"
   "menhir"
   "ppx_deriving"
+  "psq"
   "z3"
   "odoc" {with-doc}
 ]
