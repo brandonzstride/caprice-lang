@@ -16,7 +16,8 @@
  (name caprice)
  (description "Semantic type refutation via concolic semantics")
  (depends
-  core
+  baby
   menhir
   ppx_deriving
+  z3
   ))

@@ -1,0 +1,14 @@
+
+(library
+ (name overlays)
+ (public_name caprice.overlays)
+ (synopsis "External library overlays for Caprice")
+ (modules (:standard))
+ (libraries
+  ; internal
+  smt
+  ; external
+  z3
+ )
+ (preprocess (pps ppx_deriving.eq ppx_deriving.ord))
+)
