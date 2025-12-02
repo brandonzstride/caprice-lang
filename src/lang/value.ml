@@ -8,6 +8,12 @@ module Make (Atom_cell : Utils.Comparable.S1) = struct
   type data
   type typeval
 
+  (*
+    Data values and type values are all the same type constructor
+    so that they are flat, and there is no pointer indirection.
+    We can pack them into the same type in an unboxed way. This way,
+    the representation is as if they are all just one type.
+  *)
   type _ t =
     (* non-type value *)
     | VUnit : data t
@@ -40,6 +46,10 @@ module Make (Atom_cell : Utils.Comparable.S1) = struct
 
   let[@inline always] to_any : type a. a t -> any = fun v -> Any v
 
+  type 'b f = { f : 'a. 'a t -> 'b } [@@unboxed]
+
+  let[@inline always] map_any : 'a f -> any -> 'a = fun f (Any v) -> f.f v
+
   let[@inline always] handle (type a b) (v : a t) ~(data : data t -> b) ~(typeval : typeval t -> b) : b =
     match v with
     | ( VUnit
@@ -61,8 +71,28 @@ module Make (Atom_cell : Utils.Comparable.S1) = struct
       | VTypeFun _
       | VTypeRecord _
       | VTypeRefine _) as x -> typeval x
+
+  type match_result =
+    | Match
+    | Match_bindings of env
+    | No_match
+
+  let matches (type a) (v : a t) (p : Pattern.t) : match_result =
+    match p, v with
+    | _, VGenPoly _ -> No_match (* generated polymorphic values cannot be matched on *)
+    | PAny, _ -> Match
+    | PVariable id, v -> Match_bindings (Env.singleton id (to_any v))
+    | PVariant { label = pattern_label ; payload_id },
+      VVariant { label = subject_label ; payload } ->
+        if Labels.Variant.equal pattern_label subject_label
+        then Match_bindings (Env.singleton payload_id payload)
+        else No_match
+    | _ -> No_match
 end
 
+(*
+  Ints and bools have only a concrete component.
+*)
 module Concrete = Make (Utils.Identity)
 
 include Concrete
