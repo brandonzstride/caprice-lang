@@ -21,7 +21,7 @@ module Make (Atom_cell : Utils.Comparable.S1) = struct
     | VUnit : data t
     | VInt : int Atom_cell.t -> data t
     | VBool : bool Atom_cell.t -> data t
-    | VFunClosure : { var : Ident.t ; body : closure } -> data t
+    | VFunClosure : { param : Ident.t ; body : closure } -> data t
     | VVariant : any Variant.t -> data t
     | VRecord : any Record.t -> data t
     | VFunFix : { fvar : Ident.t ; param : Ident.t ; closure : closure } -> data t (* no mutual recursion yet *)

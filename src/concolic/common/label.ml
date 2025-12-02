@@ -1,13 +1,17 @@
 
 module T = struct
-  type t = Label of Lang.Ident.t [@@unboxed]
+  type t =
+    | Check
+    | Eval
+    | Left
+    | Right
+    | Label of Lang.Ident.t
     [@@deriving eq, ord]
 
-  let check = Label (Ident "Check")
-  let eval = Label (Ident "Eval")
-
-  let left = Label (Ident "Left")
-  let right = Label (Ident "Right")
+  let check = Check
+  let eval = Eval
+  let left = Left
+  let right = Right
 end
 
 include T

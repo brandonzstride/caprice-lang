@@ -1,5 +1,7 @@
 
 module Make (K : Smt.Symbol.KEY) = struct
   module FSet = Smt.Formula.Set.Make (K)
-  type t = { formula_set : FSet.t }
+  type t =
+    { formulas : FSet.t
+    ; labels : K.t Timed_label.t list }
 end
