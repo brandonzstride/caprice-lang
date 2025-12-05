@@ -8,6 +8,7 @@
   lang
   smt
   overlays
+  interp_common
   ; external
   psq
  )

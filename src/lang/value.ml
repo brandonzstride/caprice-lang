@@ -7,8 +7,8 @@ open Features
   symbolic components.
 *)
 module Make (Atom_cell : Utils.Comparable.S1) = struct
-  type data
-  type typeval
+  type data = private | [@@deriving eq, ord]
+  type typeval = private | [@@deriving eq, ord]
 
   (*
     Data values and type values are all the same type constructor
@@ -46,6 +46,8 @@ module Make (Atom_cell : Utils.Comparable.S1) = struct
   and env = any Env.t
 
   and any = Any : 'a t -> any [@@unboxed]
+
+  module Env = Env.Make (struct type t = any end)
 
   let[@inline always] to_any : type a. a t -> any = fun v -> Any v
 

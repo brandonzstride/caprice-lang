@@ -5,6 +5,7 @@
  (libraries
   ; internal
   lang
+  smt
  )
  (synopsis "Interpreter utilities for Caprice")
  (inline_tests)

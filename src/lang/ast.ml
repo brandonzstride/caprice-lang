@@ -42,11 +42,15 @@ type t =
   | ETypeMu of { var : Ident.t ; body : t }
   | ETypeVariant of t Variant.t list
   (* | ETypeSingle *)
+  [@@deriving eq, ord]
 
 and typed_var = { var : Ident.t ; tau : t }
+  [@@deriving eq, ord]
 
 and 'a let_expr = { var : 'a ; defn : t ; body : t }
+  [@@deriving eq, ord]
 
 and statement =
   | SUntyped of { var : Ident.t ; defn : t }
   | STyped of { var : Ident.t ; tau : t ; defn : t }
+  [@@deriving eq, ord]
