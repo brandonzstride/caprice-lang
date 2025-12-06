@@ -53,3 +53,8 @@ let push_branch (formula : (bool, k) Smt.Formula.t) : unit m =
   if Smt.Formula.is_const formula
   then return ()
   else modify (fun s -> { s with path = Path.cons_formula formula s.path })
+
+let run (x : 'a m) : Err.t * k Path.t =
+  match run x State.empty Env.empty with
+  | Ok _, state, _ -> Done, state.path
+  | Error e, state, _ -> e, state.path
