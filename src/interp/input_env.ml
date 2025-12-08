@@ -7,6 +7,10 @@ module Make (K : Smt.Symbol.KEY) = struct
       | KBool : K.t -> bool t
       | KInt : K.t -> int t
       | KLabel : K.t -> Label.t t
+
+    let make_bool k = KBool k
+    let make_int k = KInt k
+    let make_label k = KLabel k
   end
 
   module KMap  = Baby.H.Map.Make (K)

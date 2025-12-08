@@ -15,7 +15,7 @@ end
 
 module Err = struct
   type t = 
-    | Refutation of Cvalue.dval * Cvalue.tval
+    | Refutation of Cvalue.any * Cvalue.tval
     | Confirmation
     | Mismatch of string
     | Assert_false
@@ -37,8 +37,9 @@ include Effects.Make (State) (Cvalue.Env) (Err)
 let vanish : 'a m =
   fail Vanish
 
-let push_label (label : Stepkey.t Keyed_label.With_alt.t) : unit m =
-  modify (fun s -> { s with path = Path.cons_label label s.path })
+let push_label (label : Label.With_alt.t) : unit m =
+  let* step = step in
+  modify (fun s -> { s with path = Path.cons_label { key = Stepkey step ; label } s.path })
 
 let push_formula ?(allow_flip : bool = true) (formula : (bool, Stepkey.t) Smt.Formula.t) : unit m =
   if Smt.Formula.is_const formula
@@ -50,7 +51,9 @@ let push_formula ?(allow_flip : bool = true) (formula : (bool, Stepkey.t) Smt.Fo
 let log_input (key : 'a Ienv.Key.t) (input : 'a) : unit m =
   modify (fun s -> { s with logged_inputs = Ienv.add key input s.logged_inputs })
 
-let read_and_log_input (key : 'a Ienv.Key.t) (input_env : Ienv.t) (default : 'a) : 'a m =
+let read_and_log_input (make_key : Stepkey.t -> 'a Ienv.Key.t) (input_env : Ienv.t) (default : 'a) : 'a m =
+  let* step = step in
+  let key = make_key (Stepkey step) in
   match Ienv.find key input_env with
   | Some i -> let* () = log_input key i in return i
   | None -> let* () = log_input key default in return default

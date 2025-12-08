@@ -8,8 +8,11 @@ module Variant = struct
   include T
 
   let to_ident (VariantLabel id) = id
+  let of_ident id = VariantLabel id
 
-  module Map = Baby.H.Map.Make (T)
+  module B = Baby.H.Make (T)
+  module Map = B.Map
+  module Set = B.Set
 end
 
 module Record = struct
@@ -21,6 +24,9 @@ module Record = struct
   include T
 
   let to_ident (RecordLabel id) = id
+  let of_ident id = RecordLabel id
 
-  module Map = Baby.H.Map.Make (T)
+  module B = Baby.H.Make (T)
+  module Map = B.Map
+  module Set = B.Set
 end
