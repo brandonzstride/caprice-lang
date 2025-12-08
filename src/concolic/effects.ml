@@ -15,7 +15,7 @@ end
 
 module Err = struct
   type t = 
-    | Refutation of Cvalue.data Cvalue.t * Cvalue.typeval Cvalue.t
+    | Refutation of Cvalue.dval * Cvalue.tval
     | Confirmation
     | Mismatch of string
     | Assert_false
@@ -40,10 +40,18 @@ let vanish : 'a m =
 let push_label (label : Stepkey.t Keyed_label.With_alt.t) : unit m =
   modify (fun s -> { s with path = Path.cons_label label s.path })
 
-let push_branch (formula : (bool, Stepkey.t) Smt.Formula.t) : unit m =
+let push_formula (formula : (bool, Stepkey.t) Smt.Formula.t) : unit m =
   if Smt.Formula.is_const formula
   then return ()
   else modify (fun s -> { s with path = Path.cons_formula formula s.path })
+
+let log_input (key : 'a Ienv.Key.t) (input : 'a) : unit m =
+  modify (fun s -> { s with logged_inputs = Ienv.add key input s.logged_inputs })
+
+let read_input (key : 'a Ienv.Key.t) (input_env : Ienv.t) (default : 'a) : 'a m =
+  match Ienv.find key input_env with
+  | Some i -> let* () = log_input key i in return i
+  | None -> let* () = log_input key default in return default
 
 let run (x : 'a m) : Err.t * Path.t =
   match run x State.empty Env.empty with

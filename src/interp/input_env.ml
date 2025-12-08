@@ -24,7 +24,11 @@ module Make (K : Smt.Symbol.KEY) = struct
     | KInt k -> find_and_bind Input.int_opt k m
     | KLabel k -> find_and_bind Input.label_opt k m
 
-  let add : K.t -> Input.t -> t -> t = KMap.add
+  let add (type a) (key : a Key.t) (input : a) (m : t) : t =
+    match key with
+    | KBool k -> KMap.add k (Input.IBool input) m
+    | KInt k -> KMap.add k (Input.IInt input) m
+    | KLabel k -> KMap.add k (Input.ILabel input) m
 
   (**
     [remove_greater max_key t] is the map [t] filtered to only have keys not

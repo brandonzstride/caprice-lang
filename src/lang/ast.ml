@@ -20,7 +20,7 @@ type t =
   | EAppl of { func : t ; arg : t }
   | EMatch of { subject : t ; patterns : (Pattern.t * t) list }
   | EProject of { record : t ; label : Labels.Record.t }
-  | ERecord of t Labels.Record.Map.t
+  | ERecord of t Record.t
   (* | EModule *)
   | ENot of t
   | EPick_i
@@ -35,7 +35,7 @@ type t =
   | ETypeTop
   | ETypeBottom
   | ETypeUnit
-  | ETypeRecord of t Labels.Record.Map.t
+  | ETypeRecord of t Record.t
   (* | ETypeModule *)
   | ETypeFun of (t, t) Funtype.t
   | ETypeRefine of (t, t) Refinement.t

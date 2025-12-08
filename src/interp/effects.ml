@@ -24,6 +24,8 @@ end) = struct
             )
     }
 
+  let ( let* ) = bind
+
   let[@inline always][@specialise] return (a : 'a) : ('a, 'e) t =
     { run = fun ~reject:_ ~accept state step _ -> accept a state step }
 

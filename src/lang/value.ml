@@ -21,7 +21,7 @@ module Make (Atom_cell : Utils.Comparable.S1) = struct
     | VUnit : data t
     | VInt : int Atom_cell.t -> data t
     | VBool : bool Atom_cell.t -> data t
-    | VFunClosure : { param : Ident.t ; body : closure } -> data t
+    | VFunClosure : { param : Ident.t ; closure : closure } -> data t
     | VVariant : any Variant.t -> data t
     | VRecord : any Record.t -> data t
     | VFunFix : { fvar : Ident.t ; param : Ident.t ; closure : closure } -> data t (* no mutual recursion yet *)
@@ -32,6 +32,7 @@ module Make (Atom_cell : Utils.Comparable.S1) = struct
     | VType : typeval t
     | VTypePoly : { id : int } -> typeval t
     | VTypeUnit : typeval t
+    | VTypeTop : typeval t
     | VTypeBottom : typeval t
     | VTypeInt : typeval t
     | VTypeBool : typeval t
@@ -48,6 +49,9 @@ module Make (Atom_cell : Utils.Comparable.S1) = struct
   and any = Any : 'a t -> any [@@unboxed]
 
   module Env = Env.Make (struct type t = any end)
+
+  type dval = data t
+  type tval = typeval t
 
   let[@inline always] to_any : type a. a t -> any = fun v -> Any v
 
@@ -69,6 +73,7 @@ module Make (Atom_cell : Utils.Comparable.S1) = struct
     | ( VType
       | VTypePoly _
       | VTypeUnit 
+      | VTypeTop
       | VTypeBottom
       | VTypeInt
       | VTypeBool
@@ -78,6 +83,9 @@ module Make (Atom_cell : Utils.Comparable.S1) = struct
       | VTypeVariant _
       | VTypeRefine _) as x -> typeval x
 
+  let[@inline always] handle_any (type a) (v : any) ~(data : data t -> a) ~(typeval : typeval t -> a) : a =
+    map_any { f = handle ~data ~typeval } v
+
   module Match_result = struct
     type t =
       | Match
@@ -85,7 +93,7 @@ module Make (Atom_cell : Utils.Comparable.S1) = struct
       | No_match
   end
 
-  let rec matches : type a. a t -> Pattern.t -> Match_result.t = fun v p ->
+  let rec matches : type a. Pattern.t -> a t -> Match_result.t = fun p v ->
     match p, v with
     | _, VGenPoly _ -> No_match (* generated polymorphic values cannot be matched on *)
     | PAny, _ -> Match
@@ -93,9 +101,15 @@ module Make (Atom_cell : Utils.Comparable.S1) = struct
     | PVariant { label = pattern_label ; payload = payload_pattern },
       VVariant { label = subject_label ; payload = Any v } ->
         if Labels.Variant.equal pattern_label subject_label
-        then matches v payload_pattern
+        then matches payload_pattern v
         else No_match
     | _ -> No_match
+
+  let matches_any : Pattern.t -> any -> Match_result.t = fun pat a ->
+    let f (type a) (v : a t) : Match_result.t =
+      matches pat v
+    in
+    map_any { f } a
 end
 
 (*
