@@ -15,6 +15,7 @@
 %token OPEN_PAREN
 %token CLOSE_PAREN
 %token SEMICOLON
+%token COMMA
 %token BACKTICK
 %token EQUALS
 %token DOT
@@ -79,6 +80,7 @@
 %nonassoc prec_let prec_fun   /* Let-ins and functions */
 %nonassoc prec_if             /* Conditionals */
 %nonassoc prec_mu             /* mu types */
+%left COMMA                   /* tuples */
 %left PIPELINE                /* |> */
 %right DOUBLE_PIPE            /* || for boolean or */
 %right DOUBLE_AMPERSAND       /* && for boolean and */
@@ -134,6 +136,8 @@ expr:
     { $1 }
   | type_expr
     { $1 }
+  | expr COMMA expr
+    { ETuple ($1, $3) }
   | IF expr THEN expr ELSE expr %prec prec_if
     { EIf { if_ = $2 ; then_ = $4 ; else_ = $6 } }
   | FUNCTION l_ident ARROW expr %prec prec_fun 

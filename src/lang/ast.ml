@@ -21,6 +21,7 @@ type t =
   | EMatch of { subject : t ; patterns : (Pattern.t * t) list }
   | EProject of { record : t ; label : Labels.Record.t }
   | ERecord of t Record.t
+  | ETuple of t * t
   (* | EModule *)
   | ENot of t
   | EPick_i

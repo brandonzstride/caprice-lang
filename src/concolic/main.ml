@@ -86,6 +86,10 @@ let eval
     | EVariant { label ; payload } ->
       let* v = eval payload in
       return_any (VVariant { label ; payload = v })
+    | ETuple (e1, e2) ->
+      let* v1 = eval e1 in
+      let* v2 = eval e2 in
+      return_any (VTuple (v1, v2))
     (* symbolic values and branching *)
     | EPick_i ->
       let* step = step in

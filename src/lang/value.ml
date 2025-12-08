@@ -97,7 +97,6 @@ module Make (Atom_cell : Utils.Comparable.S1) = struct
       | No_match
   end
 
-  (* TODO: add tuple *)
   let rec matches : type a. Pattern.t -> a t -> Match_result.t = fun p v ->
     match p, v with
     | _, VGenPoly _ -> No_match (* generated polymorphic values cannot be matched on *)
@@ -108,6 +107,17 @@ module Make (Atom_cell : Utils.Comparable.S1) = struct
         if Labels.Variant.equal pattern_label subject_label
         then matches payload_pattern v
         else No_match
+    | PTuple (p1, p2), VTuple (Any v1, Any v2) ->
+      begin match matches p1 v1 with
+      | Match -> matches p2 v2
+      | Match_bindings e1 ->
+        begin match matches p2 v2 with
+        | Match -> Match_bindings e1
+        | Match_bindings e2 -> Match_bindings (Env.extend e1 e2)
+        | No_match -> No_match
+        end
+      | No_match -> No_match
+      end
     | _ -> No_match
 
   let matches_any : Pattern.t -> any -> Match_result.t = fun pat a ->

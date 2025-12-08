@@ -29,6 +29,7 @@ rule token = parse
 | "("                  { OPEN_PAREN }
 | ")"                  { CLOSE_PAREN }
 | ";"                  { SEMICOLON }
+| ","                  { COMMA }
 | "`"                  { BACKTICK }
 | "="                  { EQUALS }
 | "."                  { DOT }
