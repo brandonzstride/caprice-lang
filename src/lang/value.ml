@@ -24,6 +24,7 @@ module Make (Atom_cell : Utils.Comparable.S1) = struct
     | VFunClosure : { param : Ident.t ; closure : closure } -> data t
     | VVariant : any Variant.t -> data t
     | VRecord : any Record.t -> data t
+    | VTuple : any * any -> data t
     | VFunFix : { fvar : Ident.t ; param : Ident.t ; closure : closure } -> data t (* no mutual recursion yet *)
     (* generated values *)
     | VGenFun : (typeval t, typeval t) Funtype.t -> data t
@@ -41,6 +42,7 @@ module Make (Atom_cell : Utils.Comparable.S1) = struct
     | VTypeRecord : typeval t Record.t -> typeval t
     | VTypeVariant : typeval t Labels.Variant.Map.t -> typeval t
     | VTypeRefine : (typeval t, closure) Refinement.t -> typeval t
+    | VTypeTuple : typeval t * typeval t -> typeval t
 
   and closure = { body : Ast.t ; env : env }
 
@@ -67,6 +69,7 @@ module Make (Atom_cell : Utils.Comparable.S1) = struct
       | VFunClosure _
       | VVariant _
       | VRecord _
+      | VTuple _
       | VFunFix _
       | VGenFun _
       | VGenPoly _) as x -> data x
@@ -81,7 +84,8 @@ module Make (Atom_cell : Utils.Comparable.S1) = struct
       | VTypeFun _
       | VTypeRecord _
       | VTypeVariant _
-      | VTypeRefine _) as x -> typeval x
+      | VTypeRefine _
+      | VTypeTuple _) as x -> typeval x
 
   let[@inline always] handle_any (type a) (v : any) ~(data : data t -> a) ~(typeval : typeval t -> a) : a =
     map_any { f = handle ~data ~typeval } v
@@ -93,6 +97,7 @@ module Make (Atom_cell : Utils.Comparable.S1) = struct
       | No_match
   end
 
+  (* TODO: add tuple *)
   let rec matches : type a. Pattern.t -> a t -> Match_result.t = fun p v ->
     match p, v with
     | _, VGenPoly _ -> No_match (* generated polymorphic values cannot be matched on *)
@@ -120,6 +125,7 @@ module Make (Atom_cell : Utils.Comparable.S1) = struct
     | VFunClosure, VFunClosure
     | VVariant, VVariant
     | VRecord, VRecord
+    | VTuple, VTuple
     | VFunFix, VFunFix
     (* generated values *)
     | VGenFun, VGenFun
@@ -136,7 +142,8 @@ module Make (Atom_cell : Utils.Comparable.S1) = struct
     | VTypeFun, VTypeFun
     | VTypeRecord, VTypeRecord
     | VTypeVariant, VTypeVariant
-    | VTypeRefine, VTypeRefine -> failwith "need to do" *)
+    | VTypeRefine, VTypeRefine
+    | VTypeTuple, VTypeTuple -> failwith "need to do" *)
 end
 
 (*

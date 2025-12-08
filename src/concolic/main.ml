@@ -38,6 +38,8 @@ let eval
     | ELet { var ; defn ; body } ->
       let* v = eval defn in
       local (Env.set var v) (eval body)
+    | ELetRec _ ->
+      failwith "TODO"
     | EAppl { func ; arg } ->
       let* v_func = eval func in
       begin match v_func with
@@ -95,6 +97,48 @@ let eval
       | Any VBool (b, s) -> return_any (VBool (not b, Smt.Formula.not_ s))
       | _ -> fail (Mismatch "Non-bool `not`.")
       end
+    | EBinop { left ; binop ; right } ->
+      let* vleft = eval left in
+      let* vright = eval right in
+      let fail_binop = fail (Mismatch "Bad binop") in
+      let value_binop a b =
+        let k f s1 s2 op =
+          return_any @@ f (Smt.Formula.binop op s1 s2)
+        in
+        let v_int n s = VInt (n, s) in
+        let v_bool n s = VBool (n, s) in
+        match binop, a, b with
+        | BPlus        , VInt (n1, e1)  , VInt (n2, e2)              -> k (v_int (n1 + n2)) e1 e2 Plus
+        | BMinus       , VInt (n1, e1)  , VInt (n2, e2)              -> k (v_int (n1 - n2)) e1 e2 Minus
+        | BTimes       , VInt (n1, e1)  , VInt (n2, e2)              -> k (v_int (n1 * n2)) e1 e2 Times
+        | BDivide      , VInt (n1, e1)  , VInt (n2, e2) when n2 <> 0 -> k (v_int (n1 / n2)) e1 e2 Divide
+        | BModulus     , VInt (n1, e1)  , VInt (n2, e2) when n2 <> 0 -> k (v_int (n1 mod n2)) e1 e2 Modulus
+        | BEqual       , VInt (n1, e1)  , VInt (n2, e2)              -> k (v_bool (n1 = n2)) e1 e2 Equal
+        | BEqual       , VBool (b1, e1) , VBool (b2, e2)             -> k (v_bool (b1 = b2)) e1 e2 Equal
+        | BNeq         , VInt (n1, e1)  , VInt (n2, e2)              -> k (v_bool (n1 <> n2)) e1 e2 Not_equal
+        | BLessThan    , VInt (n1, e1)  , VInt (n2, e2)              -> k (v_bool (n1 < n2)) e1 e2 Less_than
+        | BLeq         , VInt (n1, e1)  , VInt (n2, e2)              -> k (v_bool (n1 <= n2)) e1 e2 Less_than_eq
+        | BGreaterThan , VInt (n1, e1)  , VInt (n2, e2)              -> k (v_bool (n1 > n2)) e1 e2 Greater_than
+        | BGeq         , VInt (n1, e1)  , VInt (n2, e2)              -> k (v_bool (n1 >= n2)) e1 e2 Greater_than_eq
+        | BOr          , VBool (b1, e1) , VBool (b2, e2)             -> k (v_bool (b1 || b2)) e1 e2 Or
+        | BAnd         , VBool (b1, e1) , VBool (b2, e2) -> return_any @@ VBool (b1 && b2, Smt.Formula.and_ [ e1 ; e2 ])
+        | _ -> fail_binop
+      in
+      handle_any vleft
+        ~data:(fun data_left ->
+          handle_any vright
+            ~data:(fun data_right -> value_binop data_left data_right)
+            ~typeval:(fun _ -> fail_binop)
+        )
+        ~typeval:(fun type_left ->
+          handle_any vright
+            ~data:(fun _ -> fail_binop)
+            ~typeval:(fun type_right ->
+              match binop with
+              | BTimes -> return_any (VTypeTuple (type_left, type_right))
+              | _ -> fail_binop
+            )
+        )
     | EIf { if_ ; then_ ; else_ } ->
       let* v = eval if_ in
       begin match v with
@@ -142,6 +186,8 @@ let eval
         local (Env.set var v) (eval body)
       | _ -> fail (Mismatch "Bad input env")
       end
+    | ELetRecTyped _ ->
+      failwith "TODO"
     (* types *)
     | EType -> return_any VType
     | ETypeInt -> return_any VTypeInt
@@ -178,7 +224,6 @@ let eval
         ) (return Labels.Variant.Map.empty) ls
       in
       return_any (VTypeVariant variant_bodies)
-    | _ -> failwith ""
 
   and eval_type (expr : Ast.t) : Cvalue.tval m =
     let* v = eval expr in
@@ -301,6 +346,21 @@ let eval
         end 
       | _ -> fail (Mismatch "Bad input env")
       end
+    | VTypeTuple (t1, t2) ->
+      begin match v with
+      | Any VTuple (v1, v2) ->
+        let* l = read_and_log_input make_label input_env Left in
+        begin match l with
+        | Left ->
+            let* () = push_label Interp.Label.With_alt.left in
+            check v1 t1
+        | Right ->
+            let* () = push_label Interp.Label.With_alt.right in
+            check v2 t2
+        | _ -> fail (Mismatch "Bad input env")
+        end
+      | _ -> refute
+      end
 
   and gen (t : Cvalue.tval) : Cvalue.any m =
     let* () = incr_step ~max_step in
@@ -371,6 +431,10 @@ let eval
     | VTypeMu { var ; closure = { body ; env } } ->
       let* t_body = local (fun _ -> Env.set var (Any t) env) (eval_type body) in
       gen t_body
+    | VTypeTuple (t1, t2) ->
+      let* v1 = gen t1 in
+      let* v2 = gen t2 in
+      return_any (VTuple (v1, v2))
   in
 
   run (eval expr)
