@@ -85,7 +85,10 @@ let eval
       let* v = eval payload in
       return_any (VVariant { label ; payload = v })
     (* symbolic values and branching *)
-    | EPick_i -> failwith "Unimplemented; TODO"
+    | EPick_i ->
+      let* step = step in
+      let* i = read_and_log_input make_int input_env 0 in
+      return_any (VInt (i, Stepkey.int_symbol step))
     | ENot e ->
       let* v = eval e in
       begin match v with
@@ -213,7 +216,29 @@ let eval
     | VType ->
       (* TODO: consider a wellformedness check *)
       handle_any v ~data:(fun _ -> refute) ~typeval:(fun _ -> confirm)
-    | VTypeFun _ -> failwith ""
+    | VTypeFun { domain ; codomain } ->
+      begin match v with
+      | Any VFunClosure { param ; closure = { body ; env } } ->
+        let* genned = gen domain in
+        let* res = local (fun _ -> Env.set param genned env) (eval body) in
+        check res codomain
+      | Any VGenFun { domain = domain' ; codomain = codomain' } ->
+        let* l = read_and_log_input make_label input_env Left in
+        begin match l with
+        | Left ->
+          let* () = push_label Interp.Label.With_alt.left in
+          if domain == domain' || domain = domain' then confirm else
+          let* genned = gen domain in
+          check genned domain'
+        | Right ->
+          let* () = push_label Interp.Label.With_alt.right in
+          if codomain == codomain' || codomain = codomain' then confirm else
+          let* genned = gen codomain' in
+          check genned codomain
+        | _ -> fail (Mismatch "Bad input env")
+        end
+      | _ -> refute
+      end
     | VTypeVariant variant_t ->
       begin match v with
       | Any VVariant { label ; payload } ->
@@ -252,7 +277,9 @@ let eval
         else refute
       | _ -> refute
       end
-    | VTypeMu _ -> failwith ""
+    | VTypeMu { var ; closure = { body ; env } } ->
+      let* t_body = local (fun _ -> Env.set var (Any t) env) (eval_type body) in
+      check v t_body
     | VTypeRefine { var ; tau ; predicate = { body ; env } } ->
       let* l = read_and_log_input make_label input_env Check in
       begin match l with
@@ -274,8 +301,6 @@ let eval
         end 
       | _ -> fail (Mismatch "Bad input env")
       end
-
-
 
   and gen (t : Cvalue.tval) : Cvalue.any m =
     let* () = incr_step ~max_step in
@@ -343,9 +368,9 @@ let eval
           fail Vanish
       | _ -> fail (Mismatch "Non-bool predicate")
       end 
-    | VTypeMu { var ; closure = { body ; env } } as v ->
-      let* t = local (fun _ -> Env.set var (Any v) env) (eval_type body) in
-      gen t
+    | VTypeMu { var ; closure = { body ; env } } ->
+      let* t_body = local (fun _ -> Env.set var (Any t) env) (eval_type body) in
+      gen t_body
   in
 
   run (eval expr)
