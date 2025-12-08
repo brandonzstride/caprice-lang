@@ -3,21 +3,19 @@ open Lang
 open Interp
 open Common
 
-(* TODO *)
-module Input_env = struct type t = I let empty = I end
-
 type k = Step.t
 
 module V = Cvalue.Make (Step)
+module Ienv = Input_env.Make (Step)
 
 module State = struct
   type t = 
     { path : k Path.t (* we will cons to the path instead of union a log *)
-    ; logged_inputs : Input_env.t }
+    ; logged_inputs : Ienv.t }
 
   let empty : t =
     { path = Path.empty
-    ; logged_inputs = Input_env.empty }
+    ; logged_inputs = Ienv.empty }
 end
 
 module Env = V.Env
@@ -46,7 +44,7 @@ include Effects.Make (State) (Env) (Err)
 let vanish : 'a m =
   fail Vanish
 
-let push_label (label : k Timed_label.With_alt.t) : unit m =
+let push_label (label : k Keyed_label.With_alt.t) : unit m =
   modify (fun s -> { s with path = Path.cons_label label s.path })
 
 let push_branch (formula : (bool, k) Smt.Formula.t) : unit m =

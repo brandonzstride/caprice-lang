@@ -4,6 +4,12 @@ module type KEY = sig
   val uid : t -> int
 end
 
+module Make_comparable_key (K : KEY) = struct
+  include K
+  let compare a b = Int.compare (uid a) (uid b)
+  let equal a b = Int.equal (uid a) (uid b)
+end
+
 module X = Utils.Separate.Comparable.Make (Int)
 
 module T = struct

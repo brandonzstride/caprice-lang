@@ -6,7 +6,7 @@ module Make (K : Smt.Symbol.KEY) = struct
 
   type t =
     { formulas : FSet.t
-    ; labels : K.t Interp.Timed_label.t list
+    ; labels : K.t Interp.Keyed_label.t list
     ; size : int
     ; id : int }
 
