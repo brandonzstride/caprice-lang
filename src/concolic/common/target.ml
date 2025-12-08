@@ -1,12 +1,14 @@
 
 module Make (K : Smt.Symbol.KEY) = struct
+  module K = Smt.Symbol.Make_comparable_key (K)
   module FSet = Smt.Formula.Set.Make (K)
+  module KMap = Baby.H.Map.Make (K)
   
   let id_counter = Utils.Counter.create ()
 
   type t =
     { formulas : FSet.t
-    ; labels : K.t Interp.Keyed_label.t list
+    ; labels : Interp.Label.t KMap.t
     ; size : int
     ; id : int }
 
@@ -14,7 +16,7 @@ module Make (K : Smt.Symbol.KEY) = struct
 
   let empty : t = 
     { formulas = FSet.empty
-    ; labels = []
+    ; labels = KMap.empty
     ; size = 0
     ; id = initial_id }
 
