@@ -14,7 +14,7 @@ let eval
   (expr : Ast.t)
   (input_env : Ienv.t)
   ~(max_step : Interp.Step.t)
-  : Eval_result.t * Path.t
+  : Err.t * Path.t
   =
   let rec eval (expr : Ast.t) : Cvalue.any m =
     let* () = incr_step ~max_step in
@@ -29,11 +29,11 @@ let eval
       return_any (VFunClosure { param ; closure = { body ; env }})
     | ERecord e_record_body -> 
       let* record_body =
-        Labels.Record.Map.fold (fun l e acc_m ->
+        Features.Record.fold (fun l e acc_m ->
           let* acc = acc_m in
           let* v = eval e in
           return (Labels.Record.Map.add l v acc)
-        ) e_record_body (return Features.Record.empty)
+        ) (return Features.Record.empty) e_record_body
       in
       return_any (VRecord record_body)
     | ELet { var ; defn ; body } ->
@@ -48,7 +48,7 @@ let eval
       | Any VGenFun { domain ; codomain } ->
         let* v_arg = eval arg in
         let* step = step in
-        let* input = read_input (KLabel (Stepkey step)) input_env Eval in
+        let* input = read_and_log_input (KLabel (Stepkey step)) input_env Eval in
         begin match input with
         | Check ->
           let* () = push_label { key = Stepkey step ; label = Interp.Label.With_alt.check } in
@@ -120,7 +120,7 @@ let eval
       begin match v with
       | Any VBool (b, s) ->
         if b then
-          let* () = push_formula s in (* TODO: make a note to not push other direction as a target *)
+          let* () = push_formula ~allow_flip:false s in
           return_any VUnit
         else
           let* () = push_formula (Smt.Formula.not_ s) in
@@ -131,7 +131,7 @@ let eval
       let* tval = eval_type tau in
       let* v = eval defn in
       let* step = step in
-      let* input = read_input (KLabel (Stepkey step)) input_env Check in
+      let* input = read_and_log_input (KLabel (Stepkey step)) input_env Check in
       begin match input with
       | Check ->
         let* () = push_label { key = Stepkey step ; label = Interp.Label.With_alt.check } in
@@ -151,11 +151,11 @@ let eval
     | ETypeUnit -> return_any VTypeUnit
     | ETypeRecord t_record_body -> 
       let* record_body =
-        Labels.Record.Map.fold (fun l e acc_m ->
+        Features.Record.fold (fun l e acc_m ->
           let* acc = acc_m in
           let* tval = eval_type e in
           return (Labels.Record.Map.add l tval acc)
-        ) t_record_body (return Features.Record.empty)
+        ) (return Features.Record.empty) t_record_body
       in
       return_any (VTypeRecord record_body)
     | ETypeFun { domain ; codomain } ->
@@ -174,8 +174,8 @@ let eval
         List.fold_left (fun acc_m { Features.Variant.label ; payload } ->
           let* acc = acc_m in
           let* tval = eval_type payload in
-          return ({ Features.Variant.label ; payload = tval } :: acc)
-        ) (return []) ls
+          return (Labels.Variant.Map.add label tval acc)
+        ) (return Labels.Variant.Map.empty) ls
       in
       return_any (VTypeVariant variant_bodies)
     | _ -> failwith ""
@@ -192,8 +192,74 @@ let eval
 
   and gen (t : Cvalue.tval) : Cvalue.any m =
     let* () = incr_step ~max_step in
-    failwith ""
-
+    match t with
+    | VTypeUnit -> return_any VUnit
+    | VTypeInt ->
+      let* step = step in
+      let* i = read_and_log_input (KInt (Stepkey step)) input_env 0 in
+      return_any (VInt (i, Stepkey.int_symbol step))
+    | VTypeBool ->
+      let* step = step in
+      let* b = read_and_log_input (KBool (Stepkey step)) input_env false in
+      return_any (VBool (b, Stepkey.bool_symbol step))
+    | VTypeFun tfun ->
+      return_any (VGenFun tfun)
+    | VType ->
+      let* Step id = step in (* will use step for a fresh integer *)
+      return_any (VTypePoly { id })
+    | VTypePoly { id } ->
+      let* Step nonce = step in (* will use step for a fresh nonce *)
+      return_any (VGenPoly { id ; nonce })
+    | VTypeTop -> failwith "Unimplemented top gen"
+    | VTypeBottom -> fail Vanish
+    | VTypeRecord record_t ->
+      let* genned_body =
+        Features.Record.fold (fun l t acc_m ->
+          let* acc = acc_m in
+          let* v = gen t in
+          return (Labels.Record.Map.add l v acc)
+        ) (return Features.Record.empty) record_t
+      in
+      return_any (VRecord genned_body)
+    | VTypeVariant variant_t ->
+      let* step = step in
+      let* l =
+        read_and_log_input (KLabel (Stepkey step)) input_env
+          (* TODO: choose nonrecursive variant constructor by default instead of an arbitrary one *)
+          (Interp.Label.of_variant_label (fst @@ Labels.Variant.Map.choose variant_t))
+      in
+      begin match l with
+      | Label id ->
+        begin match Labels.Variant.Map.find_opt (VariantLabel id) variant_t with
+        | Some t ->
+          let* () = 
+            push_label { key = Stepkey step ; label = { main = Label id ; alts =
+              Labels.Variant.Map.remove (VariantLabel id) variant_t
+              |> Labels.Variant.Map.to_list
+              |> List.map (fun (Labels.Variant.VariantLabel l_id, _) -> Interp.Label.Label l_id) } }
+          in
+          let* v = gen t in
+          return_any (VVariant { label = VariantLabel id ; payload = v })
+        | None -> fail (Mismatch "Missing variant label to generate")
+        end
+      | _ -> fail (Mismatch "Bad input env")
+      end
+    | VTypeRefine { var ; tau ; predicate = { body ; env } } ->
+      let* v = gen tau in
+      let* p = local (fun _ -> Env.set var v env) (eval body) in
+      begin match p with
+      | Any VBool (b, s) ->
+        if b then 
+          let* () = push_formula ~allow_flip:false s in
+          return v
+        else 
+          let* () = push_formula (Smt.Formula.not_ s) in
+          fail Vanish
+      | _ -> fail (Mismatch "Non-bool predicate")
+      end 
+    | VTypeMu { var ; closure = { body ; env } } as v ->
+      let* t = local (fun _ -> Env.set var (Any v) env) (eval_type body) in
+      gen t
   in
 
-  failwith ""
+  run (eval expr)

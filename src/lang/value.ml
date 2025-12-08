@@ -7,8 +7,8 @@ open Features
   symbolic components.
 *)
 module Make (Atom_cell : Utils.Comparable.S1) = struct
-  type data = private | [@@deriving eq, ord]
-  type typeval = private | [@@deriving eq, ord]
+  type data = private Data [@@deriving eq, ord]
+  type typeval = private Typeval [@@deriving eq, ord]
 
   (*
     Data values and type values are all the same type constructor
@@ -39,7 +39,7 @@ module Make (Atom_cell : Utils.Comparable.S1) = struct
     | VTypeMu : { var : Ident.t ; closure : closure } -> typeval t
     | VTypeFun : (typeval t, typeval t) Funtype.t -> typeval t
     | VTypeRecord : typeval t Record.t -> typeval t
-    | VTypeVariant : typeval t Variant.t list -> typeval t
+    | VTypeVariant : typeval t Labels.Variant.Map.t -> typeval t
     | VTypeRefine : (typeval t, closure) Refinement.t -> typeval t
 
   and closure = { body : Ast.t ; env : env }

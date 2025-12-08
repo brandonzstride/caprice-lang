@@ -12,6 +12,12 @@ module T = struct
   let eval = Eval
   let left = Left
   let right = Right
+
+  let of_variant_label vlabel =
+    Label (Lang.Labels.Variant.to_ident vlabel)
+
+  let of_record_label rlabel =
+    Label (Lang.Labels.Record.to_ident rlabel)
 end
 
 include T

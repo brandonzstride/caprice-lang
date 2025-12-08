@@ -2,6 +2,7 @@
 (* Path units *)
 type punit =
   | Formula of (bool, Stepkey.t) Smt.Formula.t
+  | Nonflipping of (bool, Stepkey.t) Smt.Formula.t
   | Label of Stepkey.t Interp.Keyed_label.With_alt.t
 
 type t = punit list
@@ -13,3 +14,6 @@ let cons_label (l : Stepkey.t Interp.Keyed_label.With_alt.t) (t : t) : t =
 
 let cons_formula (e : (bool, Stepkey.t) Smt.Formula.t) (t : t) : t =
   Formula e :: t
+
+let cons_nonflipping (e : (bool, Stepkey.t) Smt.Formula.t) (t : t) : t =
+  Nonflipping e :: t

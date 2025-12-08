@@ -1,6 +1,6 @@
 
 module T = struct
-  type t = Ident of string
+  type t = Ident of string [@@unboxed]
     [@@deriving eq, ord]
 end
 
