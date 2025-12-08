@@ -1,7 +1,7 @@
 
 (library
- (name interp_common)
- (public_name caprice.interp_common)
+ (name interp)
+ (public_name caprice.interp)
  (libraries
   ; internal
   lang
