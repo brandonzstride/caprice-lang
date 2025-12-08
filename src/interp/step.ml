@@ -1,17 +1,12 @@
 
-module T = struct
-  type t = Step of int [@@unboxed]
-    [@@deriving eq, ord]
+type t = Step of int [@@unboxed]
+  [@@deriving eq, ord]
 
-  let zero = Step 0
-  let[@inline always] next (Step i : t) : t =
-    Step (i + 1)
+let zero = Step 0
 
-  let (>) (Step a) (Step b) = a > b
+let[@inline always] next (Step i : t) : t =
+  Step (i + 1)
 
-  let uid (Step i) = i
-end
+let (>) (Step a) (Step b) = a > b
 
-include T
-
-module Symb = Smt.Symbol.Make (T)
+let uid (Step i) = i

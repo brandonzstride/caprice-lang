@@ -27,9 +27,9 @@ end) = struct
   let[@inline always][@specialise] return (a : 'a) : ('a, 'e) t =
     { run = fun ~reject:_ ~accept state step _ -> accept a state step }
 
-  type 'a m = ('a, Err.t) t (* m is for "monad" *)
+  type 'a m = ('a, Err.t) t (* m is for "monad": it includes an error monad *)
 
-  type 'a s = ('a, empty_err) t (* s for "safe" *)
+  type 'a s = ('a, empty_err) t (* s for "safe": it cannot error *)
 
   let make_unsafe (x : 'a s) : ('a, 'e) t =
     { run = fun ~reject:_ ~accept s b r ->
