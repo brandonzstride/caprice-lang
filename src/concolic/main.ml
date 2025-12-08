@@ -28,11 +28,11 @@ let eval
       return_any (VFunClosure { param ; closure = { body ; env }})
     | ERecord e_record_body -> 
       let* record_body =
-        Features.Record.fold (fun l e acc_m ->
+        Record.fold (fun l e acc_m ->
           let* acc = acc_m in
           let* v = eval e in
           return (Labels.Record.Map.add l v acc)
-        ) (return Features.Record.empty) e_record_body
+        ) (return Record.empty) e_record_body
       in
       return_any (VRecord record_body)
     | ELet { var ; defn ; body } ->
@@ -201,11 +201,11 @@ let eval
     | ETypeUnit -> return_any VTypeUnit
     | ETypeRecord t_record_body -> 
       let* record_body =
-        Features.Record.fold (fun l e acc_m ->
+        Record.fold (fun l e acc_m ->
           let* acc = acc_m in
           let* tval = eval_type e in
           return (Labels.Record.Map.add l tval acc)
-        ) (return Features.Record.empty) t_record_body
+        ) (return Record.empty) t_record_body
       in
       return_any (VTypeRecord record_body)
     | ETypeFun { domain ; codomain } ->
@@ -221,7 +221,7 @@ let eval
       return_any (VTypeMu { var ; closure = { body ; env } })
     | ETypeVariant ls ->
       let* variant_bodies =
-        List.fold_left (fun acc_m { Features.Variant.label ; payload } ->
+        List.fold_left (fun acc_m { Variant.label ; payload } ->
           let* acc = acc_m in
           let* tval = eval_type payload in
           return (Labels.Variant.Map.add label tval acc)
@@ -300,8 +300,8 @@ let eval
     | VTypeRecord record_t ->
       begin match v with
       | Any VRecord record_v ->
-        let t_labels = Features.Record.label_set record_t in
-        let v_labels = Features.Record.label_set record_v in
+        let t_labels = Record.label_set record_t in
+        let v_labels = Record.label_set record_v in
         if Labels.Record.Set.subset t_labels v_labels
         then
           let* l =
@@ -390,11 +390,11 @@ let eval
     | VTypeBottom -> fail Vanish
     | VTypeRecord record_t ->
       let* genned_body =
-        Features.Record.fold (fun l t acc_m ->
+        Record.fold (fun l t acc_m ->
           let* acc = acc_m in
           let* v = gen t in
           return (Labels.Record.Map.add l v acc)
-        ) (return Features.Record.empty) record_t
+        ) (return Record.empty) record_t
       in
       return_any (VRecord genned_body)
     | VTypeVariant variant_t ->

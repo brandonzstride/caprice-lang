@@ -1,11 +1,4 @@
 
-(*
-  This include is only to work with Menhir.
-  Menhir cannot find the qualified subdirectory Features,
-  and aliasing it here does not work, either.
-*)
-include Features 
-
 type t = 
   | EUnit
   | EInt of int

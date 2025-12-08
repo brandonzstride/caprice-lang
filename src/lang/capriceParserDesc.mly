@@ -146,6 +146,8 @@ expr:
     { ELetTyped { var = { var = fst $2 ; tau = snd $2 } ; defn = $4 ; body = $6 } }
   | LET l_ident EQUALS expr IN expr %prec prec_let
     { ELet { var = $2 ; defn = $4 ; body = $6 } }
+  | MATCH expr WITH PIPE? match_expr_list END
+    { EMatch { subject = $2 ; patterns = $5 } }
   ;
 
 %inline type_expr:
@@ -334,3 +336,25 @@ variant_label:
   | BACKTICK ident
     { Labels.Variant.VariantLabel $2 }
   ;
+
+/* **** Pattern matching **** */
+
+match_expr_list:
+  | pattern ARROW expr PIPE match_expr_list
+    { ($1, $3) :: $5 }
+  | pattern ARROW expr
+    { [ $1, $3 ] }
+
+pattern:
+  | variant_label pattern %prec prec_variant
+    { PVariant { Variant.label = $1 ; payload = $2 } }
+  | pattern COMMA pattern
+    { PTuple ($1, $3)}
+//   // | OPEN_BRACKET CLOSE_BRACKET { PEmptyList }
+//   // | pattern DOUBLE_COLON pattern { PDestructList { hd = $1 ; tl = $3 } }
+  | UNDERSCORE
+    { PAny }
+  | ident
+    { Pattern.PVariable $1 } (* not l_ident because we handle underscore immediately above *)
+  | OPEN_PAREN pattern CLOSE_PAREN
+    { $2 }

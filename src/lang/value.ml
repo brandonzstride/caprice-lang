@@ -1,6 +1,4 @@
 
-open Features
-
 (*
   The `Atom_cell` is the payload of int and bool values.
   It is expected to be identity or a pair of concrete and
