@@ -66,4 +66,9 @@ let loop (solve : Stepkey.t Smt.Formula.solver) (expr : Lang.Ast.t) (tq : Target
   in
   loop tq
 
+module Default_Z3 = Overlays.Typed_z3.Default
+module Default_solver = Smt.Formula.Make_solver (Default_Z3)
 
+let begin_ceval (expr : Lang.Ast.t) =
+  let answer = loop Default_solver.solve expr Target_queue.empty in
+  Format.printf "Finished concolic evaluation: %s\n" (Answer.to_string answer)

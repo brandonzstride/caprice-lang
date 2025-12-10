@@ -40,3 +40,6 @@ _opam/
 
 # Language extension files
 *.vsix
+
+# Executables
+*.exe

@@ -9,3 +9,9 @@ type t =
 
 let min a b =
   if compare a b < 0 then a else b
+
+let to_string = function
+  | Unknown          -> "Unknown"
+  | Exhausted_pruned -> "Exausted pruned tree"
+  | Exhausted        -> "Exhausted"
+  | Error            -> "Error"

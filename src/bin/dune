@@ -1,0 +1,13 @@
+(executables
+ (names typecheck)
+ (libraries
+  ; internal
+  lang
+  concolic
+  ; external
+  cmdliner
+ )
+ (promote
+  (until-clean)
+  (into "../..")
+ ))
