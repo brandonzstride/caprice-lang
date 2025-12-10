@@ -120,6 +120,22 @@ statement:
     { SUntyped { var = $2 ; defn = $4 } }
   | LET typed_binding EQUALS expr
     { STyped { var = fst $2 ; tau = snd $2 ; defn = $4 } }
+  | LET l_ident nonempty_list(l_ident) EQUALS expr
+    { SUntyped { var = $2 ; defn =
+      List.fold_right (fun param acc ->
+        EFunction { param ; body = acc }
+      ) $3 $5
+    } }
+  | LET l_ident nonempty_list(typed_param) COLON expr EQUALS expr
+    { STyped { var = $2 ; tau =
+      List.fold_right (fun { var = _ ; tau } acc ->
+        ETypeFun { domain = tau ; codomain = acc }
+      ) $3 $5
+    ; defn =
+      List.fold_right (fun { var ; tau = _ } acc ->
+        EFunction { param = var ; body = acc }
+      ) $3 $7
+    } }
   ;
 
 %inline typed_binding:
@@ -128,6 +144,18 @@ statement:
   | OPEN_PAREN l_ident COLON expr CLOSE_PAREN
     { ($2, $4) }
   ;
+
+typed_param:
+  | OPEN_PAREN l_ident COLON expr CLOSE_PAREN
+    { { var = $2 ; tau = $4 } }
+  | OPEN_PAREN l_ident COLON expr PIPE expr CLOSE_PAREN
+    { { var = $2 ; tau = ETypeRefine { var = $2 ; tau = $4 ; predicate = $6} } }
+  // | OPEN_PAREN DEP l_ident COLON expr CLOSE_PAREN
+  // | OPEN_PAREN DEPENDENT l_ident COLON expr CLOSE_PAREN
+  //   { TVarDep { var = $3 ; tau = $5 } : param }
+  // | OPEN_PAREN DEP l_ident COLON expr PIPE expr CLOSE_PAREN
+  // | OPEN_PAREN DEPENDENT l_ident COLON expr PIPE expr CLOSE_PAREN
+  //   { TVarDep { var = $3 ; tau = ETypeRefinement { tau = $5 ; predicate = EFunction { param = $3 ; body = $7 } } } : param }
 
 expr:
   | appl_expr /* Includes primary expressions */
@@ -142,10 +170,8 @@ expr:
     { EIf { if_ = $2 ; then_ = $4 ; else_ = $6 } }
   | FUNCTION l_ident ARROW expr %prec prec_fun 
     { EFunction { param = $2 ; body = $4 } }
-  | LET typed_binding EQUALS expr IN expr %prec prec_let
-    { ELetTyped { var = { var = fst $2 ; tau = snd $2 } ; defn = $4 ; body = $6 } }
-  | LET l_ident EQUALS expr IN expr %prec prec_let
-    { ELet { var = $2 ; defn = $4 ; body = $6 } }
+  | statement IN expr %prec prec_let
+    { Ast.statement_to_t $1 $3 }
   | MATCH expr WITH PIPE? match_expr_list END
     { EMatch { subject = $2 ; patterns = $5 } }
   ;
