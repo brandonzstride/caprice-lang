@@ -1,26 +1,26 @@
 
 module type KEY = sig
   type t
-  val uid : t -> int
+  val uid : t -> Utils.Uid.t
 end
 
 module Make_comparable_key (K : KEY) = struct
   include K
-  let compare a b = Int.compare (uid a) (uid b)
-  let equal a b = Int.equal (uid a) (uid b)
+  let compare a b = Utils.Uid.compare (uid a) (uid b)
+  let equal a b = Utils.Uid.equal (uid a) (uid b)
 end
 
-module X = Utils.Separate.Comparable.Make (Int)
+module X = Utils.Separate.Comparable.Make (Utils.Uid)
 
 module T = struct
   type ('a, 'k) t = 'a X.t
 
   let equal = X.equal
 
-  let make_int (k : 'k) (uid : 'k -> int) : (int, 'k) t =
+  let make_int (k : 'k) (uid : 'k -> Utils.Uid.t) : (int, 'k) t =
     I (uid k)
 
-  let make_bool (k : 'k) (uid : 'k -> int) : (bool, 'k) t =
+  let make_bool (k : 'k) (uid : 'k -> Utils.Uid.t) : (bool, 'k) t =
     B (uid k)
 end
 

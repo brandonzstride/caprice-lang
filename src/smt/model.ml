@@ -1,5 +1,7 @@
 
-type 'k t = { value : 'a. ('a, 'k) Symbol.t -> 'a option }
+type 'k t = 
+  { value : 'a. ('a, 'k) Symbol.t -> 'a option
+  ; domain : Utils.Uid.t list }
 
 let merge (s1 : 'k t) (s2 : 'k t) : 'k t = 
   let value : type a. (a, 'k) Symbol.t -> a option = fun sym ->
@@ -7,6 +9,7 @@ let merge (s1 : 'k t) (s2 : 'k t) : 'k t =
     | None -> s2.value sym
     | v -> v
   in
-  { value }
+  { value
+  ; domain = s1.domain @ s2.domain }
 
-let empty : 'k t = { value = fun _ -> None }
+let empty : 'k t = { value = (fun _ -> None) ; domain = [] }

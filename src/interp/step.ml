@@ -9,4 +9,4 @@ let[@inline always] next (Step i : t) : t =
 
 let (>) (Step a) (Step b) = a > b
 
-let uid (Step i) = i
+let uid (Step i) = Utils.Uid.of_int i

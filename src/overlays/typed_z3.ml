@@ -25,10 +25,13 @@ module Make_of_context (C : CONTEXT) : Formula.SOLVABLE = struct
   let intS = Z3.Arithmetic.Integer.mk_sort ctx
   let boolS = Z3.Boolean.mk_sort ctx
 
+  let mk_symbol sort uid =
+    Z3.Expr.mk_const ctx (Z3.Symbol.mk_int ctx (Utils.Uid.to_int uid)) sort
+
   let symbol (type a) (s : (a, 'k) Symbol.t) : (a, 'k) t =
     match s with
-    | I k -> Z3.Expr.mk_const ctx (Z3.Symbol.mk_int ctx k) intS
-    | B k -> Z3.Expr.mk_const ctx (Z3.Symbol.mk_int ctx k) boolS
+    | I k -> mk_symbol intS k
+    | B k -> mk_symbol boolS k
 
   let not_ (e : (bool, 'k) t) : (bool, 'k) t =
     Z3.Boolean.mk_not ctx e
@@ -73,17 +76,24 @@ module Make_of_context (C : CONTEXT) : Formula.SOLVABLE = struct
   let solver = Z3.Solver.mk_simple_solver ctx
 
   let unbox_int_expr e =
-    Big_int_Z.int_of_big_int
-    @@ Z3.Arithmetic.Integer.get_big_int e
+    if Z3.Expr.is_numeral e 
+    then
+      Z3.Arithmetic.Integer.get_big_int e
+      |> Big_int_Z.int_of_big_int
+      |> Option.some
+    else None
 
   let unbox_bool_expr e =
-    match Z3.Boolean.get_bool_value e with
-    | L_FALSE -> false
-    | L_TRUE -> true
-    | L_UNDEF -> failwith "Invariant failure: unboxing non-bool into bool."
+    if Z3.Boolean.is_bool e
+    then
+      match Z3.Boolean.get_bool_value e with
+      | L_FALSE -> Some false
+      | L_TRUE -> Some true
+      | L_UNDEF -> failwith "Invariant failure: undefined bool."
+   else None
 
   let a_of_expr z3_model expr unbox_expr =
-    Option.map unbox_expr (Z3.Model.get_const_interp_e z3_model expr)
+    Option.bind (Z3.Model.get_const_interp_e z3_model expr) unbox_expr
 
   let solve (exprs : (bool, 'k) t list) : 'k Solution.t =
     let e = and_ exprs in
@@ -98,7 +108,15 @@ module Make_of_context (C : CONTEXT) : Formula.SOLVABLE = struct
           | I _ -> a_of_expr model (symbol s) unbox_int_expr
           | B _ -> a_of_expr model (symbol s) unbox_bool_expr
         in
-        Sat { value }
+        let domain = 
+          List.map (fun decl ->
+            decl
+            |> Z3.FuncDecl.get_name
+            |> Z3.Symbol.get_int
+            |> Utils.Uid.of_int
+          ) (Z3.Model.get_const_decls model)
+        in
+        Sat { value ; domain }
       | UNKNOWN -> Unknown
       | UNSATISFIABLE -> Unsat
 end

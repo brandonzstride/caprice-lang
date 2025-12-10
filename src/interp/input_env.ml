@@ -13,14 +13,12 @@ module Make (K : Smt.Symbol.KEY) = struct
     let make_label k = KLabel k
   end
 
-  module KMap  = Baby.H.Map.Make (K)
+  type t = Input.t Utils.Uid.Map.t
 
-  type t = Input.t KMap.t
-
-  let empty : t = KMap.empty
+  let empty : t = Utils.Uid.Map.empty
 
   let find_and_bind (f : Input.t -> 'a option) (k : K.t) (m : t) : 'a option =
-    Option.bind (KMap.find_opt k m) f
+    Option.bind (Utils.Uid.Map.find_opt (K.uid k) m) f
 
   let find (type a) (key : a Key.t) (m : t) : a option =
     match key with
@@ -29,13 +27,14 @@ module Make (K : Smt.Symbol.KEY) = struct
     | KLabel k -> find_and_bind Input.label_opt k m
 
   let add (type a) (key : a Key.t) (input : a) (m : t) : t =
+    let add k i = Utils.Uid.Map.add (K.uid k) i m in
     match key with
-    | KBool k -> KMap.add k (Input.IBool input) m
-    | KInt k -> KMap.add k (Input.IInt input) m
-    | KLabel k -> KMap.add k (Input.ILabel input) m
+    | KBool k -> add k (Input.IBool input)
+    | KInt k -> add k (Input.IInt input)
+    | KLabel k -> add k (Input.ILabel input)
 
   let extend (base_map : t) (extending_map : t) : t =
-    KMap.union (fun _ _ v -> Some v)
+    Utils.Uid.Map.union (fun _ _ v -> Some v)
       base_map extending_map
 
   (**
@@ -43,11 +42,18 @@ module Make (K : Smt.Symbol.KEY) = struct
     exceeding [max_key].
   *)
   let remove_greater (max_key : K.t) (m : t) : t =
-    let new_m, i_opt, _ = KMap.split max_key m in
+    let new_m, i_opt, _ = Utils.Uid.Map.split (K.uid max_key) m in
     match i_opt with
-    | Some i -> KMap.add max_key i new_m
+    | Some i -> Utils.Uid.Map.add (K.uid max_key) i new_m
     | None -> new_m
 
-  let of_model (_model : K.t Smt.Model.t) : t =
-    failwith "Unimplemented input env of SMT model"
+  let of_model (model : K.t Smt.Model.t) : t =
+    List.fold_left (fun acc uid ->
+      let v =
+        match model.value (I uid) with
+        | Some i -> Input.IInt i
+        | None -> IBool (Option.get (model.value (B uid)))
+      in
+      Utils.Uid.Map.add uid v acc
+    ) empty model.domain  
 end
