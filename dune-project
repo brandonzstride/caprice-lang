@@ -18,6 +18,7 @@
  (depends
   baby
   menhir
+  mtime
   ppx_deriving
   psq
   z3

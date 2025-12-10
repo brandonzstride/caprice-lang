@@ -72,5 +72,6 @@ module Default_Z3 = Overlays.Typed_z3.Default
 module Default_solver = Smt.Formula.Make_solver (Default_Z3)
 
 let begin_ceval (expr : Lang.Ast.t) =
-  let answer = loop Default_solver.solve expr Target_queue.initial in
-  Format.printf "Finished concolic evaluation: %s\n" (Answer.to_string answer)
+  let span, answer = Utils.Time.time (loop Default_solver.solve expr) Target_queue.initial in
+  Format.printf "Finished type checking in %0.3f ms:\n    %s\n"
+    (Utils.Time.span_to_ms span) (Answer.to_string answer)
