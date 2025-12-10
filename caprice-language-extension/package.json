@@ -27,6 +27,11 @@
         }
       }
     ],
+    "themes": [{
+      "label": "Caprice Dark",
+      "uiTheme": "vs-dark",
+      "path": "./themes/caprice-dark.json"
+    }],
     "grammars": [
       {
         "language": "caprice",
