@@ -1,0 +1,2 @@
+
+let x : int * bool = true, true
