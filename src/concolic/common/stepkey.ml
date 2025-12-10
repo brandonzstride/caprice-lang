@@ -15,3 +15,5 @@ module Symb = Smt.Symbol.Make (T)
 let int_symbol step = Smt.Formula.symbol (Symb.make_int (Stepkey step))
 
 let bool_symbol step = Smt.Formula.symbol (Symb.make_bool (Stepkey step))
+
+module Map = Baby.H.Map.Make (T)

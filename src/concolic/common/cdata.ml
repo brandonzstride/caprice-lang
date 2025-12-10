@@ -1,6 +1,6 @@
 
 (* concolic data *)
-type 'a t = 'a * ('a, Stepkey.t) Smt.Formula.t
+type 'a t = 'a * 'a Formula.t
 
 let equal eq (a, s_a) (b, s_b) = 
   eq a b

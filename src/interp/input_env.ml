@@ -34,6 +34,10 @@ module Make (K : Smt.Symbol.KEY) = struct
     | KInt k -> KMap.add k (Input.IInt input) m
     | KLabel k -> KMap.add k (Input.ILabel input) m
 
+  let extend (base_map : t) (extending_map : t) : t =
+    KMap.union (fun _ _ v -> Some v)
+      base_map extending_map
+
   (**
     [remove_greater max_key t] is the map [t] filtered to only have keys not
     exceeding [max_key].
@@ -43,4 +47,7 @@ module Make (K : Smt.Symbol.KEY) = struct
     match i_opt with
     | Some i -> KMap.add max_key i new_m
     | None -> new_m
+
+  let of_model (_model : K.t Smt.Model.t) : t =
+    failwith "Unimplemented input env of SMT model"
 end

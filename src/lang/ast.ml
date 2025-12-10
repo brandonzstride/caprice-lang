@@ -48,3 +48,15 @@ and statement =
   | SUntyped of { var : Ident.t ; defn : t }
   | STyped of { var : Ident.t ; tau : t ; defn : t }
   [@@deriving eq, ord]
+
+let statement_to_t (stmt : statement) (body : t) : t =
+  match stmt with
+  | SUntyped { var ; defn } ->
+    ELet { var ; defn ; body }
+  | STyped { var ; tau ; defn } ->
+    ELetTyped { var = { var ; tau } ; defn ; body }
+
+let rec t_of_statement_list (ls : statement list) : t =
+  match ls with
+  | [] -> EUnit
+  | hd :: tl -> statement_to_t hd (t_of_statement_list tl)

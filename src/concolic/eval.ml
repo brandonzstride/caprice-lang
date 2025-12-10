@@ -13,7 +13,7 @@ let eval
   (expr : Ast.t)
   (input_env : Ienv.t)
   ~(max_step : Interp.Step.t)
-  : Err.t * Path.t
+  : Err.t * State.t
   =
   let rec eval (expr : Ast.t) : Cvalue.any m =
     let* () = incr_step ~max_step in

@@ -45,8 +45,12 @@ let push_formula ?(allow_flip : bool = true) (formula : (bool, Stepkey.t) Smt.Fo
   if Smt.Formula.is_const formula
   then return ()
   else 
-    let cons = if allow_flip then Path.cons_formula else Path.cons_nonflipping in
-    modify (fun s -> { s with path = cons formula s.path })
+    if allow_flip
+    then
+      let* step = step in
+      modify (fun s -> { s with path = Path.cons_formula formula (Stepkey step) s.path })
+    else
+      modify (fun s -> { s with path = Path.cons_nonflipping formula s.path })
 
 let log_input (key : 'a Ienv.Key.t) (input : 'a) : unit m =
   modify (fun s -> { s with logged_inputs = Ienv.add key input s.logged_inputs })
@@ -58,7 +62,7 @@ let read_and_log_input (make_key : Stepkey.t -> 'a Ienv.Key.t) (input_env : Ienv
   | Some i -> let* () = log_input key i in return i
   | None -> let* () = log_input key default in return default
 
-let run (x : 'a m) : Err.t * Path.t =
+let run (x : 'a m) : Err.t * State.t =
   match run x State.empty Env.empty with
-  | Ok _, state, _ -> Done, state.path
-  | Error e, state, _ -> e, state.path
+  | Ok _, state, _ -> Done, state
+  | Error e, state, _ -> e, state
