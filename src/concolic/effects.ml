@@ -13,26 +13,7 @@ module State = struct
     ; logged_inputs = Ienv.empty }
 end
 
-module Err = struct
-  type t = 
-    | Refutation of Cvalue.any * Cvalue.tval
-    | Confirmation
-    | Mismatch of string
-    | Assert_false
-    | Vanish
-    | Unbound_variable of Ident.t
-    | Reach_max_step of Step.t
-    | Done
-    (* [@@deriving eq] *)
-
-  let fail_on_fetch (i : Ident.t) (s : State.t) : t * State.t =
-    Unbound_variable i, s
-
-  let fail_on_max_step (n : Step.t) (s : State.t) : t * State.t =
-    Reach_max_step n, s
-end
-
-include Effects.Make (State) (Cvalue.Env) (Err)
+include Effects.Make (State) (Cvalue.Env) (Eval_result)
 
 let vanish : 'a m =
   fail Vanish
@@ -62,7 +43,7 @@ let read_and_log_input (make_key : Stepkey.t -> 'a Ienv.Key.t) (input_env : Ienv
   | Some i -> let* () = log_input key i in return i
   | None -> let* () = log_input key default in return default
 
-let run (x : 'a m) : Err.t * State.t =
+let run (x : 'a m) : Eval_result.t * State.t =
   match run x State.empty Env.empty with
   | Ok _, state, _ -> Done, state
   | Error e, state, _ -> e, state

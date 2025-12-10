@@ -99,11 +99,14 @@ module Make (Atom_cell : Utils.Comparable.S1) = struct
       | Match
       | Match_bindings of env
       | No_match
+      | Failure of string
   end
 
   let rec matches : type a. Pattern.t -> a t -> Match_result.t = fun p v ->
     match p, v with
-    | _, VGenPoly _ -> No_match (* generated polymorphic values cannot be matched on *)
+    | PAny, VGenPoly _ -> Match
+    | PVariable id, VGenPoly _ -> Match_bindings (Env.singleton id (to_any v))
+    | _, VGenPoly _ -> Failure "Inspecting polymorphic value" (* generated polymorphic values cannot be inspected *)
     | PAny, _ -> Match
     | PVariable id, v -> Match_bindings (Env.singleton id (to_any v))
     | PVariant { label = pattern_label ; payload = payload_pattern },
@@ -120,13 +123,13 @@ module Make (Atom_cell : Utils.Comparable.S1) = struct
 
   and match_two : type a b. Pattern.t * a t -> Pattern.t * b t -> Match_result.t = fun (p1, v1) (p2, v2) ->
     match matches p1 v1 with
-    | No_match -> No_match
+    | (No_match | Failure _) as r -> r
     | Match -> matches p2 v2
     | Match_bindings e1 ->
       begin match matches p2 v2 with
+      | (No_match | Failure _) as r -> r
       | Match -> Match_bindings e1
       | Match_bindings e2 -> Match_bindings (Env.extend e1 e2)
-      | No_match -> No_match
       end
 
   let matches_any : Pattern.t -> any -> Match_result.t = fun pat a ->

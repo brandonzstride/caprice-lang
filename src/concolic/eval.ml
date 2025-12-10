@@ -13,7 +13,7 @@ let eval
   (expr : Ast.t)
   (input_env : Ienv.t)
   ~(max_step : Interp.Step.t)
-  : Err.t * State.t
+  : Eval_result.t * State.t
   =
   let rec eval (expr : Ast.t) : Cvalue.any m =
     let* () = incr_step ~max_step in
@@ -67,9 +67,9 @@ let eval
         | (pat, body) :: tl ->
           begin match matches_any pat v with
           | Match -> eval body
-          | Match_bindings e ->
-            local (fun env -> Env.extend env e) (eval body)
+          | Match_bindings e -> local (fun env -> Env.extend env e) (eval body)
           | No_match -> find_match tl
+          | Failure msg -> fail (Mismatch msg)
           end
       in
       find_match patterns

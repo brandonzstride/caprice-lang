@@ -52,19 +52,17 @@ let loop (solve : Stepkey.t Smt.Formula.solver) (expr : Lang.Ast.t) (tq : Target
   and loop_on_model target tq model =
     let ienv = Ienv.extend target.i_env (Ienv.of_model model) in
     let res, state = Eval.eval expr ienv ~max_step in
-    let k ~reached_max_step =
-      let targets, is_pruned = 
-        make_targets target (List.rev state.rev_path) state.logged_inputs ~max_tree_depth
-      in
-      let a = loop (Target_queue.push_list tq targets) in
-      if is_pruned || reached_max_step
-      then Answer.min Answer.Exhausted_pruned a
-      else a
-    in
-    match res with
-    | (Refutation _ | Mismatch _ | Assert_false | Unbound_variable _) -> Error
-    | Done | Vanish | Confirmation -> k ~reached_max_step:false
-    | Reach_max_step _ -> k ~reached_max_step:true
+    if Eval_result.is_signal_to_stop res
+    then Eval_result.to_answer res
+    else 
+      Answer.min (Eval_result.to_answer res) @@ 
+        let targets, is_pruned = 
+          make_targets target (List.rev state.rev_path) state.logged_inputs ~max_tree_depth
+        in
+        let a = loop (Target_queue.push_list tq targets) in
+        if is_pruned
+        then Answer.min Answer.Exhausted_pruned a
+        else a
   in
   loop tq
 
