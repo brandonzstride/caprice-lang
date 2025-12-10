@@ -15,6 +15,8 @@ type t =
   | EProject of { record : t ; label : Labels.Record.t }
   | ERecord of t Record.t
   | ETuple of t * t
+  | EEmptyList
+  | EListCons of t * t
   (* | EModule *)
   | ENot of t
   | EPick_i
@@ -34,6 +36,7 @@ type t =
   | ETypeFun of (t, t) Funtype.t
   | ETypeRefine of (t, t) Refinement.t
   | ETypeMu of { var : Ident.t ; body : t }
+  | ETypeList of t
   | ETypeVariant of t Variant.t list
   (* | ETypeSingle *)
   [@@deriving eq, ord]

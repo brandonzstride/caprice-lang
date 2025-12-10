@@ -24,6 +24,8 @@ module Make (Atom_cell : Utils.Comparable.S1) = struct
     | VRecord : any Record.t -> data t
     | VTuple : any * any -> data t
     | VFunFix : { fvar : Ident.t ; param : Ident.t ; closure : closure } -> data t (* no mutual recursion yet *)
+    | VEmptyList : data t
+    | VListCons : any * data t -> data t
     (* generated values *)
     | VGenFun : (typeval t, typeval t) Funtype.t -> data t
     | VGenPoly : { id : int ; nonce : int } -> data t
@@ -36,6 +38,7 @@ module Make (Atom_cell : Utils.Comparable.S1) = struct
     | VTypeInt : typeval t
     | VTypeBool : typeval t
     | VTypeMu : { var : Ident.t ; closure : closure } -> typeval t
+    | VTypeList : typeval t -> typeval t
     | VTypeFun : (typeval t, typeval t) Funtype.t -> typeval t
     | VTypeRecord : typeval t Record.t -> typeval t
     | VTypeVariant : typeval t Labels.Variant.Map.t -> typeval t
@@ -69,6 +72,8 @@ module Make (Atom_cell : Utils.Comparable.S1) = struct
       | VRecord _
       | VTuple _
       | VFunFix _
+      | VEmptyList
+      | VListCons _
       | VGenFun _
       | VGenPoly _) as x -> data x
     | ( VType
@@ -79,6 +84,7 @@ module Make (Atom_cell : Utils.Comparable.S1) = struct
       | VTypeInt
       | VTypeBool
       | VTypeMu _
+      | VTypeList _
       | VTypeFun _
       | VTypeRecord _
       | VTypeVariant _
@@ -106,17 +112,22 @@ module Make (Atom_cell : Utils.Comparable.S1) = struct
         then matches payload_pattern v
         else No_match
     | PTuple (p1, p2), VTuple (Any v1, Any v2) ->
-      begin match matches p1 v1 with
-      | Match -> matches p2 v2
-      | Match_bindings e1 ->
-        begin match matches p2 v2 with
-        | Match -> Match_bindings e1
-        | Match_bindings e2 -> Match_bindings (Env.extend e1 e2)
-        | No_match -> No_match
-        end
+      match_two (p1, v1) (p2, v2)
+    | PEmptyList, VEmptyList -> Match
+    | PDestructList (p1, p2), VListCons (Any v1, v2) ->
+      match_two (p1, v1) (p2, v2)
+    | _ -> No_match
+
+  and match_two : type a b. Pattern.t * a t -> Pattern.t * b t -> Match_result.t = fun (p1, v1) (p2, v2) ->
+    match matches p1 v1 with
+    | No_match -> No_match
+    | Match -> matches p2 v2
+    | Match_bindings e1 ->
+      begin match matches p2 v2 with
+      | Match -> Match_bindings e1
+      | Match_bindings e2 -> Match_bindings (Env.extend e1 e2)
       | No_match -> No_match
       end
-    | _ -> No_match
 
   let matches_any : Pattern.t -> any -> Match_result.t = fun pat a ->
     let f (type a) (v : a t) : Match_result.t =

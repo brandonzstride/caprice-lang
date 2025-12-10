@@ -90,6 +90,16 @@ let eval
       let* v1 = eval e1 in
       let* v2 = eval e2 in
       return_any (VTuple (v1, v2))
+    | EEmptyList ->
+      return_any VEmptyList
+    | EListCons (e1, e2) ->
+      let* v1 = eval e1 in
+      let* v2 = eval e2 in
+      begin match v2 with
+      | Any (VEmptyList as tl)
+      | Any (VListCons _ as tl) -> return_any (VListCons (v1, tl))
+      | _ -> fail (Mismatch "Cons non-list.")
+      end
     (* symbolic values and branching *)
     | EPick_i ->
       let* step = step in
@@ -219,6 +229,9 @@ let eval
     | ETypeMu { var ; body } ->
       let* env = read in
       return_any (VTypeMu { var ; closure = { body ; env } })
+    | ETypeList e ->
+      let* t = eval_type e in
+      return_any (VTypeList t)
     | ETypeVariant ls ->
       let* variant_bodies =
         List.fold_left (fun acc_m { Variant.label ; payload } ->
@@ -329,6 +342,22 @@ let eval
     | VTypeMu { var ; closure = { body ; env } } ->
       let* t_body = local (fun _ -> Env.set var (Any t) env) (eval_type body) in
       check v t_body
+    | VTypeList t ->
+      begin match v with
+      | Any VEmptyList -> confirm
+      | Any VListCons (v_hd, v_tl) ->
+        let* l = read_and_log_input make_label input_env Left in
+        begin match l with
+        | Left ->
+          let* () = push_label Interp.Label.With_alt.left in
+          check v_hd t
+        | Right ->
+          let* () = push_label Interp.Label.With_alt.right in
+          check (Any v_tl) (VTypeList t)
+        | _ -> fail (Mismatch "Bad input env")
+        end
+      | _ -> refute
+      end
     | VTypeRefine { var ; tau ; predicate = { body ; env } } ->
       let* l = read_and_log_input make_label input_env Check in
       begin match l with
@@ -417,6 +446,19 @@ let eval
         in
         let* payload = gen t in
         return_any (VVariant { label = to_gen ; payload })
+      | _ -> fail (Mismatch "Bad input env")
+      end
+    | VTypeList t ->
+      let* l = read_and_log_input make_label input_env Left in
+      begin match l with
+      | Left ->
+        let* () = push_label Interp.Label.With_alt.left in
+        return_any VEmptyList
+      | Right ->
+        let* () = push_label Interp.Label.With_alt.right in
+        let* hd = gen t in
+        let* Any tl = gen (VTypeList t) in
+        return_any (VListCons (hd, Obj.magic tl)) (* MAGIC: Safe because always returns data *)
       | _ -> fail (Mismatch "Bad input env")
       end
     | VTypeRefine { var ; tau ; predicate = { body ; env } } ->

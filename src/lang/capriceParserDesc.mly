@@ -226,8 +226,8 @@ primary_expr:
   //   { ETypeTop }
   | BOTTOM_KEYWORD
     { ETypeBottom }
-  // | LIST
-  //   { ETypeList }
+  | LIST
+    { EFunction { param = Ident "x" ; body = ETypeList (EVar (Ident "x")) } } (* HACK HACK HACK *)
   // | ABSTRACT
   //   { EAbstractType }
   // | SINGLETYPE_KEYWORD
@@ -240,10 +240,10 @@ primary_expr:
     { ERecord $2 }
   | OPEN_BRACE CLOSE_BRACE
     { ERecord Record.empty }
-  // | OPEN_BRACKET separated_nonempty_list(SEMICOLON, expr) CLOSE_BRACKET
-  //   { EList $2 : t }
-  // | OPEN_BRACKET CLOSE_BRACKET
-  //   { EList [] : t }
+  | OPEN_BRACKET separated_list(SEMICOLON, expr) CLOSE_BRACKET
+    { List.fold_right (fun e acc -> 
+        EListCons (e, acc)
+      ) $2 EEmptyList }
   | OPEN_PAREN expr CLOSE_PAREN
     { $2 }
   // | OPEN_BRACE expr PIPE expr CLOSE_BRACE
@@ -271,8 +271,8 @@ op_expr:
       { EBinop { left = $1 ; binop = BPlus ; right = $3 } }
   | expr MINUS expr
       { EBinop { left = $1 ; binop = BMinus ; right = $3 } }
-  // | expr DOUBLE_COLON expr
-  //     { EListCons ($1, $3) : t }
+  | expr DOUBLE_COLON expr
+      { EListCons ($1, $3) }
   | expr EQUAL_EQUAL expr
       { EBinop { left = $1 ; binop = BEqual ; right = $3 } }
   | expr NOT_EQUAL expr
@@ -376,8 +376,8 @@ pattern:
     { PVariant { Variant.label = $1 ; payload = $2 } }
   | pattern COMMA pattern
     { PTuple ($1, $3)}
-//   // | OPEN_BRACKET CLOSE_BRACKET { PEmptyList }
-//   // | pattern DOUBLE_COLON pattern { PDestructList { hd = $1 ; tl = $3 } }
+  | OPEN_BRACKET CLOSE_BRACKET { PEmptyList }
+  | pattern DOUBLE_COLON pattern { PDestructList ($1, $3) }
   | UNDERSCORE
     { PAny }
   | ident
