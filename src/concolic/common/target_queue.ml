@@ -19,3 +19,8 @@ let pop (BFS q : t) : (Target.t * t) option =
   match Q.pop q with
   | Some ((target, _), t) -> Some (target, BFS t)
   | None -> None
+
+(* contains only the empty target *)
+let initial : t =
+  push_one empty Target.empty
+

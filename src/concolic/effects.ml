@@ -5,11 +5,11 @@ open Common
 
 module State = struct
   type t = 
-    { path : Path.t (* we will cons to the path instead of union a log *)
+    { rev_path : Path.t (* we will cons to the path instead of union a log *)
     ; logged_inputs : Ienv.t }
 
   let empty : t =
-    { path = Path.empty
+    { rev_path = Path.empty
     ; logged_inputs = Ienv.empty }
 end
 
@@ -39,7 +39,7 @@ let vanish : 'a m =
 
 let push_label (label : Label.With_alt.t) : unit m =
   let* step = step in
-  modify (fun s -> { s with path = Path.cons_label { key = Stepkey step ; label } s.path })
+  modify (fun s -> { s with rev_path = Path.cons_label { key = Stepkey step ; label } s.rev_path })
 
 let push_formula ?(allow_flip : bool = true) (formula : (bool, Stepkey.t) Smt.Formula.t) : unit m =
   if Smt.Formula.is_const formula
@@ -48,9 +48,9 @@ let push_formula ?(allow_flip : bool = true) (formula : (bool, Stepkey.t) Smt.Fo
     if allow_flip
     then
       let* step = step in
-      modify (fun s -> { s with path = Path.cons_formula formula (Stepkey step) s.path })
+      modify (fun s -> { s with rev_path = Path.cons_formula formula (Stepkey step) s.rev_path })
     else
-      modify (fun s -> { s with path = Path.cons_nonflipping formula s.path })
+      modify (fun s -> { s with rev_path = Path.cons_nonflipping formula s.rev_path })
 
 let log_input (key : 'a Ienv.Key.t) (input : 'a) : unit m =
   modify (fun s -> { s with logged_inputs = Ienv.add key input s.logged_inputs })

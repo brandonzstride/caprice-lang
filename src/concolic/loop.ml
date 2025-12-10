@@ -53,7 +53,9 @@ let loop (solve : Stepkey.t Smt.Formula.solver) (expr : Lang.Ast.t) (tq : Target
     let ienv = Ienv.extend target.i_env (Ienv.of_model model) in
     let res, state = Eval.eval expr ienv ~max_step in
     let k ~reached_max_step =
-      let targets, is_pruned = make_targets target state.path state.logged_inputs ~max_tree_depth in
+      let targets, is_pruned = 
+        make_targets target (List.rev state.rev_path) state.logged_inputs ~max_tree_depth
+      in
       let a = loop (Target_queue.push_list tq targets) in
       if is_pruned || reached_max_step
       then Answer.min Answer.Exhausted_pruned a
@@ -70,5 +72,5 @@ module Default_Z3 = Overlays.Typed_z3.Default
 module Default_solver = Smt.Formula.Make_solver (Default_Z3)
 
 let begin_ceval (expr : Lang.Ast.t) =
-  let answer = loop Default_solver.solve expr Target_queue.empty in
+  let answer = loop Default_solver.solve expr Target_queue.initial in
   Format.printf "Finished concolic evaluation: %s\n" (Answer.to_string answer)
