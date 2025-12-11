@@ -1,15 +1,9 @@
 
-let Y = fun f ->
-  (fun s -> fun x -> f (s s) x)
-  (fun s -> fun x -> f (s s) x)
-
 let f (a : type) (b : type) : unit =
-  let map : (a -> b) -> list a -> list b = Y (
-    fun map f ls ->
-      match ls with
-      | [] -> []
-      | hd :: tl -> f hd :: map f tl
-      end
-  )
+  let rec map (f : a -> b) (ls : list a) : list b =
+    match ls with
+    | [] -> []
+    | hd :: tl -> f hd :: map f tl
+    end
   in
   ()

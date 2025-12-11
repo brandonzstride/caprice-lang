@@ -136,7 +136,48 @@ statement:
         EFunction { param = var ; body = acc }
       ) $3 $7
     } }
+  | LET REC l_ident nonempty_list(l_ident) EQUALS expr
+    { SRecUntyped { var = $3 ; param = List.hd $4 ; defn =
+      List.fold_right (fun param acc ->
+        EFunction { param ; body = acc }
+      ) (List.tl $4) $6
+    } }
+  | LET REC l_ident nonempty_list(typed_param) COLON expr EQUALS expr
+    { SRecTyped { var = $3 ; tau =
+      List.fold_right (fun { var = _ ; tau } acc ->
+        ETypeFun { domain = tau ; codomain = acc }
+      ) $4 $6
+    ; param = (List.hd $4).var
+    ; defn =
+      List.fold_right (fun { var ; tau = _ } acc ->
+        EFunction { param = var ; body = acc }
+      ) (List.tl $4) $8
+    } }
+  // TODO: allow this form
+  // | LET REC typed_binding EQUALS FUNCTION nonempty_list(l_ident) ARROW expr
   ;
+
+// statement_body:
+//   | l_ident EQUALS expr
+//     { SUntyped { var = $2 ; defn = $4 } }
+//   | typed_binding EQUALS expr
+//     { STyped { var = fst $2 ; tau = snd $2 ; defn = $4 } }
+//   | l_ident nonempty_list(l_ident) EQUALS expr
+//     { SUntyped { var = $2 ; defn =
+//       List.fold_right (fun param acc ->
+//         EFunction { param ; body = acc }
+//       ) $3 $5
+//     } }
+//   | l_ident nonempty_list(typed_param) COLON expr EQUALS expr
+//     { STyped { var = $2 ; tau =
+//       List.fold_right (fun { var = _ ; tau } acc ->
+//         ETypeFun { domain = tau ; codomain = acc }
+//       ) $3 $5
+//     ; defn =
+//       List.fold_right (fun { var ; tau = _ } acc ->
+//         EFunction { param = var ; body = acc }
+//       ) $3 $7
+//     } }
 
 %inline typed_binding:
   | l_ident COLON expr

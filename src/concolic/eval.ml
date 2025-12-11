@@ -38,14 +38,22 @@ let eval
     | ELet { var ; defn ; body } ->
       let* v = eval defn in
       local (Env.set var v) (eval body)
-    | ELetRec _ ->
-      failwith "TODO"
+    | ELetRec { var ; param ; defn ; body } ->
+      let* env = read in
+      let v = to_any (VFunFix { fvar = var ; param ; closure = { body = defn ; env } }) in
+      local (Env.set var v) (eval body)
     | EAppl { func ; arg } ->
       let* v_func = eval func in
       begin match v_func with
       | Any VFunClosure { param ; closure = { body ; env } } ->
         let* v_arg = eval arg in
         local (fun _ -> Env.set param v_arg env) (eval body)
+      | (Any VFunFix { fvar ; param ; closure = { body ; env } }) as vfun ->
+        let* v_arg = eval arg in
+        local (fun _ -> 
+          Env.set fvar vfun env
+          |> Env.set param v_arg
+        ) (eval body)
       | Any VGenFun { domain ; codomain } ->
         let* v_arg = eval arg in
         let* input = read_and_log_input make_label input_env Eval in
@@ -200,8 +208,21 @@ let eval
         local (Env.set var v) (eval body)
       | _ -> fail (Mismatch "Bad input env")
       end
-    | ELetRecTyped _ ->
-      failwith "TODO"
+    | ELetRecTyped { var = { var ; tau } ; param ; defn ; body } ->
+      let* tval = eval_type tau in
+      let* env = read in
+      let v = to_any (VFunFix { fvar = var ; param ; closure = { body = defn ; env } }) in
+      let* input = read_and_log_input make_label input_env Check in
+      begin match input with
+      | Check ->
+        let* () = push_label Interp.Label.With_alt.check in
+        check v tval
+      | Eval ->
+        let* () = push_label Interp.Label.With_alt.eval in
+        (* TODO: wrap *)
+        local (Env.set var v) (eval body)
+      | _ -> fail (Mismatch "Bad input env")
+      end
     (* types *)
     | EType -> return_any VType
     | ETypeInt -> return_any VTypeInt
@@ -284,6 +305,14 @@ let eval
         let* genned = gen domain in
         let* res = local (fun _ -> Env.set param genned env) (eval body) in
         check res codomain
+      | (Any VFunFix { fvar ; param ; closure = { body ; env } }) as vfun ->
+        let* genned = gen domain in
+        let* res = local (fun _ -> 
+            Env.set fvar vfun env
+            |> Env.set param genned
+          ) (eval body)
+        in
+        check res codomain 
       | Any VGenFun { domain = domain' ; codomain = codomain' } ->
         let* l = read_and_log_input make_label input_env Left in
         begin match l with
@@ -465,13 +494,12 @@ let eval
       let* v = gen tau in
       let* p = local (fun _ -> Env.set var v env) (eval body) in
       begin match p with
-      | Any VBool (b, s) ->
-        if b then 
-          let* () = push_formula ~allow_flip:false s in
-          return v
-        else 
-          let* () = push_formula (Smt.Formula.not_ s) in
-          fail Vanish
+      | Any VBool (true, s) ->
+        let* () = push_formula ~allow_flip:false s in
+        return v
+      | Any VBool (false, s) ->
+        let* () = push_formula (Smt.Formula.not_ s) in
+        fail Vanish
       | _ -> fail (Mismatch "Non-bool predicate")
       end 
     | VTypeMu { var ; closure = { body ; env } } ->

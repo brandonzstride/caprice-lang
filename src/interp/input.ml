@@ -16,3 +16,8 @@ let int_opt = function
 let label_opt = function
   | ILabel l -> Some l
   | _ -> None
+
+let to_string = function
+  | IBool b -> Bool.to_string b
+  | IInt i -> Int.to_string i
+  | ILabel l -> Label.to_string l

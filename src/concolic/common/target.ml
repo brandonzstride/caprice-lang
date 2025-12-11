@@ -13,10 +13,13 @@ let empty : t =
   ; size = 0
   ; id = Utils.Uid.make_new () }
 
-let make (last_formula : bool Formula.t) (all_formulas : Formula.BSet.t) 
+let make (last_formula : bool Formula.t) (other_formulas : Formula.BSet.t) 
   (i_env : Ienv.t) ~(size : int) : t =
-  { target_formula = Formula.and_ (last_formula :: Formula.BSet.to_list all_formulas) (* TODO: compute SCC *)
-  ; all_formulas 
+  { target_formula = 
+    if Formula.is_const last_formula
+    then last_formula
+    else Formula.and_ (last_formula :: Formula.BSet.to_list other_formulas) (* TODO: compute SCC *)
+  ; all_formulas = Formula.BSet.add last_formula other_formulas
   ; i_env 
   ; size 
   ; id = Utils.Uid.make_new () }

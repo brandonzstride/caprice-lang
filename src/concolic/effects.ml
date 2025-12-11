@@ -25,7 +25,7 @@ let push_label (label : Label.With_alt.t) : unit m =
 let push_formula ?(allow_flip : bool = true) (formula : (bool, Stepkey.t) Smt.Formula.t) : unit m =
   if Smt.Formula.is_const formula
   then return ()
-  else 
+  else
     if allow_flip
     then
       let* step = step in

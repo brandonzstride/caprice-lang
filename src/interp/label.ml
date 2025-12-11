@@ -22,6 +22,13 @@ end
 
 include T
 
+let to_string = function
+  | Check -> "Check"
+  | Eval -> "Eval"
+  | Left -> "Left"
+  | Right -> "Right"
+  | Label Ident s -> s
+
 (* Labels with alternatives *)
 module With_alt = struct
   type t = { main : T.t ; alts : T.t list }
