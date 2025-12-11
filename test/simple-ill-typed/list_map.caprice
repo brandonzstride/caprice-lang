@@ -5,7 +5,7 @@ let Y = fun f ->
 
 let f (a : type) (b : type) : unit =
   let map : (a -> b) -> list a -> list b = Y (
-    fun map -> fun f -> fun ls ->
+    fun map f ls ->
       match ls with
       | [] -> []
       | hd :: tl -> f hd :: tl (* ERROR: forgot to map tail *)
