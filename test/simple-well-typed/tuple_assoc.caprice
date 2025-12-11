@@ -1,0 +1,17 @@
+
+let f (x : int * int * bool) : bool =
+  match x with
+  | _, _, b -> b
+  end
+
+let f (x : (int * int) * bool) : bool =
+  match x with
+  | _, _, b -> b
+  end
+
+let t = int * bool
+
+let f (x : t * int) : bool =
+  match x with
+  | _, b, _ -> b
+  end

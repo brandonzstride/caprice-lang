@@ -2,9 +2,8 @@
 type t =
   | PAny
   | PVariable of Ident.t
-  | PVariant of t Variant.t (* payload is another pattern *)
+  | PVariant of t Variant.t (* payload is a pattern *)
   | PTuple of t * t
   | PEmptyList
   | PDestructList of t * t
-  (* Will add lists, too *)
   [@@deriving eq, ord]
