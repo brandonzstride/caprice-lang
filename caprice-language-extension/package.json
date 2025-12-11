@@ -2,7 +2,7 @@
   "name": "caprice-language",
   "displayName": "Caprice Language",
   "description": "Syntax highlighting for Caprice programming language",
-  "version": "0.0.0",
+  "version": "0.0.1",
   "engines": {
     "vscode": "^1.74.0"
   },
@@ -27,11 +27,6 @@
         }
       }
     ],
-    "themes": [{
-      "label": "Caprice Dark",
-      "uiTheme": "vs-dark",
-      "path": "./themes/caprice-dark.json"
-    }],
     "grammars": [
       {
         "language": "caprice",
