@@ -1,0 +1,12 @@
+
+let t = mu t.
+  | `Node of t * t
+  | `Leaf of unit
+
+let _ : t = `Leaf ()
+
+let _ : t = `Node (`Leaf (), `Node (`Leaf (), `Leaf ()))
+
+let _ : t = `Node (`Node (`Leaf (), `Leaf ()), `Leaf ())
+
+let _ : t = `Node (`Node (`Leaf (), `Node (`Leaf (), `Leaf ())), `Leaf ())

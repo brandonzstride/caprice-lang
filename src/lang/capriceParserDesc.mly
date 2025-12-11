@@ -1,9 +1,6 @@
 %{
   open Ast
   open Binop
-  (*
-  open Pattern
-  *)
 %}
 
 %token <string> IDENTIFIER
@@ -80,6 +77,9 @@
 %nonassoc prec_let prec_fun   /* Let-ins and functions */
 %nonassoc prec_if             /* Conditionals */
 %nonassoc prec_mu             /* mu types */
+%nonassoc OF                  /* variant type declarations */
+%left PIPE                    /* variant type declarations */
+%right prec_list_pattern      /* list destruction pattern */
 %left COMMA                   /* tuples */
 %left PIPELINE                /* |> */
 %right DOUBLE_PIPE            /* || for boolean or */
@@ -88,10 +88,10 @@
 /* == <> < <= > >= */
 %left EQUAL_EQUAL NOT_EQUAL LESS LESS_EQUAL GREATER GREATER_EQUAL
 %right DOUBLE_COLON           /* :: */
+%right prec_variant_pattern   /* list destruction pattern */
 %left PLUS MINUS              /* + - */
 %left ASTERISK SLASH PERCENT  /* * / % */
 %left AMPERSAND
-%right prec_variant           /* variants, lists */
 %right ARROW LONG_ARROW       /* -> for type declaration, and --> for deterministic */
 
 %start <statement list> prog
@@ -177,24 +177,26 @@ expr:
   ;
 
 %inline type_expr:
-  | PIPE separated_nonempty_list(PIPE, single_variant_type) (* pipe optional before first variant *)
+  | PIPE separated_nonempty_list(PIPE, single_variant_type) %prec PIPE (* pipe optional before first variant *)
       { ETypeVariant $2 }
-  | separated_nonempty_list(PIPE, single_variant_type)
+  | separated_nonempty_list(PIPE, single_variant_type) %prec PIPE
       { ETypeVariant $1 }
   | MU l_ident DOT expr %prec prec_mu
-      { ETypeMu { var = $2 ; body = $4 } }
+    { ETypeMu { var = $2 ; body = $4 } }
   | expr ARROW expr
-      { ETypeFun { domain = $1 ; codomain = $3 } }
+    { ETypeFun { domain = $1 ; codomain = $3 } }
   ;
 
 single_variant_type:
-  | variant_label OF expr %prec prec_variant 
+  | variant_label OF expr
     { { label = $1 ; payload = $3 } }
   ;
 
 appl_expr:
   | appl_expr primary_expr
     { EAppl { func = $1 ; arg = $2 } }
+  | variant_label primary_expr
+    { EVariant { label = $1 ; payload = $2 } }
   | ASSERT primary_expr
     { EAssert $2 }
   | ASSUME primary_expr
@@ -259,8 +261,6 @@ primary_expr:
   ;
 
 op_expr:
-  | variant_label expr %prec prec_variant
-      { EVariant { label = $1 ; payload = $2 } }
   | expr ASTERISK expr
       { EBinop { left = $1 ; binop = BTimes ; right = $3 } }
   | expr SLASH expr
@@ -291,8 +291,6 @@ op_expr:
       { EBinop { left = $1 ; binop = BAnd ; right = $3 } }
   | expr DOUBLE_PIPE expr
       { EBinop { left = $1 ; binop = BOr ; right = $3 } }
-  // | expr PIPELINE expr (* Note: evaluation order is that e' is evaluated first in e |> e' *)
-  //     { EAppl { func = $3 ; arg = $1 } : t }
   | MINUS INT
       { EInt (-$2) }
   ;
@@ -372,12 +370,14 @@ match_expr_list:
     { [ $1, $3 ] }
 
 pattern:
-  | variant_label pattern %prec prec_variant
+  | pattern DOUBLE_COLON pattern
+    { PDestructList ($1, $3) }
+  | variant_label pattern %prec prec_variant_pattern
     { PVariant { Variant.label = $1 ; payload = $2 } }
   | pattern COMMA pattern
     { PTuple ($1, $3)}
-  | OPEN_BRACKET CLOSE_BRACKET { PEmptyList }
-  | pattern DOUBLE_COLON pattern { PDestructList ($1, $3) }
+  | OPEN_BRACKET CLOSE_BRACKET 
+    { PEmptyList }
   | UNDERSCORE
     { PAny }
   | ident
