@@ -6,10 +6,8 @@ type t =
   | EVar of Ident.t
   | EBinop of { left : t ; binop : Binop.t ; right : t }
   | EIf of { if_ : t ; then_ : t ; else_ : t }
-  | ELet of Ident.t let_expr
-  | ELetTyped of typed_var let_expr
-  | ELetRec of Ident.t let_rec_expr (* no mutual recursion yet *)
-  | ELetRecTyped of typed_var let_rec_expr
+  | ELet of { var : var ; defn : t ; body : t }
+  | ELetRec of { var : var ; param : Ident.t ; defn : t ; body : t } (* no mutual recursion yet *)
   | EAppl of { func : t ; arg : t }
   | EMatch of { subject : t ; patterns : (Pattern.t * t) list }
   | EProject of { record : t ; label : Labels.Record.t }
@@ -41,32 +39,23 @@ type t =
   (* | ETypeSingle *)
   [@@deriving eq, ord]
 
-and typed_var = { var : Ident.t ; tau : t }
-  [@@deriving eq, ord]
+and var =
+  | VarUntyped of { name : Ident.t }
+  | VarTyped of typed_var
 
-and 'a let_expr = { var : 'a ; defn : t ; body : t }
-  [@@deriving eq, ord]
-
-(* Recursive expressions must always have at least one parameter *)
-and 'a let_rec_expr = { var : 'a ; param : Ident.t ; defn : t ; body : t }
+and typed_var = { name : Ident.t ; tau : t }
 
 and statement =
-  | SUntyped of { var : Ident.t ; defn : t }
-  | STyped of { var : Ident.t ; tau : t ; defn : t }
-  | SRecUntyped of { var : Ident.t ; param : Ident.t ; defn : t }
-  | SRecTyped of { var : Ident.t ; tau : t ; param : Ident.t ; defn : t }
+  | SLet of { var : var ; defn : t }
+  | SLetRec of { var : var ; param : Ident.t ; defn : t }
   [@@deriving eq, ord]
 
 let statement_to_t (stmt : statement) (body : t) : t =
   match stmt with
-  | SUntyped { var ; defn } ->
+  | SLet { var ; defn } ->
     ELet { var ; defn ; body }
-  | STyped { var ; tau ; defn } ->
-    ELetTyped { var = { var ; tau } ; defn ; body }
-  | SRecUntyped { var ; param ; defn } ->
+  | SLetRec { var ; param ; defn } ->
     ELetRec { var ; param ; defn ; body }
-  | SRecTyped { var ; tau ; param ; defn } ->
-    ELetRecTyped { var = { var ; tau } ; param ; defn ; body }
 
 let rec t_of_statement_list (ls : statement list) : t =
   match ls with

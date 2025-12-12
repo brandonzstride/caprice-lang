@@ -35,13 +35,13 @@ let eval
         ) (return Record.empty) e_record_body
       in
       return_any (VRecord record_body)
-    | ELet { var ; defn ; body } ->
+    | ELet { var = VarUntyped { name } ; defn ; body } ->
       let* v = eval defn in
-      local (Env.set var v) (eval body)
-    | ELetRec { var ; param ; defn ; body } ->
+      local (Env.set name v) (eval body)
+    | ELetRec { var = VarUntyped { name } ; param ; defn ; body } ->
       let* env = read in
-      let v = to_any (VFunFix { fvar = var ; param ; closure = { body = defn ; env } }) in
-      local (Env.set var v) (eval body)
+      let v = to_any (VFunFix { fvar = name ; param ; closure = { body = defn ; env } }) in
+      local (Env.set name v) (eval body)
     | EAppl { func ; arg } ->
       let* v_func = eval func in
       begin match v_func with
@@ -194,7 +194,7 @@ let eval
           fail Vanish
       | _ -> fail (Mismatch "Non-bool `assume`.")
       end
-    | ELetTyped { var = { var ; tau } ; defn ; body } ->
+    | ELet { var = VarTyped { name ; tau } ; defn ; body } ->
       let* tval = eval_type tau in
       let* v = eval defn in
       let* input = read_and_log_input make_label input_env Check in
@@ -205,13 +205,13 @@ let eval
       | Eval ->
         let* () = push_label Interp.Label.With_alt.eval in
         (* TODO: wrap *)
-        local (Env.set var v) (eval body)
+        local (Env.set name v) (eval body)
       | _ -> fail (Mismatch "Bad input env")
       end
-    | ELetRecTyped { var = { var ; tau } ; param ; defn ; body } ->
+    | ELetRec { var = VarTyped { name ; tau } ; param ; defn ; body } ->
       let* tval = eval_type tau in
       let* env = read in
-      let v = to_any (VFunFix { fvar = var ; param ; closure = { body = defn ; env } }) in
+      let v = to_any (VFunFix { fvar = name ; param ; closure = { body = defn ; env } }) in
       let* input = read_and_log_input make_label input_env Check in
       begin match input with
       | Check ->
@@ -220,7 +220,7 @@ let eval
       | Eval ->
         let* () = push_label Interp.Label.With_alt.eval in
         (* TODO: wrap *)
-        local (Env.set var v) (eval body)
+        local (Env.set name v) (eval body)
       | _ -> fail (Mismatch "Bad input env")
       end
     (* types *)
