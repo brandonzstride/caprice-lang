@@ -4,39 +4,50 @@ open Common
 let max_tree_depth = 30
 let max_step = Interp.Step.Step 100_000
 
+let fold_left_until f finish init ls =
+  let rec go acc = function
+    | [] -> finish acc
+    | hd :: tl ->
+      match f acc hd with
+      | `Stop x -> x
+      | `Continue a -> go a tl
+  in
+  go init ls
+
 let make_targets (target : Target.t) (path : Path.t) (ienv : Ienv.t) 
   ~(max_tree_depth : int) : Target.t list * bool =
   let n = Target.path_length target in
   let stem = Path.drop_prefix n path in
-  let pruned = ref false in
-  let (new_targets, _, _) = 
-    List.fold_left (fun ((acc_set, len, formulas) as acc) pathunit ->
-      if len > max_tree_depth then (pruned := true; acc) else
+  fold_left_until (fun (acc_set, len, formulas) pathunit ->
+    if len > max_tree_depth then 
+      `Stop (acc_set, true)
+    else
       let size = len + 1 in
       match pathunit with
       | Path.Nonflipping formula ->
-        acc_set, size, Formula.BSet.add formula formulas
+        `Continue (acc_set, size, Formula.BSet.add formula formulas)
       | Formula (formula, key) ->
         let new_ienv = Ienv.remove_greater key ienv in
         let new_target =
           Target.make (Formula.not_ formula) formulas new_ienv 
             ~size
         in
-        new_target :: acc_set, size, Formula.BSet.add formula formulas
+        `Continue (new_target :: acc_set, size, Formula.BSet.add formula formulas)
       | Label { key ; label = { main = _ ; alts } } ->
         let new_ienv = Ienv.remove_greater key ienv in
-        List.fold_left (fun acc alt_label ->
-          Target.make 
-            (Formula.const_bool true)
-            formulas
-            (Ienv.add (KLabel key) alt_label new_ienv)
-            ~size
-          :: acc
-        ) acc_set alts
-        , size, formulas
-    ) ([], n, target.all_formulas) stem
-  in
-  new_targets, !pruned
+        `Continue (
+          List.fold_left (fun acc alt_label ->
+            Target.make 
+              (Formula.const_bool true)
+              formulas
+              (Ienv.add (KLabel key) alt_label new_ienv)
+              ~size
+            :: acc
+          ) acc_set alts
+          , size, formulas
+        )
+  ) (fun (acc_set, _, _) -> acc_set, false)
+  ([], n, target.all_formulas) stem
 
 let loop (solve : Stepkey.t Smt.Formula.solver) (expr : Lang.Ast.t) (tq : Target_queue.t) =
   let rec loop tq =
