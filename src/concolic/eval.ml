@@ -198,16 +198,20 @@ let eval
     | ELet { var = VarTyped { name ; tau } ; defn ; body } ->
       let* tval = eval_type tau in
       let* v = eval defn in
-      let* input = read_and_log_input_with_default make_label input_env ~default:Check in
-      begin match input with
-      | Check ->
-        let* () = push_label Interp.Label.With_alt.check in
+      let* l_opt = read_input make_label input_env in
+      let check_t =
+        let* () = push_and_log_label Check in
         check v tval
-      | Eval ->
-        let* () = push_label Interp.Label.With_alt.eval in
-        (* TODO: wrap *)
+      in
+      let eval_body =
+        let* () = push_and_log_label Eval in
         local (Env.set name v) (eval body)
-      | _ -> fail (Mismatch "Bad input env")
+      in
+      begin match l_opt with
+      | Some Check -> check_t
+      | Some Eval -> eval_body
+      | Some _ -> fail (Mismatch "Bad input env")
+      | None -> let* () = fork check_t in eval_body
       end
     | ELetRec { var = VarTyped { name ; tau } ; param ; defn ; body } ->
       let* tval = eval_type tau in
@@ -348,10 +352,8 @@ let eval
         if Labels.Record.Set.subset t_labels v_labels
         then
           let push_and_check label =
-            let* () = 
-              (* alternatives do not matter when we are running every label right now *)
-              push_and_log_label { main = Interp.Label.of_record_label label ; alts = [] }
-            in
+            (* alternatives do not matter when we are running every label right now *)
+            let* () = push_and_log_label (Interp.Label.of_record_label label) in
             check
               (Labels.Record.Map.find label record_v)
               (Labels.Record.Map.find label record_t)
@@ -380,15 +382,20 @@ let eval
       begin match v with
       | Any VEmptyList -> confirm
       | Any VListCons (v_hd, v_tl) ->
-        let* l = read_and_log_input_with_default make_label input_env ~default:Left in
-        begin match l with
-        | Left ->
-          let* () = push_label Interp.Label.With_alt.left in
+        let* l_opt = read_input make_label input_env in
+        let check_hd =
+          let* () = push_and_log_label Left in
           check v_hd t
-        | Right ->
-          let* () = push_label Interp.Label.With_alt.right in
+        in
+        let check_tl =
+          let* () = push_and_log_label Right in
           check (Any v_tl) (VTypeList t)
-        | _ -> fail (Mismatch "Bad input env")
+        in
+        begin match l_opt with
+        | Some Left -> check_hd
+        | Some Right -> check_tl
+        | Some _ -> fail (Mismatch "Bad input env")
+        | None -> let* () = fork check_hd in check_tl
         end
       | _ -> refute
       end

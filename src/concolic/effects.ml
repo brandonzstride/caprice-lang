@@ -64,16 +64,16 @@ let push_label (label : Label.With_alt.t) : unit m =
   )
 
 (* Pushes the label to the path and logs it in input environment *)
-let push_and_log_label (label : Label.With_alt.t) : unit m =
+let push_and_log_label (label : Label.t) : unit m =
   let* step = step in
   let* { target } = read_ctx in
   modify (fun s -> 
     { s with
       branch_depth = s.branch_depth + 1
-    ; logged_inputs = Ienv.add (KLabel (Stepkey step)) label.main s.logged_inputs
+    ; logged_inputs = Ienv.add (KLabel (Stepkey step)) label s.logged_inputs
     ; rev_stem = 
       if s.branch_depth >= Target.path_length target
-      then Path.cons_label { key = Stepkey step ; label } s.rev_stem 
+      then Path.cons_label { key = Stepkey step ; label = { main = label ; alts = [] } } s.rev_stem 
       else s.rev_stem
     }
   )
@@ -130,28 +130,26 @@ let target_to_here : Target.t m =
       state.logged_inputs
       ~size:(Target.path_length target + List.length state.rev_stem)
 
-let fork (x : Eval_result.t u) =
-  let* state = get in
+let fork (forked_m : Eval_result.t u) : unit m =
   let* target = target_to_here in
-  handle_error 
-    (let* () = modify (fun s -> { s with rev_stem = Path.empty }) in x)
-    absurd
-    (fun res -> 
+  fork forked_m { target }
+    ~setup_state:(fun state ->
+      { state with rev_stem = Path.empty }
+    )
+    ~restore_state:(fun ~og ~forked_state ->
+      { og with runs =
+        let forked_run =
+          { Logged_run.rev_stem = forked_state.rev_stem ; inputs = forked_state.logged_inputs ; target }
+        in
+        let open Diff_list in
+        (* Note that the forked state runs include the original runs (because it inhereted state)! *)
+        forked_run -:: forked_state.runs (* ... hence, don't copy the og runs *)
+      }
+    )
+    (fun res ->
       if Eval_result.is_signal_to_stop res
       then fail res (* propagate up the failure *)
-      else 
-        (* Otherwise, the error was just a confirmation or something like that *)
-        modify (fun s ->
-          (* restore original state *)
-          { state with runs =
-            let open Diff_list in 
-            let this_run =
-              { Logged_run.rev_stem = s.rev_stem ; inputs = s.logged_inputs ; target }
-            in
-            this_run -:: s.runs -@ state.runs
-          }
-        )
-    )
+      else return ())
 
 let run' (x : 'a m) (target : Target.t) (s : State.t) (e : Cvalue.Env.t) : Eval_result.t * State.t =
   match run x s e { target } with

@@ -37,6 +37,16 @@ module Make (K : Smt.Symbol.KEY) = struct
     Utils.Uid.Map.union (fun _ _ v -> Some v)
       base_map extending_map
 
+  let to_string (m : t) : string =
+    "{ " ^ 
+      ( Utils.Uid.Map.to_list m
+      |> List.map (fun (uid, input) ->
+        string_of_int (Utils.Uid.to_int uid) ^ " |-> " ^ Input.to_string input
+        )
+      |> String.concat " ; ")
+    ^ "}"
+
+
   (**
     [remove_greater max_key t] is the map [t] filtered to only have keys not
     exceeding [max_key].

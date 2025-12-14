@@ -7,7 +7,9 @@ module Make (State : Utils.Types.T) (Env : Env.S) (Ctx : Utils.Types.T) (Err : s
   val fail_on_max_step : Step.t -> State.t -> t * State.t
 end) = struct
   type empty = private | (* uninhabited type *)
-  let absurd : 'a. empty -> 'a = function _ -> .
+  (* let absurd : 'a. empty -> 'a = function _ -> . *)
+  (* For some reason, when I build with landmarks, the above is a type error *)
+  let absurd : 'a. empty -> 'a = Obj.magic
 
   type ('a, 'e) t = {
     run : 'r.
@@ -146,5 +148,17 @@ end) = struct
         match Env.find id env with
         | None -> let e, s = Err.fail_on_fetch id state in reject e s step
         | Some v -> accept v state step
+    }
+
+  let[@inline always] fork (m : 'e u) (fork_ctx : Ctx.t) (k : 'e -> 'a m)
+    ~(setup_state : State.t -> State.t) ~(restore_state : og:State.t -> forked_state:State.t -> State.t) 
+    : 'a m =
+    { run = fun ~reject ~accept state step env ctx ->
+      m.run (setup_state state) step env fork_ctx
+        ~accept:absurd
+        ~reject:(fun e forked_state _ -> 
+          (* uses original step count when resuming, not step count after fork *)
+          (k e).run ~reject ~accept (restore_state ~og:state ~forked_state) step env ctx
+        )
     }
 end
