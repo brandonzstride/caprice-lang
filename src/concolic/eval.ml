@@ -143,6 +143,7 @@ let eval
         | BLeq         , VInt (n1, e1)  , VInt (n2, e2)              -> k (v_bool (n1 <= n2)) e1 e2 Less_than_eq
         | BGreaterThan , VInt (n1, e1)  , VInt (n2, e2)              -> k (v_bool (n1 > n2)) e1 e2 Greater_than
         | BGeq         , VInt (n1, e1)  , VInt (n2, e2)              -> k (v_bool (n1 >= n2)) e1 e2 Greater_than_eq
+        (* TODO: short circuit boolean operations *)
         | BOr          , VBool (b1, e1) , VBool (b2, e2)             -> k (v_bool (b1 || b2)) e1 e2 Or
         | BAnd         , VBool (b1, e1) , VBool (b2, e2) -> return_any @@ VBool (b1 && b2, Smt.Formula.and_ [ e1 ; e2 ])
         | _ -> fail_binop
@@ -217,16 +218,21 @@ let eval
       let* tval = eval_type tau in
       let* env = read in
       let v = to_any (VFunFix { fvar = name ; param ; closure = { body = defn ; env } }) in
-      let* input = read_and_log_input_with_default make_label input_env ~default:Check in
-      begin match input with
-      | Check ->
-        let* () = push_label Interp.Label.With_alt.check in
+      let* l_opt = read_input make_label input_env in
+      let check_t = 
+        let* () = push_and_log_label Check in
         check v tval
-      | Eval ->
-        let* () = push_label Interp.Label.With_alt.eval in
+      in
+      let eval_body =
+        let* () = push_and_log_label Eval in
         (* TODO: wrap *)
         local (Env.set name v) (eval body)
-      | _ -> fail (Mismatch "Bad input env")
+      in
+      begin match l_opt with
+      | Some Check -> check_t
+      | Some Eval -> eval_body
+      | Some _ -> fail (Mismatch "Bad input env")
+      | None -> let* () = fork check_t in eval_body
       end
     (* types *)
     | EType -> return_any VType
@@ -319,19 +325,24 @@ let eval
         in
         check res codomain 
       | Any VGenFun { domain = domain' ; codomain = codomain' } ->
-        let* l = read_and_log_input_with_default make_label input_env ~default:Left in
-        begin match l with
-        | Left ->
-          let* () = push_label Interp.Label.With_alt.left in
+        let* l_opt = read_input make_label input_env in
+        let check_left =
+          let* () = push_and_log_label Left in
           if domain == domain' || domain = domain' then confirm else
           let* genned = gen domain in
           check genned domain'
-        | Right ->
-          let* () = push_label Interp.Label.With_alt.right in
+        in
+        let check_right =
+          let* () = push_and_log_label Right in
           if codomain == codomain' || codomain = codomain' then confirm else
           let* genned = gen codomain' in
           check genned codomain
-        | _ -> fail (Mismatch "Bad input env")
+        in
+        begin match l_opt with
+        | Some Left -> check_left
+        | Some Right -> check_right
+        | Some _ -> fail (Mismatch "Bad input env")
+        | None -> let* () = fork check_left in check_right
         end
       | _ -> refute
       end
@@ -366,10 +377,15 @@ let eval
             (* is in exploration mode, so we want to check them all *)
             let main_label = Labels.Record.Set.choose t_labels in
             let* () =
-              Labels.Record.Set.fold (fun label unit_m ->
-                let* () = unit_m in
-                fork (push_and_check label)
-              ) (Labels.Record.Set.remove main_label t_labels) (return ())
+              let rec go = function
+                | [] -> return ()
+                | label :: tl ->
+                  let* () = fork (push_and_check label) in
+                  go tl
+              in
+              Labels.Record.Set.remove main_label t_labels
+              |> Labels.Record.Set.to_list
+              |> go
             in
             push_and_check main_label
         else refute
@@ -400,15 +416,15 @@ let eval
       | _ -> refute
       end
     | VTypeRefine { var ; tau ; predicate = { body ; env } } ->
-      let* l = read_and_log_input_with_default make_label input_env ~default:Check in
-      begin match l with
-      | Check -> 
-        let* () = push_label Interp.Label.With_alt.check in
+      let* l_opt = read_input make_label input_env in
+      let check_t =
+        let* () = push_and_log_label Check in
         check v tau
-      | Eval -> 
+      in
+      let eval_pred =
         let* () = push_label Interp.Label.With_alt.eval in
         let* p = local (fun _ -> Env.set var v env) (eval body) in
-        begin match p with
+        match p with
         | Any VBool (b, s) ->
           if b then 
             let* () = push_formula s in
@@ -417,21 +433,30 @@ let eval
             let* () = push_formula ~allow_flip:false (Smt.Formula.not_ s) in
             refute
         | _ -> fail (Mismatch "Non-bool predicate")
-        end 
-      | _ -> fail (Mismatch "Bad input env")
+      in
+      begin match l_opt with
+      | Some Check -> check_t
+      | Some Eval -> eval_pred
+      | Some _ -> fail (Mismatch "Bad input env")
+      | None -> let* () = fork check_t in eval_pred
       end
     | VTypeTuple (t1, t2) ->
       begin match v with
       | Any VTuple (v1, v2) ->
-        let* l = read_and_log_input_with_default make_label input_env ~default:Left in
-        begin match l with
-        | Left ->
-            let* () = push_label Interp.Label.With_alt.left in
-            check v1 t1
-        | Right ->
-            let* () = push_label Interp.Label.With_alt.right in
-            check v2 t2
-        | _ -> fail (Mismatch "Bad input env")
+        let* l_opt = read_input make_label input_env in
+        let check_left =
+          let* () = push_and_log_label Left in
+          check v1 t1
+        in
+        let check_right =
+          let* () = push_and_log_label Right in
+          check v2 t2
+        in
+        begin match l_opt with
+        | Some Left -> check_left
+        | Some Right -> check_right
+        | Some _ -> fail (Mismatch "Bad input env")
+        | None -> let* () = fork check_left in check_right
         end
       | _ -> refute
       end

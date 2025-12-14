@@ -112,12 +112,6 @@ let read_and_log_input_with_default (make_key : Stepkey.t -> 'a Ienv.Key.t)
   | Some i -> let* () = log_input key i in return i
   | None -> let* () = log_input key default in return default
 
-let read_input_with_default (make_key : Stepkey.t -> 'a Ienv.Key.t)
-  (input_env : Ienv.t) ~(default : 'a) : 'a m =
-  let* step = step in
-  let key = make_key (Stepkey step) in
-  return @@ Option.value (Ienv.find key input_env) ~default
-
 let target_to_here : Target.t m =
   let* { target } = read_ctx in
   let* state = get in
