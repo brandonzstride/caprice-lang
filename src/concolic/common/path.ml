@@ -20,3 +20,10 @@ let cons_nonflipping (e : bool Formula.t) (t : t) : t =
 
 let drop_prefix (n : int) (path : t) : t =
   List.drop n path
+
+let formulas (t : t) : Formula.BSet.t =
+  List.fold_left (fun set -> function
+    | Formula (formula, _)
+    | Nonflipping formula -> Formula.BSet.add formula set
+    | Label _ -> set
+  ) Formula.BSet.empty t

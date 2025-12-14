@@ -7,7 +7,7 @@ type t =
   ; id : Utils.Uid.t }
 
 let empty : t = 
-  { target_formula = Formula.const_bool true
+  { target_formula = Formula.trivial
   ; all_formulas = Formula.BSet.empty
   ; i_env = Ienv.empty
   ; size = 0

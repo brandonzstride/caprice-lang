@@ -36,7 +36,7 @@ let make_targets (target : Target.t) (stem : Path.t) (ienv : Ienv.t)
         `Continue (
           List.fold_left (fun acc alt_label ->
             Target.make 
-              (Formula.const_bool true)
+              Formula.trivial
               formulas
               (Ienv.add (KLabel key) alt_label new_ienv)
               ~size
@@ -46,6 +46,19 @@ let make_targets (target : Target.t) (stem : Path.t) (ienv : Ienv.t)
         )
   ) (fun (acc_set, _, _) -> acc_set, false)
   ([], Target.path_length target, target.all_formulas) stem
+
+let targets_of_logged_runs (runs : Effects.Logged_run.t list) ~(max_tree_depth : int) : Target.t list * bool =
+  List.fold_left (fun (targets, is_pruned) run ->
+    let new_targets, new_is_pruned = 
+      let open Effects.Logged_run in
+      make_targets run.target (List.rev run.rev_stem) run.inputs ~max_tree_depth
+    in
+    new_targets @ targets, is_pruned || new_is_pruned
+  ) ([], false) runs
+
+let c = Utils.Counter.create ()
+
+module T = Smt.Formula.Make_transformer (Overlays.Typed_z3)
 
 let loop (solve : Stepkey.t Smt.Formula.solver) (expr : Lang.Ast.t) (tq : Target_queue.t) =
   let rec loop tq =
@@ -59,14 +72,15 @@ let loop (solve : Stepkey.t Smt.Formula.solver) (expr : Lang.Ast.t) (tq : Target
     | None -> Answer.Exhausted
 
   and loop_on_model target tq model =
+    let _ = Utils.Counter.next c in
     let ienv = Ienv.extend target.i_env (Ienv.of_model model) in
-    let res, state = Eval.eval expr ienv target ~max_step in
+    let res, runs = Eval.eval expr ienv target ~max_step in
     if Eval_result.is_signal_to_stop res
     then Eval_result.to_answer res
     else 
       Answer.min (Eval_result.to_answer res) @@ 
         let targets, is_pruned = 
-          make_targets target (List.rev state.rev_stem) state.logged_inputs ~max_tree_depth
+          targets_of_logged_runs runs ~max_tree_depth
         in
         let a = loop (Target_queue.push_list tq targets) in
         if is_pruned
@@ -80,5 +94,5 @@ module Default_solver = Smt.Formula.Make_solver (Default_Z3)
 
 let begin_ceval (expr : Lang.Ast.t) =
   let span, answer = Utils.Time.time (loop Default_solver.solve expr) Target_queue.initial in
-  Format.printf "Finished type checking in %0.3f ms:\n    %s\n"
-    (Utils.Time.span_to_ms span) (Answer.to_string answer)
+  Format.printf "Finished type checking in %0.3f ms and %d runs:\n    %s\n"
+    (Utils.Time.span_to_ms span) !(c.cell) (Answer.to_string answer)

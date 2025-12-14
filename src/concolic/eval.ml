@@ -14,7 +14,7 @@ let eval
   (input_env : Ienv.t)
   (target : Target.t)
   ~(max_step : Interp.Step.t)
-  : Eval_result.t * State.t
+  : Eval_result.t * Logged_run.t list
   =
   let rec eval (expr : Ast.t) : Cvalue.any m =
     let* () = incr_step ~max_step in
@@ -57,7 +57,7 @@ let eval
         ) (eval body)
       | Any VGenFun { domain ; codomain } ->
         let* v_arg = eval arg in
-        let* input = read_and_log_input make_label input_env Eval in
+        let* input = read_and_log_input_with_default make_label input_env ~default:Eval in
         begin match input with
         | Check ->
           let* () = push_label Interp.Label.With_alt.check in
@@ -112,7 +112,7 @@ let eval
     (* symbolic values and branching *)
     | EPick_i ->
       let* step = step in
-      let* i = read_and_log_input make_int input_env 0 in
+      let* i = read_and_log_input_with_default make_int input_env ~default:0 in
       return_any (VInt (i, Stepkey.int_symbol step))
     | ENot e ->
       let* v = eval e in
@@ -198,7 +198,7 @@ let eval
     | ELet { var = VarTyped { name ; tau } ; defn ; body } ->
       let* tval = eval_type tau in
       let* v = eval defn in
-      let* input = read_and_log_input make_label input_env Check in
+      let* input = read_and_log_input_with_default make_label input_env ~default:Check in
       begin match input with
       | Check ->
         let* () = push_label Interp.Label.With_alt.check in
@@ -213,7 +213,7 @@ let eval
       let* tval = eval_type tau in
       let* env = read in
       let v = to_any (VFunFix { fvar = name ; param ; closure = { body = defn ; env } }) in
-      let* input = read_and_log_input make_label input_env Check in
+      let* input = read_and_log_input_with_default make_label input_env ~default:Check in
       begin match input with
       | Check ->
         let* () = push_label Interp.Label.With_alt.check in
@@ -315,7 +315,7 @@ let eval
         in
         check res codomain 
       | Any VGenFun { domain = domain' ; codomain = codomain' } ->
-        let* l = read_and_log_input make_label input_env Left in
+        let* l = read_and_log_input_with_default make_label input_env ~default:Left in
         begin match l with
         | Left ->
           let* () = push_label Interp.Label.With_alt.left in
@@ -347,25 +347,29 @@ let eval
         let v_labels = Record.label_set record_v in
         if Labels.Record.Set.subset t_labels v_labels
         then
-          let* l =
-            read_and_log_input make_label input_env
-              (Interp.Label.of_record_label (Labels.Record.Set.choose t_labels))
-          in
-          begin match l with
-          | Label id ->
-            let to_check = Labels.Record.of_ident id in
-            let t = Labels.Record.Map.find to_check record_t in
-            let v = Labels.Record.Map.find to_check record_v in
-            let* () =
-              push_label Interp.Label.With_alt.{ main = l ; alts =
-                Labels.Record.Set.remove to_check t_labels
-                |> Labels.Record.Set.to_list
-                |> List.map Interp.Label.of_record_label
-              }
+          let push_and_check label =
+            let* () = 
+              (* alternatives do not matter when we are running every label right now *)
+              push_and_log_label { main = Interp.Label.of_record_label label ; alts = [] }
             in
-            check v t
-          | _ -> fail (Mismatch "Bad input env")
-          end
+            check
+              (Labels.Record.Map.find label record_v)
+              (Labels.Record.Map.find label record_t)
+          in
+          let* l_opt = read_input make_label input_env in
+          match l_opt with
+          | Some Label id -> push_and_check (Labels.Record.RecordLabel id)
+          | Some _ -> fail (Mismatch "Bad input env")
+          | None ->
+            (* is in exploration mode, so we want to check them all *)
+            let main_label = Labels.Record.Set.choose t_labels in
+            let* () =
+              Labels.Record.Set.fold (fun label unit_m ->
+                let* () = unit_m in
+                fork (push_and_check label)
+              ) (Labels.Record.Set.remove main_label t_labels) (return ())
+            in
+            push_and_check main_label
         else refute
       | _ -> refute
       end
@@ -376,7 +380,7 @@ let eval
       begin match v with
       | Any VEmptyList -> confirm
       | Any VListCons (v_hd, v_tl) ->
-        let* l = read_and_log_input make_label input_env Left in
+        let* l = read_and_log_input_with_default make_label input_env ~default:Left in
         begin match l with
         | Left ->
           let* () = push_label Interp.Label.With_alt.left in
@@ -389,7 +393,7 @@ let eval
       | _ -> refute
       end
     | VTypeRefine { var ; tau ; predicate = { body ; env } } ->
-      let* l = read_and_log_input make_label input_env Check in
+      let* l = read_and_log_input_with_default make_label input_env ~default:Check in
       begin match l with
       | Check -> 
         let* () = push_label Interp.Label.With_alt.check in
@@ -412,7 +416,7 @@ let eval
     | VTypeTuple (t1, t2) ->
       begin match v with
       | Any VTuple (v1, v2) ->
-        let* l = read_and_log_input make_label input_env Left in
+        let* l = read_and_log_input_with_default make_label input_env ~default:Left in
         begin match l with
         | Left ->
             let* () = push_label Interp.Label.With_alt.left in
@@ -431,11 +435,11 @@ let eval
     | VTypeUnit -> return_any VUnit
     | VTypeInt ->
       let* step = step in
-      let* i = read_and_log_input make_int input_env 0 in
+      let* i = read_and_log_input_with_default make_int input_env ~default:0 in
       return_any (VInt (i, Stepkey.int_symbol step))
     | VTypeBool ->
       let* step = step in
-      let* b = read_and_log_input make_bool input_env false in
+      let* b = read_and_log_input_with_default make_bool input_env ~default:false in
       return_any (VBool (b, Stepkey.bool_symbol step))
     | VTypeFun tfun ->
       return_any (VGenFun tfun)
@@ -459,9 +463,9 @@ let eval
     | VTypeVariant variant_t ->
       let t_labels = Labels.Variant.B.domain variant_t in
       let* l =
-        read_and_log_input make_label input_env
+        read_and_log_input_with_default make_label input_env
           (* TODO: choose a nonrecursive variant constructor instead of an arbitrary one *)
-          (Interp.Label.of_variant_label (Labels.Variant.Set.choose t_labels))
+          ~default:(Interp.Label.of_variant_label (Labels.Variant.Set.choose t_labels))
       in
       begin match l with
       | Label id ->
@@ -479,7 +483,7 @@ let eval
       | _ -> fail (Mismatch "Bad input env")
       end
     | VTypeList t ->
-      let* l = read_and_log_input make_label input_env Left in
+      let* l = read_and_log_input_with_default make_label input_env ~default:Left in
       begin match l with
       | Left ->
         let* () = push_label Interp.Label.With_alt.left in
@@ -512,4 +516,11 @@ let eval
       return_any (VTuple (v1, v2))
   in
 
-  run (eval expr) target
+  let result, state = run (eval expr) target in
+  let this_logged_run =
+    Logged_run.{ target ; inputs = state.logged_inputs ; rev_stem = state.rev_stem }
+  in
+  result,
+  Diff_list.(
+    to_list @@ this_logged_run -:: state.runs
+  )
