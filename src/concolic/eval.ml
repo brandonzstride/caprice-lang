@@ -12,6 +12,7 @@ open Ienv.Key
 let eval
   (expr : Ast.t)
   (input_env : Ienv.t)
+  (target : Target.t)
   ~(max_step : Interp.Step.t)
   : Eval_result.t * State.t
   =
@@ -511,4 +512,4 @@ let eval
       return_any (VTuple (v1, v2))
   in
 
-  run (eval expr)
+  run (eval expr) target

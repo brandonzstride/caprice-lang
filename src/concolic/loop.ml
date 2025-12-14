@@ -14,10 +14,8 @@ let fold_left_until f finish init ls =
   in
   go init ls
 
-let make_targets (target : Target.t) (path : Path.t) (ienv : Ienv.t) 
+let make_targets (target : Target.t) (stem : Path.t) (ienv : Ienv.t) 
   ~(max_tree_depth : int) : Target.t list * bool =
-  let n = Target.path_length target in
-  let stem = Path.drop_prefix n path in
   fold_left_until (fun (acc_set, len, formulas) pathunit ->
     if len > max_tree_depth then 
       `Stop (acc_set, true)
@@ -47,7 +45,7 @@ let make_targets (target : Target.t) (path : Path.t) (ienv : Ienv.t)
           , size, formulas
         )
   ) (fun (acc_set, _, _) -> acc_set, false)
-  ([], n, target.all_formulas) stem
+  ([], Target.path_length target, target.all_formulas) stem
 
 let loop (solve : Stepkey.t Smt.Formula.solver) (expr : Lang.Ast.t) (tq : Target_queue.t) =
   let rec loop tq =
@@ -62,13 +60,13 @@ let loop (solve : Stepkey.t Smt.Formula.solver) (expr : Lang.Ast.t) (tq : Target
 
   and loop_on_model target tq model =
     let ienv = Ienv.extend target.i_env (Ienv.of_model model) in
-    let res, state = Eval.eval expr ienv ~max_step in
+    let res, state = Eval.eval expr ienv target ~max_step in
     if Eval_result.is_signal_to_stop res
     then Eval_result.to_answer res
     else 
       Answer.min (Eval_result.to_answer res) @@ 
         let targets, is_pruned = 
-          make_targets target (List.rev state.rev_path) state.logged_inputs ~max_tree_depth
+          make_targets target (List.rev state.rev_stem) state.logged_inputs ~max_tree_depth
         in
         let a = loop (Target_queue.push_list tq targets) in
         if is_pruned
