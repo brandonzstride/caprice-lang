@@ -7,9 +7,7 @@ module Make (State : Utils.Types.T) (Env : Env.S) (Ctx : Utils.Types.T) (Err : s
   val fail_on_max_step : Step.t -> State.t -> t * State.t
 end) = struct
   type empty = private | (* uninhabited type *)
-  (* let absurd : 'a. empty -> 'a = function _ -> . *)
-  (* For some reason, when I build with landmarks, the above is a type error *)
-  let absurd : 'a. empty -> 'a = Obj.magic
+  let absurd : 'a. empty -> 'a = function _ -> .
 
   type ('a, 'e) t = {
     run : 'r.

@@ -9,6 +9,6 @@
   baby
   )
  (synopsis "SMT module for Caprice")
- ; (instrumentation (backend landmarks --auto))
- ; (instrumentation (backend bisect_ppx))
+ (instrumentation (backend landmarks --auto))
+ (instrumentation (backend bisect_ppx))
  (preprocess (pps ppx_deriving.ord ppx_deriving.eq)))
