@@ -121,48 +121,7 @@ let eval
       | _ -> fail (Mismatch "Non-bool `not`.")
       end
     | EBinop { left ; binop ; right } ->
-      let* vleft = eval left in
-      let* vright = eval right in
-      let fail_binop = fail (Mismatch "Bad binop") in
-      let value_binop a b =
-        let k f s1 s2 op =
-          return_any @@ f (Smt.Formula.binop op s1 s2)
-        in
-        let v_int n s = VInt (n, s) in
-        let v_bool n s = VBool (n, s) in
-        match binop, a, b with
-        | BPlus        , VInt (n1, e1)  , VInt (n2, e2)              -> k (v_int (n1 + n2)) e1 e2 Plus
-        | BMinus       , VInt (n1, e1)  , VInt (n2, e2)              -> k (v_int (n1 - n2)) e1 e2 Minus
-        | BTimes       , VInt (n1, e1)  , VInt (n2, e2)              -> k (v_int (n1 * n2)) e1 e2 Times
-        | BDivide      , VInt (n1, e1)  , VInt (n2, e2) when n2 <> 0 -> k (v_int (n1 / n2)) e1 e2 Divide
-        | BModulus     , VInt (n1, e1)  , VInt (n2, e2) when n2 <> 0 -> k (v_int (n1 mod n2)) e1 e2 Modulus
-        | BEqual       , VInt (n1, e1)  , VInt (n2, e2)              -> k (v_bool (n1 = n2)) e1 e2 Equal
-        | BEqual       , VBool (b1, e1) , VBool (b2, e2)             -> k (v_bool (b1 = b2)) e1 e2 Equal
-        | BNeq         , VInt (n1, e1)  , VInt (n2, e2)              -> k (v_bool (n1 <> n2)) e1 e2 Not_equal
-        | BLessThan    , VInt (n1, e1)  , VInt (n2, e2)              -> k (v_bool (n1 < n2)) e1 e2 Less_than
-        | BLeq         , VInt (n1, e1)  , VInt (n2, e2)              -> k (v_bool (n1 <= n2)) e1 e2 Less_than_eq
-        | BGreaterThan , VInt (n1, e1)  , VInt (n2, e2)              -> k (v_bool (n1 > n2)) e1 e2 Greater_than
-        | BGeq         , VInt (n1, e1)  , VInt (n2, e2)              -> k (v_bool (n1 >= n2)) e1 e2 Greater_than_eq
-        (* TODO: short circuit boolean operations *)
-        | BOr          , VBool (b1, e1) , VBool (b2, e2)             -> k (v_bool (b1 || b2)) e1 e2 Or
-        | BAnd         , VBool (b1, e1) , VBool (b2, e2) -> return_any @@ VBool (b1 && b2, Smt.Formula.and_ [ e1 ; e2 ])
-        | _ -> fail_binop
-      in
-      handle_any vleft
-        ~data:(fun data_left ->
-          handle_any vright
-            ~data:(fun data_right -> value_binop data_left data_right)
-            ~typeval:(fun _ -> fail_binop)
-        )
-        ~typeval:(fun type_left ->
-          handle_any vright
-            ~data:(fun _ -> fail_binop)
-            ~typeval:(fun type_right ->
-              match binop with
-              | BTimes -> return_any (VTypeTuple (type_left, type_right))
-              | _ -> fail_binop
-            )
-        )
+      eval_binop left binop right
     | EIf { if_ ; then_ ; else_ } ->
       let* v = eval if_ in
       begin match v with
@@ -273,6 +232,80 @@ let eval
         ) (return Labels.Variant.Map.empty) ls
       in
       return_any (VTypeVariant variant_bodies)
+
+  and eval_binop (left : Ast.t) (op : Binop.t) (right : Ast.t) : Cvalue.any m =
+    let* vleft = eval left in
+    match op with
+    | BAnd -> (* Handle short-circuit && *)
+      begin match vleft with
+      | Any VBool (true, s) ->
+        (* The short-circuiting is effectively a branch, so log the formula *)
+        let* () = push_formula s in
+        let* vright = eval right in
+        begin match vright with
+        | Any VBool _ -> return vright
+        | _ -> fail (Mismatch "And non-bool")
+        end
+      | Any VBool (false, s) ->
+        let* () = push_formula (Smt.Formula.not_ s) in
+        return vleft
+      | _ -> fail (Mismatch "And non-bool")
+      end
+    | BOr -> (* Handle short-circuit || *)
+      begin match vleft with
+      | Any VBool (true, s) ->
+        let* () = push_formula s in
+        return vleft
+      | Any VBool (false, s) ->
+        let* () = push_formula (Smt.Formula.not_ s) in
+        let* vright = eval right in
+        begin match vright with
+        | Any VBool _ -> return vright
+        | _ -> fail (Mismatch "Or non-bool")
+        end
+      | _ -> fail (Mismatch "Or non-bool")
+      end
+    | _ ->
+      let* vright = eval right in
+      let fail_binop = fail (Mismatch "Bad binop") in
+      let value_binop a b =
+        let k f s1 s2 op =
+          return_any @@ f (Smt.Formula.binop op s1 s2)
+        in
+        let v_int n s = VInt (n, s) in
+        let v_bool n s = VBool (n, s) in
+        match op, a, b with
+        | BPlus        , VInt (n1, e1)  , VInt (n2, e2)              -> k (v_int (n1 + n2)) e1 e2 Plus
+        | BMinus       , VInt (n1, e1)  , VInt (n2, e2)              -> k (v_int (n1 - n2)) e1 e2 Minus
+        | BTimes       , VInt (n1, e1)  , VInt (n2, e2)              -> k (v_int (n1 * n2)) e1 e2 Times
+        | BDivide      , VInt (n1, e1)  , VInt (n2, e2) when n2 <> 0 -> k (v_int (n1 / n2)) e1 e2 Divide
+        | BModulus     , VInt (n1, e1)  , VInt (n2, e2) when n2 <> 0 -> k (v_int (n1 mod n2)) e1 e2 Modulus
+        | BEqual       , VInt (n1, e1)  , VInt (n2, e2)              -> k (v_bool (n1 = n2)) e1 e2 Equal
+        | BEqual       , VBool (b1, e1) , VBool (b2, e2)             -> k (v_bool (b1 = b2)) e1 e2 Equal
+        | BNeq         , VInt (n1, e1)  , VInt (n2, e2)              -> k (v_bool (n1 <> n2)) e1 e2 Not_equal
+        | BLessThan    , VInt (n1, e1)  , VInt (n2, e2)              -> k (v_bool (n1 < n2)) e1 e2 Less_than
+        | BLeq         , VInt (n1, e1)  , VInt (n2, e2)              -> k (v_bool (n1 <= n2)) e1 e2 Less_than_eq
+        | BGreaterThan , VInt (n1, e1)  , VInt (n2, e2)              -> k (v_bool (n1 > n2)) e1 e2 Greater_than
+        | BGeq         , VInt (n1, e1)  , VInt (n2, e2)              -> k (v_bool (n1 >= n2)) e1 e2 Greater_than_eq
+        (* | BOr          , VBool (b1, e1) , VBool (b2, e2)             -> k (v_bool (b1 || b2)) e1 e2 Or
+        | BAnd         , VBool (b1, e1) , VBool (b2, e2) -> return_any @@ VBool (b1 && b2, Smt.Formula.and_ [ e1 ; e2 ]) *)
+        | _ -> fail_binop
+      in
+      handle_any vleft
+        ~data:(fun data_left ->
+          handle_any vright
+            ~data:(fun data_right -> value_binop data_left data_right)
+            ~typeval:(fun _ -> fail_binop)
+        )
+        ~typeval:(fun type_left ->
+          handle_any vright
+            ~data:(fun _ -> fail_binop)
+            ~typeval:(fun type_right ->
+              match op with
+              | BTimes -> return_any (VTypeTuple (type_left, type_right))
+              | _ -> fail_binop
+            )
+        )
 
   and eval_type (expr : Ast.t) : Cvalue.tval m =
     let* v = eval expr in
@@ -422,7 +455,7 @@ let eval
         check v tau
       in
       let eval_pred =
-        let* () = push_label Interp.Label.With_alt.eval in
+        let* () = push_and_log_label Eval in
         let* p = local (fun _ -> Env.set var v env) (eval body) in
         match p with
         | Any VBool (b, s) ->
