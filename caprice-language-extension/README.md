@@ -11,9 +11,26 @@ The following are a few very rough instructions to install the syntax highlighte
 as a VS Code extension.
 
 1. Navigate to the `caprice-language-extension` directory (the one this README is in).
-2. Run `npm install -g @vscode/vsce`. You may need to `--force` or use `sudo`.
-3. Then do `vsce package --allow-missing-repository`. Answer `y`/`yes` to questions about missing licenses.
-4. Run `code --install-extension caprice-language-0.0.0.vsix`, or whatever version we're currently on (not just `0.0.0` every time).
+2. Run the following command.
+    ```
+    npm install -g @vscode/vsce
+    ````
+
+    You may need to `--force` or use `sudo`:
+
+    ```
+    sudo npm install -g @vscode/vsce --force
+    ````
+3. (Begin from here to reinstall after upgrades) Then do
+    ```
+    vsce package --allow-missing-repository
+    ```
+    Answer `y`/`yes` to questions about missing licenses.
+4. Run 
+    ```
+    code --install-extension caprice-language-0.0.0.vsix
+    ```
+    or whatever version we're currently on (not just `0.0.0` every time).
 
 To make changes and reinstall, only run the last two commands. Note you either need to
 uninstall the previous version, or increment the version number.

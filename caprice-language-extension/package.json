@@ -2,7 +2,7 @@
   "name": "caprice-language",
   "displayName": "Caprice Language",
   "description": "Syntax highlighting for Caprice programming language",
-  "version": "0.0.1",
+  "version": "0.0.2",
   "engines": {
     "vscode": "^1.74.0"
   },
@@ -22,8 +22,8 @@
         ],
         "configuration": "./language-configuration.json",
         "icon": {
-          "light": "./icons/caprice-icon.png",
-          "dark": "./icons/caprice-icon.png"
+          "light": "./icons/freehand-icon.png",
+          "dark": "./icons/freehand-icon.png"
         }
       }
     ],
