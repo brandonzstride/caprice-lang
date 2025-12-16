@@ -16,6 +16,7 @@
  (name caprice)
  (description "Semantic type refutation via concolic semantics")
  (depends
+  alcotest
   baby
   menhir
   mtime

@@ -1,0 +1,12 @@
+
+(test
+ (name test_typecheck)
+ (modules test_typecheck)
+ (libraries
+  ; internal
+  concolic 
+  ; external
+  alcotest
+ )
+ (deps
+  (source_tree ../../test/)))
