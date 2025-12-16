@@ -127,6 +127,8 @@ let eval
       | Any (VListCons _ as tl) -> return_any (VListCons (v1, tl))
       | _ -> mismatch @@ cons_non_list v1 v2
       end
+    | EAbstractType ->
+      gen VType
     (* symbolic values and branching *)
     | EPick_i ->
       let* step = step in

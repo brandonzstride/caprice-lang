@@ -68,7 +68,7 @@
 %token DEP
 %token LIST
 %token REC
-// %token ABSTRACT
+%token ABSTRACT
 
 /*
  * Precedences and associativities.  Lower precedences come first.
@@ -285,8 +285,8 @@ primary_expr:
     { ETypeBottom }
   | LIST
     { EFunction { param = Ident "x" ; body = ETypeList (EVar (Ident "x")) } } (* HACK HACK HACK *)
-  // | ABSTRACT
-  //   { EAbstractType }
+  | ABSTRACT
+    { EAbstractType }
   // | SINGLETYPE_KEYWORD
   //   { ETypeSingle }
   | OPEN_PAREN CLOSE_PAREN

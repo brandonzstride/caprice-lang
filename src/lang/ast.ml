@@ -22,6 +22,7 @@ type t =
   | EVariant of t Variant.t
   | EAssert of t
   | EAssume of t
+  | EAbstractType (* evaluates to an abstract type *)
   (* Types *)
   | EType
   | ETypeInt
