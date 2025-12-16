@@ -11,33 +11,19 @@ module Logged_run = struct
     ; target : Target.t } 
 end
 
-module Diff_list = struct
-  type 'a t = 'a list -> 'a list  
-
-  let empty : 'a t = fun ls -> ls
-
-  let ( -:: ) a dls =
-    fun ls -> dls (a :: ls)
-
-  let ( -@ ) dls1 dls2 =
-    fun ls -> dls2 (dls1 ls)
-
-  let to_list dls = dls []
-end
-
 module State = struct
   type t = 
     { rev_stem : Path.t (* we will cons to the path instead of union a log *)
     ; logged_inputs : Ienv.t 
     ; branch_depth : int (* only the branch depth while not yet at the target *)
-    ; runs : Logged_run.t Diff_list.t
+    ; runs : Logged_run.t Utils.Diff_list.t
     }
 
   let empty : t =
     { rev_stem = Path.empty
     ; logged_inputs = Ienv.empty
     ; branch_depth = 0 
-    ; runs = Diff_list.empty }
+    ; runs = Utils.Diff_list.empty }
 end
 
 module Context = struct
@@ -135,7 +121,7 @@ let fork (forked_m : Eval_result.t u) : unit m =
         let forked_run =
           { Logged_run.rev_stem = forked_state.rev_stem ; inputs = forked_state.logged_inputs ; target }
         in
-        let open Diff_list in
+        let open Utils.Diff_list in
         (* Note that the forked state runs include the original runs (because it inhereted state)! *)
         forked_run -:: forked_state.runs (* ... hence, don't copy the og runs *)
       }

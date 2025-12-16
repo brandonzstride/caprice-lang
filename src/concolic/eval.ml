@@ -627,6 +627,6 @@ let eval
     Logged_run.{ target ; inputs = state.logged_inputs ; rev_stem = state.rev_stem }
   in
   result,
-  Diff_list.(
+  Utils.Diff_list.(
     to_list @@ this_logged_run -:: state.runs
   )
