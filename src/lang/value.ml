@@ -27,7 +27,7 @@ module Make (Atom_cell : Utils.Comparable.S1) = struct
     | VEmptyList : data t
     | VListCons : any * data t -> data t
     (* generated values *)
-    | VGenFun : (typeval t, typeval t) Funtype.t -> data t
+    | VGenFun : (typeval t, fun_cod) Funtype.t -> data t
     | VGenPoly : { id : int ; nonce : int } -> data t
     (* type values only *)
     | VType : typeval t
@@ -39,7 +39,7 @@ module Make (Atom_cell : Utils.Comparable.S1) = struct
     | VTypeBool : typeval t
     | VTypeMu : { var : Ident.t ; closure : closure } -> typeval t
     | VTypeList : typeval t -> typeval t
-    | VTypeFun : (typeval t, typeval t) Funtype.t -> typeval t
+    | VTypeFun : (typeval t, fun_cod) Funtype.t -> typeval t
     | VTypeRecord : typeval t Record.t -> typeval t
     | VTypeVariant : typeval t Labels.Variant.Map.t -> typeval t
     | VTypeRefine : (typeval t, closure) Refinement.t -> typeval t
@@ -48,6 +48,10 @@ module Make (Atom_cell : Utils.Comparable.S1) = struct
   and closure = { body : Ast.t ; env : env }
 
   and env = any Env.t
+
+  and fun_cod =
+    | CodValue of typeval t (* regular function codomain *)
+    | CodDependent of Ident.t * closure (* dependent function codomain *)
 
   and any = Any : 'a t -> any [@@unboxed]
 

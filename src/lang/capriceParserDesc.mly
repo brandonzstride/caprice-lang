@@ -126,15 +126,15 @@ statement:
         EFunction { param ; body = acc }
       ) $3 $5
     } }
-  | LET l_ident nonempty_list(typed_param) COLON expr EQUALS expr
+  | LET l_ident typed_params COLON expr EQUALS expr
     { SLet { var = VarTyped { name = $2 ; tau =
-      List.fold_right (fun { name = _ ; tau } acc ->
-        ETypeFun { domain = tau ; codomain = acc }
+      List.fold_right (fun (_, domain) acc ->
+        ETypeFun { domain ; codomain = acc }
       ) $3 $5
       }
       ; defn =
-        List.fold_right (fun { name ; tau = _ } acc ->
-          EFunction { param = name ; body = acc }
+        List.fold_right (fun (param, _) acc ->
+          EFunction { param ; body = acc }
         ) $3 $7
       } }
   | LET REC untyped_binding nonempty_list(l_ident) EQUALS expr
@@ -143,43 +143,21 @@ statement:
         EFunction { param ; body = acc }
       ) (List.tl $4) $6
     } }
-  | LET REC l_ident nonempty_list(typed_param) COLON expr EQUALS expr
+  | LET REC l_ident typed_params COLON expr EQUALS expr
     { SLetRec { var = VarTyped { name = $3 ; tau =
-      List.fold_right (fun { name = _ ; tau } acc ->
-        ETypeFun { domain = tau ; codomain = acc }
+      List.fold_right (fun (_, domain) acc ->
+        ETypeFun { domain ; codomain = acc }
       ) $4 $6
       }
-      ; param = (List.hd $4).name
+      ; param = fst (List.hd $4)
       ; defn =
-        List.fold_right (fun { name ; tau = _ } acc ->
-          EFunction { param = name ; body = acc }
+        List.fold_right (fun (param, _) acc ->
+          EFunction { param ; body = acc }
         ) (List.tl $4) $8
       } }
   // TODO: allow this form
   // | LET REC typed_binding EQUALS FUNCTION nonempty_list(l_ident) ARROW expr
   ;
-
-// statement_body:
-//   | l_ident EQUALS expr
-//     { SUntyped { var = $2 ; defn = $4 } }
-//   | typed_binding EQUALS expr
-//     { STyped { var = fst $2 ; tau = snd $2 ; defn = $4 } }
-//   | l_ident nonempty_list(l_ident) EQUALS expr
-//     { SUntyped { var = $2 ; defn =
-//       List.fold_right (fun param acc ->
-//         EFunction { param ; body = acc }
-//       ) $3 $5
-//     } }
-//   | l_ident nonempty_list(typed_param) COLON expr EQUALS expr
-//     { STyped { var = $2 ; tau =
-//       List.fold_right (fun { var = _ ; tau } acc ->
-//         ETypeFun { domain = tau ; codomain = acc }
-//       ) $3 $5
-//     ; defn =
-//       List.fold_right (fun { var ; tau = _ } acc ->
-//         EFunction { param = var ; body = acc }
-//       ) $3 $7
-//     } }
 
 %inline typed_binding:
   | l_ident COLON expr
@@ -191,18 +169,36 @@ statement:
 %inline untyped_binding:
   | l_ident 
     { VarUntyped { name = $1 } }
+  ;
 
-typed_param:
+typed_params:
+  | single_typed_param
+    { [ $1 ] }
+  | single_typed_param typed_params
+    { $1 :: $2 }
+  | multiple_typed_params
+    { $1 }
+  | multiple_typed_params typed_params
+    { $1 @ $2 }
+  ;
+
+%inline single_typed_param:
   | OPEN_PAREN l_ident COLON expr CLOSE_PAREN
-    { { name = $2 ; tau = $4 } }
+    { $2, PReg { tau = $4 } }
   | OPEN_PAREN l_ident COLON expr PIPE expr CLOSE_PAREN
-    { { name = $2 ; tau = ETypeRefine { var = $2 ; tau = $4 ; predicate = $6} } }
-  // | OPEN_PAREN DEP l_ident COLON expr CLOSE_PAREN
-  // | OPEN_PAREN DEPENDENT l_ident COLON expr CLOSE_PAREN
-  //   { TVarDep { var = $3 ; tau = $5 } : param }
-  // | OPEN_PAREN DEP l_ident COLON expr PIPE expr CLOSE_PAREN
-  // | OPEN_PAREN DEPENDENT l_ident COLON expr PIPE expr CLOSE_PAREN
-  //   { TVarDep { var = $3 ; tau = ETypeRefinement { tau = $5 ; predicate = EFunction { param = $3 ; body = $7 } } } : param }
+    { $2, PReg { tau = ETypeRefine { var = $2 ; tau = $4 ; predicate = $6} } }
+  | OPEN_PAREN DEP l_ident COLON expr CLOSE_PAREN
+  | OPEN_PAREN DEPENDENT l_ident COLON expr CLOSE_PAREN
+    { $3, PDep { binding = $3 ; tau = $5 } }
+  | OPEN_PAREN DEP l_ident COLON expr PIPE expr CLOSE_PAREN
+  | OPEN_PAREN DEPENDENT l_ident COLON expr PIPE expr CLOSE_PAREN
+    { $3, PDep { binding = $3 ; tau = ETypeRefine { var = $3 ; tau = $5 ; predicate = $7 } } }
+  ;
+
+%inline multiple_typed_params:
+  | OPEN_PAREN TYPE nonempty_list(ident) CLOSE_PAREN (* underscore not allowed as type parameter *)
+    { List.map (fun id -> id, PDep { binding = id ; tau = EType }) $3 }
+  ;
 
 expr:
   | appl_expr /* Includes primary expressions */
@@ -233,7 +229,9 @@ expr:
   | MU l_ident DOT expr %prec prec_mu
     { ETypeMu { var = $2 ; body = $4 } }
   | expr ARROW expr
-    { ETypeFun { domain = $1 ; codomain = $3 } }
+    { ETypeFun { domain = PReg { tau = $1 } ; codomain = $3 } }
+  | OPEN_PAREN ident COLON expr CLOSE_PAREN ARROW expr (* underscore not allowed as binding *)
+    { ETypeFun { domain = PDep { binding = $2 ; tau = $4 } ; codomain = $7 } }
   ;
 
 single_variant_type:

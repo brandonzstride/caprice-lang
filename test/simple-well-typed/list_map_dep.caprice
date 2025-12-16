@@ -1,0 +1,12 @@
+
+(* For now, this parses, but the type checking behavior is unimplemented *)
+let rec map (type a b) (f : a -> b) (ls : list a) : list b =
+  match ls with
+  | [] -> []
+  | hd :: tl -> f hd :: map a b f tl
+  end
+
+let test (type a b) (f : a -> b) (type c) : list c =
+  []
+
+let test (type a) : a = assume false

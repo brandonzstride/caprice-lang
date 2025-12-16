@@ -55,7 +55,7 @@ let eval
           Env.set fvar vfun env
           |> Env.set param v_arg
         ) (eval body)
-      | Any VGenFun { domain ; codomain } ->
+      | Any VGenFun { domain ; codomain = CodValue cod_tval } ->
         let* v_arg = eval arg in
         let* input = read_and_log_input_with_default make_label input_env ~default:Eval in
         begin match input with
@@ -64,9 +64,11 @@ let eval
           check v_arg domain
         | Eval ->
           let* () = push_label Interp.Label.With_alt.eval in
-          gen codomain
+          gen cod_tval
         | _ -> fail (Mismatch "Bad input env")
         end
+      | Any VGenFun { domain = _ ; codomain = CodDependent _ } ->
+        failwith "unimplemented dependent function application"
       | _ -> fail (Mismatch "Apply non-function.")
       end
     | EMatch { subject ; patterns } ->
@@ -209,10 +211,14 @@ let eval
         ) (return Record.empty) t_record_body
       in
       return_any (VTypeRecord record_body)
-    | ETypeFun { domain ; codomain } ->
-      let* dom_t = eval_type domain in
+    | ETypeFun { domain = PReg { tau } ; codomain } ->
+      let* dom_t = eval_type tau in
       let* cod_t = eval_type codomain in
-      return_any (VTypeFun { domain = dom_t ; codomain = cod_t })
+      return_any (VTypeFun { domain = dom_t ; codomain = CodValue cod_t })
+    | ETypeFun { domain = PDep { binding ; tau } ; codomain } ->
+      let* dom_t = eval_type tau in
+      let* env = read in
+      return_any (VTypeFun { domain = dom_t ; codomain = CodDependent (binding, { body = codomain ; env }) })
     | ETypeRefine { var ; tau ; predicate } ->
       let* tval = eval_type tau in
       let* env = read in
@@ -343,7 +349,7 @@ let eval
     | VType ->
       (* TODO: consider a wellformedness check *)
       handle_any v ~data:(fun _ -> refute) ~typeval:(fun _ -> confirm)
-    | VTypeFun { domain ; codomain } ->
+    | VTypeFun { domain ; codomain = CodValue codomain } ->
       begin match v with
       | Any VFunClosure { param ; closure = { body ; env } } ->
         let* genned = gen domain in
@@ -357,7 +363,7 @@ let eval
           ) (eval body)
         in
         check res codomain 
-      | Any VGenFun { domain = domain' ; codomain = codomain' } ->
+      | Any VGenFun { domain = domain' ; codomain = CodValue codomain' } ->
         let* l_opt = read_input make_label input_env in
         let check_left =
           let* () = push_and_log_label Left in
@@ -377,8 +383,12 @@ let eval
         | Some _ -> fail (Mismatch "Bad input env")
         | None -> let* () = fork check_left in check_right
         end
+      | Any VGenFun { domain = _ ; codomain = CodDependent _ } ->
+        failwith "unimplemented check generated dependent function"
       | _ -> refute
       end
+    | VTypeFun { domain = _ ; codomain = CodDependent _ } ->
+      failwith "unimplemented check dependent function"
     | VTypeVariant variant_t ->
       begin match v with
       | Any VVariant { label ; payload } ->

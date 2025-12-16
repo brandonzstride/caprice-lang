@@ -31,7 +31,7 @@ type t =
   | ETypeUnit
   | ETypeRecord of t Record.t
   (* | ETypeModule *)
-  | ETypeFun of (t, t) Funtype.t
+  | ETypeFun of (fun_domain, t) Funtype.t
   | ETypeRefine of (t, t) Refinement.t
   | ETypeMu of { var : Ident.t ; body : t }
   | ETypeList of t
@@ -44,6 +44,10 @@ and var =
   | VarTyped of typed_var
 
 and typed_var = { name : Ident.t ; tau : t }
+
+and fun_domain =
+  | PReg of { tau : t } (* regular parameter *)
+  | PDep of { binding : Ident.t ; tau : t } (* dependent parameter *)
 
 and statement =
   | SLet of { var : var ; defn : t }

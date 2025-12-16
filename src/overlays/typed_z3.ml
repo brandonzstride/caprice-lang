@@ -41,8 +41,7 @@ module Make_of_context (C : CONTEXT) : Formula.SOLVABLE = struct
   let divides a b =
     Z3.Boolean.mk_eq ctx (const_int 0) (Z3.Arithmetic.Integer.mk_mod ctx b a)
 
-  let rec binop : type a b. (a * a * b) Binop.t -> (a, 'k) t -> (a, 'k) t -> (b, 'k) t = fun op ->
-    match op with
+  let rec binop : type a b. (a * a * b) Binop.t -> (a, 'k) t -> (a, 'k) t -> (b, 'k) t = function
     | Plus            -> list_curry @@ Z3.Arithmetic.mk_add ctx
     | Minus           -> list_curry @@ Z3.Arithmetic.mk_sub ctx
     | Times           -> list_curry @@ Z3.Arithmetic.mk_mul ctx
