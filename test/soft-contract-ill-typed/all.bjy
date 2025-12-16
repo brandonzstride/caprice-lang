@@ -1,0 +1,7 @@
+
+let rec all (type a) (p : a -> a) (xs : list a) : bool =
+  match xs with
+  | [] -> true
+  | x :: [] -> p x (* ERROR: this needs to be a boolean *)
+  | x :: tl -> (p x) && all a p tl
+  end

@@ -1,10 +1,4 @@
 
-(* For now, this parses, but the type checking behavior is unimplemented *)
-let rec map (type a b) (f : a -> b) (ls : list a) : list b =
-  match ls with
-  | [] -> []
-  | hd :: tl -> f hd :: map a b f tl
-  end
 
 let test (type a b) (f : a -> b) (type c) : list c =
   []
@@ -18,5 +12,3 @@ let _ = (x : int | x > 0) -> if x > 10 then int else bool
 
 (* This is just a function type with a refined parameter *)
 let _ = { x : int | x > 0 } -> int
-
-

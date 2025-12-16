@@ -1,9 +1,6 @@
 
-let f (a : type) (b : type) : unit =
-  let rec map (f : a -> b) (ls : list a) : list b =
-    match ls with
-    | [] -> []
-    | hd :: tl -> f hd :: map f tl
-    end
-  in
-  ()
+let rec map (type a b) (f : a -> b) (ls : list a) : list b =
+  match ls with
+  | [] -> []
+  | hd :: tl -> f hd :: map a b f tl
+  end

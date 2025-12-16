@@ -1,10 +1,7 @@
 
-let f (a : type) : unit =
-  let g (x : a) : a = 
-    match x with
-    | [] -> []
-    | _ :: _ -> []
-    | _ -> x
-    end
-  in
-  ()
+let f (type a) (x : a) : a =
+  match x with
+  | [] -> []
+  | _ :: _ -> []
+  | _ -> x
+  end

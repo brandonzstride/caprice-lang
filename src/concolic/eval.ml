@@ -349,12 +349,17 @@ let eval
     | VType ->
       (* TODO: consider a wellformedness check *)
       handle_any v ~data:(fun _ -> refute) ~typeval:(fun _ -> confirm)
-    | VTypeFun { domain ; codomain = CodValue codomain } ->
+    | VTypeFun { domain ; codomain } ->
       begin match v with
       | Any VFunClosure { param ; closure = { body ; env } } ->
         let* genned = gen domain in
         let* res = local (fun _ -> Env.set param genned env) (eval body) in
-        check res codomain
+        begin match codomain with
+        | CodValue cod_tval -> check res cod_tval
+        | CodDependent (id, closure) ->
+          let* cod_tval = local (fun _ -> Env.set id genned closure.env) (eval_type closure.body) in
+          check res cod_tval
+        end
       | (Any VFunFix { fvar ; param ; closure = { body ; env } }) as vfun ->
         let* genned = gen domain in
         let* res = local (fun _ -> 
@@ -362,8 +367,14 @@ let eval
             |> Env.set param genned
           ) (eval body)
         in
-        check res codomain 
-      | Any VGenFun { domain = domain' ; codomain = CodValue codomain' } ->
+        (* TODO: remove this duplication with the above *)
+        begin match codomain with
+        | CodValue cod_tval -> check res cod_tval
+        | CodDependent (id, closure) ->
+          let* cod_tval = local (fun _ -> Env.set id genned closure.env) (eval_type closure.body) in
+          check res cod_tval
+        end
+      | Any VGenFun { domain = domain' ; codomain = codomain' } ->
         let* l_opt = read_input make_label input_env in
         let check_left =
           let* () = push_and_log_label Left in
@@ -374,8 +385,25 @@ let eval
         let check_right =
           let* () = push_and_log_label Right in
           if codomain == codomain' || codomain = codomain' then confirm else
-          let* genned = gen codomain' in
-          check genned codomain
+          let* cod_tval, cod_tval' =
+            match codomain, codomain' with
+            | CodValue cod_tval, CodValue cod_tval' -> 
+              return (cod_tval, cod_tval')
+            | _ ->
+              let* genned = gen domain in
+              let evaluate cod =
+                match cod with
+                | CodValue t -> return t
+                | CodDependent (id, closure) ->
+                  local (fun _ -> Env.set id genned closure.env) (eval_type closure.body)
+              in
+              let* cod_tval = evaluate codomain in
+              let* cod_tval' = evaluate codomain' in
+              return (cod_tval, cod_tval')
+          in
+          if cod_tval = cod_tval' then confirm else
+          let* genned' = gen cod_tval' in
+          check genned' cod_tval
         in
         begin match l_opt with
         | Some Left -> check_left
@@ -383,12 +411,8 @@ let eval
         | Some _ -> fail (Mismatch "Bad input env")
         | None -> let* () = fork check_left in check_right
         end
-      | Any VGenFun { domain = _ ; codomain = CodDependent _ } ->
-        failwith "unimplemented check generated dependent function"
       | _ -> refute
       end
-    | VTypeFun { domain = _ ; codomain = CodDependent _ } ->
-      failwith "unimplemented check dependent function"
     | VTypeVariant variant_t ->
       begin match v with
       | Any VVariant { label ; payload } ->

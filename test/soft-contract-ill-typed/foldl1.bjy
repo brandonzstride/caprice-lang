@@ -1,0 +1,8 @@
+(* error is that input list xs should be nonempty *)
+
+let rec foldl1 (type a_) (f : a_ -> a_ -> a_) (xs : list a_) : a_ =
+  match xs with
+  | z :: [] -> z
+  | z :: w :: tl -> foldl1 a_ f ((f z w) :: tl)
+  end
+  (* ERROR: `xs` could be empty. We are missing a match case *)

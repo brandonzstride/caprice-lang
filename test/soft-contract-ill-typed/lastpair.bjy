@@ -1,0 +1,13 @@
+(* predicate violated because can return empty list *)
+
+let is_nonempty ls = 
+  match ls with
+  | [] -> false
+  | _ -> true
+  end
+
+let rec lastpair (type a) (x : list a | is_nonempty x) : { ls : list a | is_nonempty ls } =
+  match x with
+  | [] -> [] (* ERROR: this is empty when returned is supposed to be nonempty *)
+  | _ :: xs -> lastpair a xs 
+  end
