@@ -22,6 +22,7 @@ module Make (Atom_cell : Utils.Comparable.S1) = struct
     | VFunClosure : { param : Ident.t ; closure : Ast.t closure } -> data t
     | VVariant : any Variant.t -> data t
     | VRecord : any Record.t -> data t
+    | VModule : any Record.t -> data t (* TODO: consider merging with record *)
     | VTuple : any * any -> data t
     | VFunFix : { fvar : Ident.t ; param : Ident.t ; closure : Ast.t closure } -> data t (* no mutual recursion yet *)
     | VEmptyList : data t
@@ -75,6 +76,7 @@ module Make (Atom_cell : Utils.Comparable.S1) = struct
       | VFunClosure _
       | VVariant _
       | VRecord _
+      | VModule _
       | VTuple _
       | VFunFix _
       | VEmptyList

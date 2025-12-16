@@ -98,8 +98,9 @@ let eval
     | EProject { record ; label } ->
       let* v = eval record in
       begin match v with
-      | Any VRecord record_body ->
-        begin match Labels.Record.Map.find_opt label record_body with
+      | Any VRecord map_body
+      | Any VModule map_body ->
+        begin match Labels.Record.Map.find_opt label map_body with
         | Some v' -> return v'
         | None -> fail (Mismatch "Missing label.")
         end
