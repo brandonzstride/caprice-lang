@@ -19,11 +19,11 @@ module Make (Atom_cell : Utils.Comparable.S1) = struct
     | VUnit : data t
     | VInt : int Atom_cell.t -> data t
     | VBool : bool Atom_cell.t -> data t
-    | VFunClosure : { param : Ident.t ; closure : closure } -> data t
+    | VFunClosure : { param : Ident.t ; closure : Ast.t closure } -> data t
     | VVariant : any Variant.t -> data t
     | VRecord : any Record.t -> data t
     | VTuple : any * any -> data t
-    | VFunFix : { fvar : Ident.t ; param : Ident.t ; closure : closure } -> data t (* no mutual recursion yet *)
+    | VFunFix : { fvar : Ident.t ; param : Ident.t ; closure : Ast.t closure } -> data t (* no mutual recursion yet *)
     | VEmptyList : data t
     | VListCons : any * data t -> data t
     (* generated values *)
@@ -37,21 +37,22 @@ module Make (Atom_cell : Utils.Comparable.S1) = struct
     | VTypeBottom : typeval t
     | VTypeInt : typeval t
     | VTypeBool : typeval t
-    | VTypeMu : { var : Ident.t ; closure : closure } -> typeval t
+    | VTypeMu : { var : Ident.t ; closure : Ast.t closure } -> typeval t
     | VTypeList : typeval t -> typeval t
     | VTypeFun : (typeval t, fun_cod) Funtype.t -> typeval t
     | VTypeRecord : typeval t Record.t -> typeval t
+    | VTypeModule : Labels.Record.t Ast.typed_item closure -> typeval t (* not eagerly evaluting first label *)
     | VTypeVariant : typeval t Labels.Variant.Map.t -> typeval t
-    | VTypeRefine : (typeval t, closure) Refinement.t -> typeval t
+    | VTypeRefine : (typeval t, Ast.t closure) Refinement.t -> typeval t
     | VTypeTuple : typeval t * typeval t -> typeval t
 
-  and closure = { body : Ast.t ; env : env }
+  and 'a closure = { captured : 'a ; env : env }
 
   and env = any Env.t
 
   and fun_cod =
     | CodValue of typeval t (* regular function codomain *)
-    | CodDependent of Ident.t * closure (* dependent function codomain *)
+    | CodDependent of Ident.t * Ast.t closure (* dependent function codomain *)
 
   and any = Any : 'a t -> any [@@unboxed]
 
@@ -91,6 +92,7 @@ module Make (Atom_cell : Utils.Comparable.S1) = struct
       | VTypeList _
       | VTypeFun _
       | VTypeRecord _
+      | VTypeModule _
       | VTypeVariant _
       | VTypeRefine _
       | VTypeTuple _) as x -> typeval x

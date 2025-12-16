@@ -26,7 +26,7 @@ let eval
     | EVar id -> fetch id
     | EFunction { param ; body } ->
       let* env = read in
-      return_any (VFunClosure { param ; closure = { body ; env }})
+      return_any (VFunClosure { param ; closure = { captured = body ; env }})
     | ERecord e_record_body -> 
       let* record_body =
         Record.fold (fun l e acc_m ->
@@ -45,20 +45,20 @@ let eval
       local (Env.set name v) (eval body)
     | ELetRec { var = VarUntyped { name } ; param ; defn ; body } ->
       let* env = read in
-      let v = to_any (VFunFix { fvar = name ; param ; closure = { body = defn ; env } }) in
+      let v = to_any (VFunFix { fvar = name ; param ; closure = { captured = defn ; env } }) in
       local (Env.set name v) (eval body)
     | EAppl { func ; arg } ->
       let* v_func = eval func in
       begin match v_func with
-      | Any VFunClosure { param ; closure = { body ; env } } ->
+      | Any VFunClosure { param ; closure = { captured ; env } } ->
         let* v_arg = eval arg in
-        local (fun _ -> Env.set param v_arg env) (eval body)
-      | (Any VFunFix { fvar ; param ; closure = { body ; env } }) as vfun ->
+        local (fun _ -> Env.set param v_arg env) (eval captured)
+      | (Any VFunFix { fvar ; param ; closure = { captured ; env } }) as vfun ->
         let* v_arg = eval arg in
         local (fun _ -> 
           Env.set fvar vfun env
           |> Env.set param v_arg
-        ) (eval body)
+        ) (eval captured)
       | Any VGenFun { domain ; codomain } ->
         let* v_arg = eval arg in
         let* l = read_input make_label input_env in
@@ -70,8 +70,8 @@ let eval
           let* () = push_and_log_label Eval in
           match codomain with
           | CodValue cod_tval -> gen cod_tval
-          | CodDependent (id, { body ; env }) ->
-            let* cod_tval = local (fun _ -> Env.set id v_arg env) (eval_type body) in
+          | CodDependent (id, { captured ; env }) ->
+            let* cod_tval = local (fun _ -> Env.set id v_arg env) (eval_type captured) in
             gen cod_tval
         in
         begin match l with
@@ -189,7 +189,7 @@ let eval
     | ELetRec { var = VarTyped { item ; tau } ; param ; defn ; body } ->
       let* tval = eval_type tau in
       let* env = read in
-      let v = to_any (VFunFix { fvar = item ; param ; closure = { body = defn ; env } }) in
+      let v = to_any (VFunFix { fvar = item ; param ; closure = { captured = defn ; env } }) in
       let* l_opt = read_input make_label input_env in
       let check_t = 
         let* () = push_and_log_label Check in
@@ -229,14 +229,14 @@ let eval
     | ETypeFun { domain = PDep { item ; tau } ; codomain } ->
       let* dom_t = eval_type tau in
       let* env = read in
-      return_any (VTypeFun { domain = dom_t ; codomain = CodDependent (item, { body = codomain ; env }) })
+      return_any (VTypeFun { domain = dom_t ; codomain = CodDependent (item, { captured = codomain ; env }) })
     | ETypeRefine { var ; tau ; predicate } ->
       let* tval = eval_type tau in
       let* env = read in
-      return_any (VTypeRefine { var ; tau = tval ; predicate = { body = predicate ; env }})
+      return_any (VTypeRefine { var ; tau = tval ; predicate = { captured = predicate ; env }})
     | ETypeMu { var ; body } ->
       let* env = read in
-      return_any (VTypeMu { var ; closure = { body ; env } })
+      return_any (VTypeMu { var ; closure = { captured = body ; env } })
     | ETypeList e ->
       let* t = eval_type e in
       return_any (VTypeList t)
@@ -362,27 +362,27 @@ let eval
       handle_any v ~data:(fun _ -> refute) ~typeval:(fun _ -> confirm)
     | VTypeFun { domain ; codomain } ->
       begin match v with
-      | Any VFunClosure { param ; closure = { body ; env } } ->
+      | Any VFunClosure { param ; closure = { captured ; env } } ->
         let* genned = gen domain in
-        let* res = local (fun _ -> Env.set param genned env) (eval body) in
+        let* res = local (fun _ -> Env.set param genned env) (eval captured) in
         begin match codomain with
         | CodValue cod_tval -> check res cod_tval
         | CodDependent (id, closure) ->
-          let* cod_tval = local (fun _ -> Env.set id genned closure.env) (eval_type closure.body) in
+          let* cod_tval = local (fun _ -> Env.set id genned closure.env) (eval_type closure.captured) in
           check res cod_tval
         end
-      | (Any VFunFix { fvar ; param ; closure = { body ; env } }) as vfun ->
+      | (Any VFunFix { fvar ; param ; closure = { captured ; env } }) as vfun ->
         let* genned = gen domain in
         let* res = local (fun _ -> 
             Env.set fvar vfun env
             |> Env.set param genned
-          ) (eval body)
+          ) (eval captured)
         in
         (* TODO: remove this duplication with the above *)
         begin match codomain with
         | CodValue cod_tval -> check res cod_tval
-        | CodDependent (id, closure) ->
-          let* cod_tval = local (fun _ -> Env.set id genned closure.env) (eval_type closure.body) in
+        | CodDependent (id, { captured ; env }) ->
+          let* cod_tval = local (fun _ -> Env.set id genned env) (eval_type captured) in
           check res cod_tval
         end
       | Any VGenFun { domain = domain' ; codomain = codomain' } ->
@@ -405,8 +405,8 @@ let eval
               let evaluate cod =
                 match cod with
                 | CodValue t -> return t
-                | CodDependent (id, closure) ->
-                  local (fun _ -> Env.set id genned closure.env) (eval_type closure.body)
+                | CodDependent (id, { captured ; env }) ->
+                  local (fun _ -> Env.set id genned env) (eval_type captured)
               in
               let* cod_tval = evaluate codomain in
               let* cod_tval' = evaluate codomain' in
@@ -469,8 +469,8 @@ let eval
         else refute
       | _ -> refute
       end
-    | VTypeMu { var ; closure = { body ; env } } ->
-      let* t_body = local (fun _ -> Env.set var (Any t) env) (eval_type body) in
+    | VTypeMu { var ; closure = { captured ; env } } ->
+      let* t_body = local (fun _ -> Env.set var (Any t) env) (eval_type captured) in
       check v t_body
     | VTypeList t ->
       begin match v with
@@ -493,7 +493,7 @@ let eval
         end
       | _ -> refute
       end
-    | VTypeRefine { var ; tau ; predicate = { body ; env } } ->
+    | VTypeRefine { var ; tau ; predicate = { captured ; env } } ->
       let* l_opt = read_input make_label input_env in
       let check_t =
         let* () = push_and_log_label Check in
@@ -501,7 +501,7 @@ let eval
       in
       let eval_pred =
         let* () = push_and_log_label Eval in
-        let* p = local (fun _ -> Env.set var v env) (eval body) in
+        let* p = local (fun _ -> Env.set var v env) (eval captured) in
         match p with
         | Any VBool (b, s) ->
           if b then 
@@ -538,6 +538,8 @@ let eval
         end
       | _ -> refute
       end
+    | VTypeModule _ ->
+      failwith "unimplemented check module type"
 
   and gen (t : Cvalue.tval) : Cvalue.any m =
     let* () = incr_step ~max_step in
@@ -605,9 +607,9 @@ let eval
         return_any (VListCons (hd, Obj.magic tl)) (* MAGIC: Safe because always returns data *)
       | _ -> fail (Mismatch "Bad input env")
       end
-    | VTypeRefine { var ; tau ; predicate = { body ; env } } ->
+    | VTypeRefine { var ; tau ; predicate = { captured ; env } } ->
       let* v = gen tau in
-      let* p = local (fun _ -> Env.set var v env) (eval body) in
+      let* p = local (fun _ -> Env.set var v env) (eval captured) in
       begin match p with
       | Any VBool (true, s) ->
         let* () = push_formula ~allow_flip:false s in
@@ -617,13 +619,15 @@ let eval
         fail Vanish
       | _ -> fail (Mismatch "Non-bool predicate")
       end 
-    | VTypeMu { var ; closure = { body ; env } } ->
-      let* t_body = local (fun _ -> Env.set var (Any t) env) (eval_type body) in
+    | VTypeMu { var ; closure = { captured ; env } } ->
+      let* t_body = local (fun _ -> Env.set var (Any t) env) (eval_type captured) in
       gen t_body
     | VTypeTuple (t1, t2) ->
       let* v1 = gen t1 in
       let* v2 = gen t2 in
       return_any (VTuple (v1, v2))
+    | VTypeModule _ ->
+      failwith "unimplemented gen module type"
   in
 
   let result, state = run (eval expr) target in
