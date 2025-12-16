@@ -20,12 +20,12 @@ let fail_on_max_step (n : Step.t) (s : 'a) : t * 'a =
   Reach_max_step n, s
 
 let to_answer = function
-  | Refutation (_v, _t) -> Answer.Found_error "Refutation" (* TODO : pretty print value and type *)
+  | Refutation (v, t) -> Answer.Found_error (Cvalue.Error_messages.refutation v t)
   | Confirmation -> Exhausted
   | Mismatch msg -> Found_error msg
   | Assert_false -> Found_error "Failed assertion"
   | Vanish -> Exhausted
-  | Unbound_variable Ident id -> Found_error ("Unbound variable " ^ id)
+  | Unbound_variable Ident id -> Found_error ("Unbound variable: " ^ id)
   | Reach_max_step _step -> Exhausted_pruned
   | Done -> Exhausted
 

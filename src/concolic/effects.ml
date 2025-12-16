@@ -3,6 +3,8 @@ open Lang
 open Interp
 open Common
 
+exception InvariantException of string
+
 (* Logs from other runs that are not the main run *)
 module Logged_run = struct
   type t =
@@ -35,6 +37,9 @@ include Effects.Make (State) (Cvalue.Env) (Context) (Eval_result)
 
 let vanish : 'a m =
   fail Vanish
+
+let mismatch (msg : string) : 'a m =
+  fail (Mismatch msg)
 
 (* We will also want to log this label in input env, but at what time? *)
 let push_label (label : Label.With_alt.t) : unit m =
@@ -101,8 +106,8 @@ let read_and_log_input_with_default (make_key : Stepkey.t -> 'a Ienv.Key.t)
 let target_to_here : Target.t m =
   let* { target } = read_ctx in
   let* state = get in
-  if state.branch_depth < Target.path_length target
-  then fail (Mismatch "Have not surpassed target")
+  if state.branch_depth < Target.path_length target then 
+    raise @@ InvariantException "Trying to fork the computation, but has not surpassed the original target"
   else
     return @@
     Target.make Formula.trivial

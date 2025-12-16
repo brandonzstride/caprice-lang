@@ -10,6 +10,8 @@ module Variant = struct
   let to_ident (VariantLabel id) = id
   let of_ident id = VariantLabel id
 
+  let to_string (VariantLabel id) = "`" ^ Ident.to_string id
+
   module B = Baby.H.Make (T)
   module Map = B.Map
   module Set = B.Set
@@ -25,6 +27,8 @@ module Record = struct
 
   let to_ident (RecordLabel id) = id
   let of_ident id = RecordLabel id
+
+  let to_string (RecordLabel id) = Ident.to_string id
 
   module B = Baby.H.Make (T)
   module Map = B.Map

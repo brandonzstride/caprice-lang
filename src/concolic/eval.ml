@@ -7,6 +7,10 @@ open Cvalue
 (* `Any` is unboxed, so this is zero overhead *)
 let[@inline always] return_any v = return (Any v)
 
+let bad_input_env : 'a. unit -> 'a = fun () ->
+  raise @@ InvariantException "Input environment is ill-formed"
+
+open Cvalue.Error_messages
 open Ienv.Key
 
 let eval
@@ -77,15 +81,15 @@ let eval
         begin match l with
         | Some Check -> check_f
         | Some Eval -> eval_f
-        | Some _ -> fail (Mismatch "Bad input env")
+        | Some _ -> bad_input_env ()
         | None -> let* () = fork check_f in eval_f
         end
-      | _ -> fail (Mismatch "Apply non-function.")
+      | _ -> mismatch @@ apply_non_function v_func
       end
     | EMatch { subject ; patterns } ->
       let* v = eval subject in
       let rec find_match = function
-        | [] -> fail (Mismatch "Missing pattern.")
+        | [] -> mismatch @@ missing_pattern v (List.map fst patterns)
         | (pat, body) :: tl ->
           begin match matches_any pat v with
           | Match -> eval body
@@ -102,9 +106,9 @@ let eval
       | Any VModule map_body ->
         begin match Labels.Record.Map.find_opt label map_body with
         | Some v' -> return v'
-        | None -> fail (Mismatch "Missing label.")
+        | None -> mismatch @@ missing_label v label
         end
-      | _ -> fail (Mismatch "Project non-record.")
+      | _ -> mismatch @@ project_non_record v label
       end
     | EVariant { label ; payload } ->
       let* v = eval payload in
@@ -121,7 +125,7 @@ let eval
       begin match v2 with
       | Any (VEmptyList as tl)
       | Any (VListCons _ as tl) -> return_any (VListCons (v1, tl))
-      | _ -> fail (Mismatch "Cons non-list.")
+      | _ -> mismatch @@ cons_non_list v1 v2
       end
     (* symbolic values and branching *)
     | EPick_i ->
@@ -132,7 +136,7 @@ let eval
       let* v = eval e in
       begin match v with
       | Any VBool (b, s) -> return_any (VBool (not b, Smt.Formula.not_ s))
-      | _ -> fail (Mismatch "Non-bool `not`.")
+      | _ -> mismatch @@ not_non_bool v
       end
     | EBinop { left ; binop ; right } ->
       eval_binop left binop right
@@ -143,7 +147,7 @@ let eval
         let cont = if b then then_ else else_ in
         let* () = push_formula (if b then s else Smt.Formula.not_ s) in
         eval cont 
-      | _ -> fail (Mismatch "Non-bool `if`.")
+      | _ -> mismatch @@ if_non_bool v
       end
     | EAssert e ->
       let* v = eval e in
@@ -155,7 +159,7 @@ let eval
         else
           let* () = push_formula (Smt.Formula.not_ s) in
           fail Assert_false
-      | _ -> fail (Mismatch "Non-bool `assert`.")
+      | _ -> mismatch @@ assert_non_bool v
       end
     | EAssume e ->
       let* v = eval e in
@@ -167,7 +171,7 @@ let eval
         else
           let* () = push_formula (Smt.Formula.not_ s) in
           fail Vanish
-      | _ -> fail (Mismatch "Non-bool `assume`.")
+      | _ -> mismatch @@ assume_non_bool v
       end
     | ELet { var = VarTyped { item ; tau } ; defn ; body } ->
       let* tval = eval_type tau in
@@ -184,7 +188,7 @@ let eval
       begin match l_opt with
       | Some Check -> check_t
       | Some Eval -> eval_body
-      | Some _ -> fail (Mismatch "Bad input env")
+      | Some _ -> bad_input_env ()
       | None -> let* () = fork check_t in eval_body
       end
     | ELetRec { var = VarTyped { item ; tau } ; param ; defn ; body } ->
@@ -204,7 +208,7 @@ let eval
       begin match l_opt with
       | Some Check -> check_t
       | Some Eval -> eval_body
-      | Some _ -> fail (Mismatch "Bad input env")
+      | Some _ -> bad_input_env ()
       | None -> let* () = fork check_t in eval_body
       end
     (* types *)
@@ -262,12 +266,12 @@ let eval
         let* vright = eval right in
         begin match vright with
         | Any VBool _ -> return vright
-        | _ -> fail (Mismatch "And non-bool")
+        | _ -> mismatch @@ bad_binop vleft op vright
         end
       | Any VBool (false, s) ->
         let* () = push_formula (Smt.Formula.not_ s) in
         return vleft
-      | _ -> fail (Mismatch "And non-bool")
+      | _ -> mismatch @@ bad_binop vleft op (Any VUnit) (* placeholder RHS for And *)
       end
     | BOr -> (* Handle short-circuit || *)
       begin match vleft with
@@ -279,13 +283,13 @@ let eval
         let* vright = eval right in
         begin match vright with
         | Any VBool _ -> return vright
-        | _ -> fail (Mismatch "Or non-bool")
+        | _ -> mismatch @@ bad_binop vleft op vright
         end
-      | _ -> fail (Mismatch "Or non-bool")
+      | _ -> mismatch @@ bad_binop vleft op (Any VUnit) (* placeholder RHS for Or *)
       end
     | _ ->
       let* vright = eval right in
-      let fail_binop = fail (Mismatch "Bad binop") in
+      let fail_binop = mismatch @@ bad_binop vleft op vright in
       let value_binop a b =
         let k f s1 s2 op =
           return_any @@ f (Smt.Formula.binop op s1 s2)
@@ -328,7 +332,7 @@ let eval
   and eval_type (expr : Ast.t) : Cvalue.tval m =
     let* v = eval expr in
     handle_any v
-      ~data:(fun _ -> fail (Mismatch "Data value in type"))
+      ~data:(fun d -> mismatch @@ non_type_value d)
       ~typeval:return
 
   and check : 'a. Cvalue.any -> Cvalue.tval -> 'a m = fun v t ->
@@ -420,7 +424,7 @@ let eval
         begin match l_opt with
         | Some Left -> check_left
         | Some Right -> check_right
-        | Some _ -> fail (Mismatch "Bad input env")
+        | Some _ -> bad_input_env ()
         | None -> let* () = fork check_left in check_right
         end
       | _ -> refute
@@ -451,7 +455,7 @@ let eval
           let* l_opt = read_input make_label input_env in
           match l_opt with
           | Some Label id -> push_and_check (Labels.Record.RecordLabel id)
-          | Some _ -> fail (Mismatch "Bad input env")
+          | Some _ -> bad_input_env ()
           | None ->
             (* is in exploration mode, so we want to check them all *)
             let main_label = Labels.Record.Set.choose t_labels in
@@ -489,7 +493,7 @@ let eval
         begin match l_opt with
         | Some Left -> check_hd
         | Some Right -> check_tl
-        | Some _ -> fail (Mismatch "Bad input env")
+        | Some _ -> bad_input_env ()
         | None -> let* () = fork check_hd in check_tl
         end
       | _ -> refute
@@ -511,12 +515,12 @@ let eval
           else 
             let* () = push_formula ~allow_flip:false (Smt.Formula.not_ s) in
             refute
-        | _ -> fail (Mismatch "Non-bool predicate")
+        | _ -> mismatch @@ non_bool_predicate p
       in
       begin match l_opt with
       | Some Check -> check_t
       | Some Eval -> eval_pred
-      | Some _ -> fail (Mismatch "Bad input env")
+      | Some _ -> bad_input_env ()
       | None -> let* () = fork check_t in eval_pred
       end
     | VTypeTuple (t1, t2) ->
@@ -534,7 +538,7 @@ let eval
         begin match l_opt with
         | Some Left -> check_left
         | Some Right -> check_right
-        | Some _ -> fail (Mismatch "Bad input env")
+        | Some _ -> bad_input_env ()
         | None -> let* () = fork check_left in check_right
         end
       | _ -> refute
@@ -593,7 +597,7 @@ let eval
         in
         let* payload = gen t in
         return_any (VVariant { label = to_gen ; payload })
-      | _ -> fail (Mismatch "Bad input env")
+      | _ -> bad_input_env ()
       end
     | VTypeList t ->
       let* l = read_and_log_input_with_default make_label input_env ~default:Left in
@@ -606,7 +610,7 @@ let eval
         let* hd = gen t in
         let* Any tl = gen (VTypeList t) in
         return_any (VListCons (hd, Obj.magic tl)) (* MAGIC: Safe because always returns data *)
-      | _ -> fail (Mismatch "Bad input env")
+      | _ -> bad_input_env ()
       end
     | VTypeRefine { var ; tau ; predicate = { captured ; env } } ->
       let* v = gen tau in
@@ -618,7 +622,7 @@ let eval
       | Any VBool (false, s) ->
         let* () = push_formula (Smt.Formula.not_ s) in
         fail Vanish
-      | _ -> fail (Mismatch "Non-bool predicate")
+      | _ -> mismatch @@ non_bool_predicate p
       end 
     | VTypeMu { var ; closure = { captured ; env } } ->
       let* t_body = local (fun _ -> Env.set var (Any t) env) (eval_type captured) in
