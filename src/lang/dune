@@ -3,8 +3,7 @@
 (ocamllex capriceLexerDesc)
 
 (menhir
- (modules capriceParserDesc)
- (flags (--unused-tokens --unused-precedence-levels))) ; DELETE LATER
+ (modules capriceParserDesc))
 
 (library
  (name lang)

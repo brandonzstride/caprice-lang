@@ -33,7 +33,7 @@
 %token MATCH
 %token END
 %token STRUCT
-%token DEFER
+// %token DEFER
 %token PLUS
 %token MINUS
 %token ASTERISK
@@ -45,8 +45,7 @@
 %token LESS_EQUAL
 %token GREATER
 %token GREATER_EQUAL
-%token PIPELINE
-%token LONG_ARROW
+// %token LONG_ARROW
 %token BOOL_KEYWORD
 %token BOTTOM_KEYWORD
 %token INPUT
@@ -54,7 +53,7 @@
 %token MU
 %token OF
 %token SIG
-%token SINGLETYPE_KEYWORD
+// %token SINGLETYPE_KEYWORD
 %token TOP_KEYWORD
 %token TYPE
 %token UNIT_KEYWORD
@@ -62,14 +61,14 @@
 %token OPEN_BRACKET
 %token CLOSE_BRACKET
 %token DOUBLE_COLON
-%token AND
+// %token AND
 %token ASSERT
 %token ASSUME
 %token DEPENDENT
 %token DEP
 %token LIST
 %token REC
-%token ABSTRACT
+// %token ABSTRACT
 
 /*
  * Precedences and associativities.  Lower precedences come first.
@@ -78,10 +77,7 @@
 %nonassoc prec_if             /* Conditionals */
 %nonassoc prec_mu             /* mu types */
 %nonassoc OF                  /* variant type declarations */
-%left PIPE                    /* variant type declarations */
-%right prec_list_pattern      /* list destruction pattern */
 %left COMMA                   /* tuples */
-%left PIPELINE                /* |> */
 %right DOUBLE_PIPE            /* || for boolean or */
 %right DOUBLE_AMPERSAND       /* && for boolean and */
 %right NOT                    /* Not */
@@ -91,8 +87,7 @@
 %right prec_variant_pattern   /* list destruction pattern */
 %left PLUS MINUS              /* + - */
 %left ASTERISK SLASH PERCENT  /* * / % */
-%left AMPERSAND
-%right ARROW LONG_ARROW       /* -> for type declaration, and --> for deterministic */
+%right ARROW /*LONG_ARROW*/       /* -> for type declaration, and --> for deterministic */
 
 %start <statement list> prog
 %start <statement list option> delim_expr
@@ -222,9 +217,9 @@ expr:
   ;
 
 %inline type_expr:
-  | PIPE separated_nonempty_list(PIPE, single_variant_type) %prec PIPE (* pipe optional before first variant *)
+  | PIPE separated_nonempty_list(PIPE, single_variant_type) (* pipe optional before first variant *)
       { ETypeVariant $2 }
-  | separated_nonempty_list(PIPE, single_variant_type) %prec PIPE
+  | separated_nonempty_list(PIPE, single_variant_type)
       { ETypeVariant $1 }
   | MU l_ident DOT expr %prec prec_mu
     { ETypeMu { var = $2 ; body = $4 } }
@@ -284,8 +279,8 @@ primary_expr:
     { ETypeBool }
   | UNIT_KEYWORD
     { ETypeUnit }
-  // | TOP_KEYWORD
-  //   { ETypeTop }
+  | TOP_KEYWORD
+    { ETypeTop }
   | BOTTOM_KEYWORD
     { ETypeBottom }
   | LIST

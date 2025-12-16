@@ -53,7 +53,7 @@ rule token = parse
 | "match"              { MATCH }
 | "end"                { END }
 | "struct"             { STRUCT }
-| "defer"              { DEFER }
+(* | "defer"              { DEFER } *)
 | "+"                  { PLUS }
 | "-"                  { MINUS }
 | "*"                  { ASTERISK }
@@ -65,8 +65,7 @@ rule token = parse
 | "<="                 { LESS_EQUAL }
 | ">"                  { GREATER }
 | ">="                 { GREATER_EQUAL }
-| "|>"                 { PIPELINE }
-| "-->"                { LONG_ARROW }
+(* | "-->"                { LONG_ARROW } *)
 | "bool"               { BOOL_KEYWORD }
 | "bottom"             { BOTTOM_KEYWORD }
 | "input"              { INPUT }
@@ -74,7 +73,7 @@ rule token = parse
 | "mu"                 { MU }
 | "of"                 { OF }
 | "sig"                { SIG }
-| "singletype"         { SINGLETYPE_KEYWORD }
+(* | "singletype"         { SINGLETYPE_KEYWORD } *)
 | "top"                { TOP_KEYWORD }
 | "type"               { TYPE }
 | "unit"               { UNIT_KEYWORD }
@@ -82,14 +81,14 @@ rule token = parse
 | "["                  { OPEN_BRACKET }
 | "]"                  { CLOSE_BRACKET }
 | "::"                 { DOUBLE_COLON }
-| "and"                { AND }
+(* | "and"                { AND } *)
 | "assert"             { ASSERT }
 | "assume"             { ASSUME }
 | "dependent"          { DEPENDENT }
 | "dep"                { DEP }
 | "list"               { LIST }
 | "rec"                { REC }
-| "abstract"           { ABSTRACT }
+(* | "abstract"           { ABSTRACT } *)
 | digit+ as n          { INT (int_of_string n) }
 | ident_start ident_cont* as s     { IDENTIFIER s }
 
