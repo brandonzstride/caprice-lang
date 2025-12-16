@@ -185,13 +185,13 @@ typed_params:
 %inline single_typed_param:
   | OPEN_PAREN l_ident COLON expr CLOSE_PAREN
     { $2, PReg { tau = $4 } }
-  | OPEN_PAREN l_ident COLON expr PIPE expr CLOSE_PAREN
+  | OPEN_PAREN ident COLON expr PIPE expr CLOSE_PAREN
     { $2, PReg { tau = ETypeRefine { var = $2 ; tau = $4 ; predicate = $6} } }
-  | OPEN_PAREN DEP l_ident COLON expr CLOSE_PAREN
-  | OPEN_PAREN DEPENDENT l_ident COLON expr CLOSE_PAREN
+  | OPEN_PAREN DEP ident COLON expr CLOSE_PAREN
+  | OPEN_PAREN DEPENDENT ident COLON expr CLOSE_PAREN
     { $3, PDep { binding = $3 ; tau = $5 } }
-  | OPEN_PAREN DEP l_ident COLON expr PIPE expr CLOSE_PAREN
-  | OPEN_PAREN DEPENDENT l_ident COLON expr PIPE expr CLOSE_PAREN
+  | OPEN_PAREN DEP ident COLON expr PIPE expr CLOSE_PAREN
+  | OPEN_PAREN DEPENDENT ident COLON expr PIPE expr CLOSE_PAREN
     { $3, PDep { binding = $3 ; tau = ETypeRefine { var = $3 ; tau = $5 ; predicate = $7 } } }
   ;
 
@@ -230,8 +230,21 @@ expr:
     { ETypeMu { var = $2 ; body = $4 } }
   | expr ARROW expr
     { ETypeFun { domain = PReg { tau = $1 } ; codomain = $3 } }
-  | OPEN_PAREN ident COLON expr CLOSE_PAREN ARROW expr (* underscore not allowed as binding *)
+  | dependent_function_type
+    { $1 }
+
+%inline dependent_function_type:
+  (* standard *)
+  | OPEN_PAREN ident COLON expr CLOSE_PAREN ARROW expr
     { ETypeFun { domain = PDep { binding = $2 ; tau = $4 } ; codomain = $7 } }
+  (* various sugar *)
+  | OPEN_PAREN ident COLON expr PIPE expr CLOSE_PAREN ARROW expr
+    { ETypeFun { domain = PDep { binding = $2 ; tau = 
+      ETypeRefine { var = $2 ; tau = $4 ; predicate = $6} } ; codomain = $9 } }
+  | OPEN_PAREN TYPE nonempty_list(ident) CLOSE_PAREN ARROW expr
+    { List.fold_right (fun binding acc ->
+      ETypeFun { domain = PDep { binding ; tau = EType } ; codomain = acc }
+      ) $3 $6 }
   ;
 
 single_variant_type:
