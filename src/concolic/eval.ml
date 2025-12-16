@@ -36,6 +36,10 @@ let eval
         ) (return Record.empty) e_record_body
       in
       return_any (VRecord record_body)
+    | EModule _stmt_ls ->
+      failwith "unimplemented eval module"
+    | ETypeModule _stmt_ls ->
+      failwith "unimplemented eval module type"
     | ELet { var = VarUntyped { name } ; defn ; body } ->
       let* v = eval defn in
       local (Env.set name v) (eval body)
@@ -164,7 +168,7 @@ let eval
           fail Vanish
       | _ -> fail (Mismatch "Non-bool `assume`.")
       end
-    | ELet { var = VarTyped { name ; tau } ; defn ; body } ->
+    | ELet { var = VarTyped { item ; tau } ; defn ; body } ->
       let* tval = eval_type tau in
       let* v = eval defn in
       let* l_opt = read_input make_label input_env in
@@ -174,7 +178,7 @@ let eval
       in
       let eval_body =
         let* () = push_and_log_label Eval in
-        local (Env.set name v) (eval body)
+        local (Env.set item v) (eval body)
       in
       begin match l_opt with
       | Some Check -> check_t
@@ -182,10 +186,10 @@ let eval
       | Some _ -> fail (Mismatch "Bad input env")
       | None -> let* () = fork check_t in eval_body
       end
-    | ELetRec { var = VarTyped { name ; tau } ; param ; defn ; body } ->
+    | ELetRec { var = VarTyped { item ; tau } ; param ; defn ; body } ->
       let* tval = eval_type tau in
       let* env = read in
-      let v = to_any (VFunFix { fvar = name ; param ; closure = { body = defn ; env } }) in
+      let v = to_any (VFunFix { fvar = item ; param ; closure = { body = defn ; env } }) in
       let* l_opt = read_input make_label input_env in
       let check_t = 
         let* () = push_and_log_label Check in
@@ -194,7 +198,7 @@ let eval
       let eval_body =
         let* () = push_and_log_label Eval in
         (* TODO: wrap *)
-        local (Env.set name v) (eval body)
+        local (Env.set item v) (eval body)
       in
       begin match l_opt with
       | Some Check -> check_t
@@ -222,10 +226,10 @@ let eval
       let* dom_t = eval_type tau in
       let* cod_t = eval_type codomain in
       return_any (VTypeFun { domain = dom_t ; codomain = CodValue cod_t })
-    | ETypeFun { domain = PDep { binding ; tau } ; codomain } ->
+    | ETypeFun { domain = PDep { item ; tau } ; codomain } ->
       let* dom_t = eval_type tau in
       let* env = read in
-      return_any (VTypeFun { domain = dom_t ; codomain = CodDependent (binding, { body = codomain ; env }) })
+      return_any (VTypeFun { domain = dom_t ; codomain = CodDependent (item, { body = codomain ; env }) })
     | ETypeRefine { var ; tau ; predicate } ->
       let* tval = eval_type tau in
       let* env = read in

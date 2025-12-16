@@ -127,7 +127,7 @@ statement:
       ) $3 $5
     } }
   | LET l_ident typed_params COLON expr EQUALS expr
-    { SLet { var = VarTyped { name = $2 ; tau =
+    { SLet { var = VarTyped { item = $2 ; tau =
       List.fold_right (fun (_, domain) acc ->
         ETypeFun { domain ; codomain = acc }
       ) $3 $5
@@ -144,7 +144,7 @@ statement:
       ) (List.tl $4) $6
     } }
   | LET REC l_ident typed_params COLON expr EQUALS expr
-    { SLetRec { var = VarTyped { name = $3 ; tau =
+    { SLetRec { var = VarTyped { item = $3 ; tau =
       List.fold_right (fun (_, domain) acc ->
         ETypeFun { domain ; codomain = acc }
       ) $4 $6
@@ -161,9 +161,9 @@ statement:
 
 %inline typed_binding:
   | l_ident COLON expr
-    { VarTyped { name = $1 ; tau = $3 } }
+    { VarTyped { item = $1 ; tau = $3 } }
   | OPEN_PAREN l_ident COLON expr CLOSE_PAREN
-    { VarTyped { name = $2 ; tau = $4 } }
+    { VarTyped { item = $2 ; tau = $4 } }
   ;
 
 %inline untyped_binding:
@@ -189,15 +189,15 @@ typed_params:
     { $2, PReg { tau = ETypeRefine { var = $2 ; tau = $4 ; predicate = $6} } }
   | OPEN_PAREN DEP ident COLON expr CLOSE_PAREN
   | OPEN_PAREN DEPENDENT ident COLON expr CLOSE_PAREN
-    { $3, PDep { binding = $3 ; tau = $5 } }
+    { $3, PDep { item = $3 ; tau = $5 } }
   | OPEN_PAREN DEP ident COLON expr PIPE expr CLOSE_PAREN
   | OPEN_PAREN DEPENDENT ident COLON expr PIPE expr CLOSE_PAREN
-    { $3, PDep { binding = $3 ; tau = ETypeRefine { var = $3 ; tau = $5 ; predicate = $7 } } }
+    { $3, PDep { item = $3 ; tau = ETypeRefine { var = $3 ; tau = $5 ; predicate = $7 } } }
   ;
 
 %inline multiple_typed_params:
   | OPEN_PAREN TYPE nonempty_list(ident) CLOSE_PAREN (* underscore not allowed as type parameter *)
-    { List.map (fun id -> id, PDep { binding = id ; tau = EType }) $3 }
+    { List.map (fun id -> id, PDep { item = id ; tau = EType }) $3 }
   ;
 
 expr:
@@ -236,14 +236,14 @@ expr:
 %inline dependent_function_type:
   (* standard *)
   | OPEN_PAREN ident COLON expr CLOSE_PAREN ARROW expr
-    { ETypeFun { domain = PDep { binding = $2 ; tau = $4 } ; codomain = $7 } }
+    { ETypeFun { domain = PDep { item = $2 ; tau = $4 } ; codomain = $7 } }
   (* various sugar *)
   | OPEN_PAREN ident COLON expr PIPE expr CLOSE_PAREN ARROW expr
-    { ETypeFun { domain = PDep { binding = $2 ; tau = 
+    { ETypeFun { domain = PDep { item = $2 ; tau = 
       ETypeRefine { var = $2 ; tau = $4 ; predicate = $6} } ; codomain = $9 } }
   | OPEN_PAREN TYPE nonempty_list(ident) CLOSE_PAREN ARROW expr
-    { List.fold_right (fun binding acc ->
-      ETypeFun { domain = PDep { binding ; tau = EType } ; codomain = acc }
+    { List.fold_right (fun item acc ->
+      ETypeFun { domain = PDep { item ; tau = EType } ; codomain = acc }
       ) $3 $6 }
   ;
 
@@ -310,10 +310,10 @@ primary_expr:
     { $2 }
   // | OPEN_BRACE expr PIPE expr CLOSE_BRACE
   //   { ETypeRefine { tau = $2 ; predicate = $4 } : t }
-  // | STRUCT list(statement) END (* may be empty *)
-  //   { EModule $2 }
-  // | SIG list(val_item) END
-  //   { ETypeModule $2 }
+  | STRUCT list(statement) END (* may be empty *)
+    { EModule $2 }
+  | SIG list(val_item) END
+    { ETypeModule $2 }
   | record_type_or_refinement
     { $1 }
   | primary_expr DOT record_label
@@ -404,6 +404,12 @@ record_type_body:
   | IDENTIFIER
     { Ident.Ident $1 }
   ;
+
+%inline val_item:
+  | VAL record_type_item
+    { { item = fst $2 ; tau = snd $2 } }
+  // | VAL record_label EQUALS expr
+  //   { $2, EAppl { func = ETypeSingle ; arg = $4 } }
 
 /* **** Records, lists, and variants **** */
 

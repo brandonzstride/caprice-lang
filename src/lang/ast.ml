@@ -15,7 +15,7 @@ type t =
   | ETuple of t * t
   | EEmptyList
   | EListCons of t * t
-  (* | EModule *)
+  | EModule of statement list
   | ENot of t
   | EPick_i
   | EFunction of { param : Ident.t ; body : t }
@@ -30,7 +30,7 @@ type t =
   | ETypeBottom
   | ETypeUnit
   | ETypeRecord of t Record.t
-  (* | ETypeModule *)
+  | ETypeModule of Labels.Record.t typed_item list
   | ETypeFun of (fun_domain, t) Funtype.t
   | ETypeRefine of (t, t) Refinement.t
   | ETypeMu of { var : Ident.t ; body : t }
@@ -41,13 +41,13 @@ type t =
 
 and var =
   | VarUntyped of { name : Ident.t }
-  | VarTyped of typed_var
+  | VarTyped of Ident.t typed_item
 
-and typed_var = { name : Ident.t ; tau : t }
+and 'a typed_item = { item : 'a ; tau : t }
 
 and fun_domain =
   | PReg of { tau : t } (* regular parameter *)
-  | PDep of { binding : Ident.t ; tau : t } (* dependent parameter *)
+  | PDep of Ident.t typed_item (* dependent parameter *)
 
 and statement =
   | SLet of { var : var ; defn : t }
