@@ -54,6 +54,8 @@ and statement =
   | SLetRec of { var : var ; param : Ident.t ; defn : t }
   [@@deriving eq, ord]
 
+type program = statement list
+
 let statement_to_t (stmt : statement) (body : t) : t =
   match stmt with
   | SLet { var ; defn } ->

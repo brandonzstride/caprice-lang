@@ -1,0 +1,19 @@
+
+let t = (v : (`A of unit | `B of unit | `C of int)) ->
+  match v with
+  | `A _ -> int
+  | `B _ -> int
+  | `C _ -> list int
+  end
+
+let obj : t =
+  let ob =
+    fun self ->
+      fun arg ->
+        match arg with
+        | `A u -> self self (`B ()) + 10
+        | `B u -> 0
+        | `C i -> self self (`A ()) :: self (`B ()) :: [ i ] (* ERROR: forgot to self-apply on `B call *)
+        end
+  in
+  ob ob

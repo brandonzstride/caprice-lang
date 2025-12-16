@@ -14,7 +14,7 @@ open Cvalue.Error_messages
 open Ienv.Key
 
 let eval
-  (expr : Ast.t)
+  (pgm : Ast.statement list)
   (input_env : Ienv.t)
   (target : Target.t)
   ~(max_step : Interp.Step.t)
@@ -40,17 +40,17 @@ let eval
         ) (return Record.empty) e_record_body
       in
       return_any (VRecord record_body)
-    | EModule _stmt_ls ->
-      failwith "unimplemented eval module"
-    | ETypeModule _stmt_ls ->
-      failwith "unimplemented eval module type"
-    | ELet { var = VarUntyped { name } ; defn ; body } ->
-      let* v = eval defn in
-      local (Env.set name v) (eval body)
-    | ELetRec { var = VarUntyped { name } ; param ; defn ; body } ->
+    | EModule stmt_ls ->
+      eval_statement_list stmt_ls
+    | ETypeModule items ->
       let* env = read in
-      let v = to_any (VFunFix { fvar = name ; param ; closure = { captured = defn ; env } }) in
-      local (Env.set name v) (eval body)
+      return_any (VTypeModule { captured = items ; env })
+    | ELet { var ; defn ; body } ->
+      let* (binding, v) = eval_statement (SLet { var ; defn }) in
+      local (Env.set binding v) (eval body)
+    | ELetRec { var ; param ; defn ; body } ->
+      let* (binding, v) = eval_statement (SLetRec { var ; param ; defn }) in
+      local (Env.set binding v) (eval body)
     | EAppl { func ; arg } ->
       let* v_func = eval func in
       begin match v_func with
@@ -172,44 +172,6 @@ let eval
           let* () = push_formula (Smt.Formula.not_ s) in
           fail Vanish
       | _ -> mismatch @@ assume_non_bool v
-      end
-    | ELet { var = VarTyped { item ; tau } ; defn ; body } ->
-      let* tval = eval_type tau in
-      let* v = eval defn in
-      let* l_opt = read_input make_label input_env in
-      let check_t =
-        let* () = push_and_log_label Check in
-        check v tval
-      in
-      let eval_body =
-        let* () = push_and_log_label Eval in
-        local (Env.set item v) (eval body)
-      in
-      begin match l_opt with
-      | Some Check -> check_t
-      | Some Eval -> eval_body
-      | Some _ -> bad_input_env ()
-      | None -> let* () = fork check_t in eval_body
-      end
-    | ELetRec { var = VarTyped { item ; tau } ; param ; defn ; body } ->
-      let* tval = eval_type tau in
-      let* env = read in
-      let v = to_any (VFunFix { fvar = item ; param ; closure = { captured = defn ; env } }) in
-      let* l_opt = read_input make_label input_env in
-      let check_t = 
-        let* () = push_and_log_label Check in
-        check v tval
-      in
-      let eval_body =
-        let* () = push_and_log_label Eval in
-        (* TODO: wrap *)
-        local (Env.set item v) (eval body)
-      in
-      begin match l_opt with
-      | Some Check -> check_t
-      | Some Eval -> eval_body
-      | Some _ -> bad_input_env ()
-      | None -> let* () = fork check_t in eval_body
       end
     (* types *)
     | EType -> return_any VType
@@ -458,19 +420,22 @@ let eval
           | Some _ -> bad_input_env ()
           | None ->
             (* is in exploration mode, so we want to check them all *)
-            let main_label = Labels.Record.Set.choose t_labels in
-            let* () =
-              let rec go = function
-                | [] -> return ()
-                | label :: tl ->
-                  let* () = fork (push_and_check label) in
-                  go tl
+            begin match Labels.Record.Set.choose_opt t_labels with
+            | Some main_label ->
+              let* () =
+                let rec go = function
+                  | [] -> return ()
+                  | label :: tl ->
+                    let* () = fork (push_and_check label) in
+                    go tl
+                in
+                Labels.Record.Set.remove main_label t_labels
+                |> Labels.Record.Set.to_list
+                |> go
               in
-              Labels.Record.Set.remove main_label t_labels
-              |> Labels.Record.Set.to_list
-              |> go
-            in
-            push_and_check main_label
+              push_and_check main_label
+            | None -> confirm
+            end
         else refute
       | _ -> refute
       end
@@ -543,8 +508,55 @@ let eval
         end
       | _ -> refute
       end
-    | VTypeModule _ ->
-      failwith "unimplemented check module type"
+    | VTypeModule { captured ; env } ->
+      begin match v with
+      | Any VModule module_v ->
+        let t_labels_ls = List.map (fun { Ast.item ; _ } -> item) captured in
+        let t_labels = Labels.Record.Set.of_list t_labels_ls in
+        let v_labels = Record.label_set module_v in
+        if Labels.Record.Set.subset t_labels v_labels
+        then
+          let push_and_check label =
+            (* alternatives do not matter when we are running every label right now *)
+            let* () = push_and_log_label (Interp.Label.of_record_label label) in
+            let new_env, tau = 
+              (* TODO: share this computation because it is redone on every fork *)
+              Utils.List_utils.fold_left_until (fun env { Ast.item = label' ; tau } ->
+                if Labels.Record.equal label' label
+                then `Stop (env, tau)
+                else `Continue (
+                  Env.set (Labels.Record.to_ident label') (Labels.Record.Map.find label' module_v) env
+                )
+              ) (fun _ -> raise @@ InvariantException "Label not found in module type") env captured
+            in
+            let* t = local (fun _ -> new_env) (eval_type tau) in
+            check (Labels.Record.Map.find label module_v) t
+          in
+          let* l_opt = read_input make_label input_env in
+          match l_opt with
+          | Some Label id -> push_and_check (Labels.Record.RecordLabel id)
+          | Some _ -> bad_input_env ()
+          | None ->
+            (* is in exploration mode, so we want to check them all *)
+            begin match t_labels_ls with
+            | [] -> confirm
+            | main_label :: _ ->
+              let* () =
+                let rec go = function
+                  | [] -> return ()
+                  | label :: tl ->
+                    let* () = fork (push_and_check label) in
+                    go tl
+                in
+                Labels.Record.Set.remove main_label t_labels
+                |> Labels.Record.Set.to_list
+                |> go
+              in
+              push_and_check main_label
+            end
+        else refute
+      | _ -> refute
+      end
 
   and gen (t : Cvalue.tval) : Cvalue.any m =
     let* () = incr_step ~max_step in
@@ -631,11 +643,90 @@ let eval
       let* v1 = gen t1 in
       let* v2 = gen t2 in
       return_any (VTuple (v1, v2))
-    | VTypeModule _ ->
-      failwith "unimplemented gen module type"
+    | VTypeModule { captured ; env } ->
+      let rec fold_labels acc_m = function
+        | [] -> acc_m
+        | { Ast.item ; tau } :: tl ->
+          let* acc = acc_m in
+          let* tval = eval_type tau in
+          let* v = gen tval in
+          local (Env.set (Labels.Record.to_ident item) v) (
+            fold_labels (return @@ Labels.Record.Map.add item v acc) tl
+          )
+      in
+      let* genned_body =
+        local (fun _ -> env) (
+          fold_labels (return Labels.Record.Map.empty) captured
+        )
+      in
+      return_any (VModule genned_body)
+
+  and eval_statement_list (statements : Ast.statement list) : Cvalue.any m =
+    let rec fold_stmts acc_m = function
+      | [] -> acc_m
+      | stmt :: tl ->
+        let* acc = acc_m in
+        let* (id, v) = eval_statement stmt in
+        local (Env.set id v) (
+          fold_stmts (return @@ Labels.Record.Map.add (Labels.Record.of_ident id) v acc) tl
+        )
+    in
+    let* module_body =
+      fold_stmts (return Labels.Record.Map.empty) statements
+    in
+    return_any (VModule module_body)
+
+  and eval_statement (stmt : Ast.statement) : (Ident.t * Cvalue.any) m =
+    match stmt with
+    | SLet { var = VarUntyped { name } ; defn } ->
+      let* v = eval defn in
+      return (name, v)
+    | SLetRec { var = VarUntyped { name } ; param ; defn } ->
+      let* env = read in
+      let v = to_any (VFunFix { fvar = name ; param ; closure = { captured = defn ; env } }) in
+      return (name, v)
+    | SLet { var = VarTyped { item ; tau } ; defn } ->
+      let* tval = eval_type tau in
+      let* v = eval defn in
+      let* l_opt = read_input make_label input_env in
+      let check_t =
+        let* () = push_and_log_label Check in
+        check v tval
+      in
+      let cont =
+        let* () = push_and_log_label Eval in
+        (* TODO: wrap *)
+        return (item, v)
+      in
+      begin match l_opt with
+      | Some Check -> check_t
+      | Some Eval -> cont
+      | Some _ -> bad_input_env ()
+      | None -> let* () = fork check_t in cont
+      end
+    | SLetRec { var = VarTyped { item ; tau } ; param ; defn } ->
+      let* tval = eval_type tau in
+      let* env = read in
+      let v = to_any (VFunFix { fvar = item ; param ; closure = { captured = defn ; env } }) in
+      let* l_opt = read_input make_label input_env in
+      let check_t = 
+        let* () = push_and_log_label Check in
+        check v tval
+      in
+      let cont =
+        let* () = push_and_log_label Eval in
+        (* TODO: wrap *)
+        return (item, v)
+      in
+      begin match l_opt with
+      | Some Check -> check_t
+      | Some Eval -> cont
+      | Some _ -> bad_input_env ()
+      | None -> let* () = fork check_t in cont
+      end
   in
 
-  let result, state = run (eval expr) target in
+  let result, state = run (eval_statement_list pgm) target in
   let this_logged_run =
     Logged_run.{ target ; inputs = state.logged_inputs ; rev_stem = state.rev_stem }
   in

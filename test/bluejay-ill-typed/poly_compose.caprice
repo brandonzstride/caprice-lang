@@ -1,0 +1,16 @@
+(* Polymorphic compose *)
+
+let compose (type a b c) (b_c : b -> c) (a_b : a -> b) (x : a) : c =
+  b_c (a_b x)
+
+let id (type a) (x : a) : a =
+  x 
+
+let r =
+  compose
+    int
+    bool (* ERROR: should be int *) (* This error depends on wrap, which is not yet implemented *)
+    int
+    (id int)
+    (id int)
+    (* 4 *) (* note we don't even need to use this function. Just giving some types is enough (i.e. using the function with some types) *)

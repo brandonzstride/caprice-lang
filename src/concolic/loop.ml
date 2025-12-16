@@ -4,19 +4,9 @@ open Common
 let max_tree_depth = 30
 let max_step = Interp.Step.Step 100_000
 
-let fold_left_until f finish init ls =
-  let rec go acc = function
-    | [] -> finish acc
-    | hd :: tl ->
-      match f acc hd with
-      | `Stop x -> x
-      | `Continue a -> go a tl
-  in
-  go init ls
-
 let make_targets (target : Target.t) (stem : Path.t) (ienv : Ienv.t) 
   ~(max_tree_depth : int) : Target.t list * bool =
-  fold_left_until (fun (acc_set, len, formulas) pathunit ->
+  Utils.List_utils.fold_left_until (fun (acc_set, len, formulas) pathunit ->
     if len > max_tree_depth then 
       `Stop (acc_set, true)
     else
@@ -60,7 +50,7 @@ let c = Utils.Counter.create ()
 
 module T = Smt.Formula.Make_transformer (Overlays.Typed_z3)
 
-let loop (solve : Stepkey.t Smt.Formula.solver) (expr : Lang.Ast.t) (tq : Target_queue.t) =
+let loop (solve : Stepkey.t Smt.Formula.solver) (pgm : Lang.Ast.program) (tq : Target_queue.t) =
   let rec loop tq =
     match Target_queue.pop tq with
     | Some (target, tq) ->
@@ -74,7 +64,7 @@ let loop (solve : Stepkey.t Smt.Formula.solver) (expr : Lang.Ast.t) (tq : Target
   and loop_on_model target tq model =
     let _ = Utils.Counter.next c in
     let ienv = Ienv.extend target.i_env (Ienv.of_model model) in
-    let res, runs = Eval.eval expr ienv target ~max_step in
+    let res, runs = Eval.eval pgm ienv target ~max_step in
     if Eval_result.is_signal_to_stop res
     then Eval_result.to_answer res
     else 
@@ -92,8 +82,8 @@ let loop (solve : Stepkey.t Smt.Formula.solver) (expr : Lang.Ast.t) (tq : Target
 module Default_Z3 = Overlays.Typed_z3.Default
 module Default_solver = Smt.Formula.Make_solver (Default_Z3)
 
-let begin_ceval (expr : Lang.Ast.t) : Answer.t =
-  let span, answer = Utils.Time.time (loop Default_solver.solve expr) Target_queue.initial in
+let begin_ceval (pgm : Lang.Ast.program) : Answer.t =
+  let span, answer = Utils.Time.time (loop Default_solver.solve pgm) Target_queue.initial in
   Format.printf "Finished type checking in %0.3f ms and %d runs:\n    %s\n"
     (Utils.Time.span_to_ms span) !(c.cell) (Answer.to_string answer);
   answer
