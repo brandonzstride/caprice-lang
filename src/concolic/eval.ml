@@ -55,20 +55,27 @@ let eval
           Env.set fvar vfun env
           |> Env.set param v_arg
         ) (eval body)
-      | Any VGenFun { domain ; codomain = CodValue cod_tval } ->
+      | Any VGenFun { domain ; codomain } ->
         let* v_arg = eval arg in
-        let* input = read_and_log_input_with_default make_label input_env ~default:Eval in
-        begin match input with
-        | Check ->
-          let* () = push_label Interp.Label.With_alt.check in
+        let* l = read_input make_label input_env in
+        let check_f =
+          let* () = push_and_log_label Check in
           check v_arg domain
-        | Eval ->
-          let* () = push_label Interp.Label.With_alt.eval in
-          gen cod_tval
-        | _ -> fail (Mismatch "Bad input env")
+        in
+        let eval_f =
+          let* () = push_and_log_label Eval in
+          match codomain with
+          | CodValue cod_tval -> gen cod_tval
+          | CodDependent (id, { body ; env }) ->
+            let* cod_tval = local (fun _ -> Env.set id v_arg env) (eval_type body) in
+            gen cod_tval
+        in
+        begin match l with
+        | Some Check -> check_f
+        | Some Eval -> eval_f
+        | Some _ -> fail (Mismatch "Bad input env")
+        | None -> let* () = fork check_f in eval_f
         end
-      | Any VGenFun { domain = _ ; codomain = CodDependent _ } ->
-        failwith "unimplemented dependent function application"
       | _ -> fail (Mismatch "Apply non-function.")
       end
     | EMatch { subject ; patterns } ->

@@ -6,6 +6,7 @@ authors: ["Brandon Stride <bstride1@jhu.edu"]
 license: "MIT"
 depends: [
   "dune" {>= "3.19"}
+  "alcotest"
   "baby"
   "menhir"
   "mtime"

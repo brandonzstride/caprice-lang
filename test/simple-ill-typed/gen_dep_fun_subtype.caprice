@@ -1,0 +1,4 @@
+
+let f (g : (x : { a : int }) -> if x.a > 0 then bool else { i : int | i == x.a })
+  : (y : { a : int ; b : bool }) -> if y.a > 0 then { b : bool | b == y.b } else int =
+  g (* ERROR: the returned bool is too refined *)
