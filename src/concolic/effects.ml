@@ -141,7 +141,7 @@ let fork (forked_m : Eval_result.t u) : unit m =
       }
     )
     (fun res ->
-      if Eval_result.is_signal_to_stop res
+      if Eval_result.is_signal_to_stop res (* FIXME: need to mark as pruned *)
       then fail res (* propagate up the failure *)
       else return ())
 
