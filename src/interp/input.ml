@@ -1,4 +1,6 @@
 
+exception ExtractionException
+
 type t =
   | IBool of bool
   | IInt of int
@@ -16,6 +18,18 @@ let int_opt = function
 let label_opt = function
   | ILabel l -> Some l
   | _ -> None
+
+let bool_exn = function
+  | IBool b -> b
+  | _ -> raise ExtractionException
+
+let int_exn = function
+  | IInt i -> i
+  | _ -> raise ExtractionException
+
+let label_exn = function
+  | ILabel l -> l
+  | _ -> raise ExtractionException
 
 let to_string = function
   | IBool b -> Bool.to_string b

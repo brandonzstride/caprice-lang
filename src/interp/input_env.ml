@@ -17,14 +17,15 @@ module Make (K : Smt.Symbol.KEY) = struct
 
   let empty : t = Utils.Uid.Map.empty
 
-  let find_and_bind (f : Input.t -> 'a option) (k : K.t) (m : t) : 'a option =
-    Option.bind (Utils.Uid.Map.find_opt (K.uid k) m) f
+  (* propagates failing extraction *)
+  let find_and_extract_exn (extract_exn : Input.t -> 'a) (k : K.t) (m : t) : 'a option =
+    Option.map extract_exn (Utils.Uid.Map.find_opt (K.uid k) m)
 
   let find (type a) (key : a Key.t) (m : t) : a option =
     match key with
-    | KBool k -> find_and_bind Input.bool_opt k m
-    | KInt k -> find_and_bind Input.int_opt k m
-    | KLabel k -> find_and_bind Input.label_opt k m
+    | KBool k -> find_and_extract_exn Input.bool_exn k m
+    | KInt k -> find_and_extract_exn Input.int_exn k m
+    | KLabel k -> find_and_extract_exn Input.label_exn k m
 
   let add (type a) (key : a Key.t) (input : a) (m : t) : t =
     let add k i = Utils.Uid.Map.add (K.uid k) i m in
