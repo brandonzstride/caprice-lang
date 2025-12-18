@@ -119,6 +119,7 @@ let fork (forked_m : Eval_result.t u) : unit m =
   let* target = target_to_here in
   fork forked_m { target }
     ~setup_state:(fun state ->
+      (* keeps all the logged runs *)
       { state with rev_stem = Path.empty }
     )
     ~restore_state:(fun ~og ~forked_state ->
@@ -127,11 +128,12 @@ let fork (forked_m : Eval_result.t u) : unit m =
           { Logged_run.rev_stem = forked_state.rev_stem ; inputs = forked_state.logged_inputs ; target }
         in
         let open Utils.Diff_list in
-        (* Note that the forked state runs include the original runs (because it inhereted state)! *)
+        (* Note that the forked state runs include the original runs (see setup_state) *)
         forked_run -:: forked_state.runs (* ... hence, don't copy the og runs *)
       }
     )
     (fun res ->
+      (* We could maybe mark as pruned by using a minimal evaluation result and an ordering on them *)
       if Eval_result.is_signal_to_stop res (* FIXME: need to mark as pruned *)
       then fail res (* propagate up the failure *)
       else return ())

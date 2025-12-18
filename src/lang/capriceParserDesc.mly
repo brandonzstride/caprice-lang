@@ -53,7 +53,7 @@
 %token MU
 %token OF
 %token SIG
-// %token SINGLETYPE_KEYWORD
+%token SINGLETYPE_KEYWORD
 %token TOP_KEYWORD
 %token TYPE
 %token UNIT_KEYWORD
@@ -287,8 +287,8 @@ primary_expr:
     { EFunction { param = Ident "x" ; body = ETypeList (EVar (Ident "x")) } } (* HACK HACK HACK *)
   | ABSTRACT
     { EAbstractType }
-  // | SINGLETYPE_KEYWORD
-  //   { ETypeSingle }
+  | SINGLETYPE_KEYWORD
+    { EFunction { param = Ident "x" ; body = ETypeSingle (EVar (Ident "x")) } } (* HACK HACK HACK *)
   | OPEN_PAREN CLOSE_PAREN
     { EUnit }
   | OPEN_BRACE COLON CLOSE_BRACE
@@ -403,8 +403,8 @@ record_type_body:
 %inline val_item:
   | VAL record_type_item
     { { item = fst $2 ; tau = snd $2 } }
-  // | VAL record_label EQUALS expr
-  //   { $2, EAppl { func = ETypeSingle ; arg = $4 } }
+  | VAL record_label EQUALS expr
+    { { item = $2 ; tau = ETypeSingle $4 } }
 
 /* **** Records, lists, and variants **** */
 

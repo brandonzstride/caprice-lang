@@ -20,6 +20,11 @@ let eval
   ~(max_step : Interp.Step.t)
   : Eval_result.t * Logged_run.t list
   =
+  (*
+    ----------------------------
+    EVALUATE EXPRESSION TO VALUE 
+    ----------------------------
+  *)
   let rec eval (expr : Ast.t) : Cvalue.any m =
     let* () = incr_step ~max_step in
     match expr with
@@ -129,6 +134,9 @@ let eval
       end
     | EAbstractType ->
       gen VType
+    | ETypeSingle e ->
+      let* tval = eval_type e in
+      return_any (VTypeSingle tval)
     (* symbolic values and branching *)
     | EPick_i ->
       let* step = step in
@@ -219,6 +227,11 @@ let eval
       in
       return_any (VTypeVariant variant_bodies)
 
+  (*
+    ----------------------------------
+    EVALUATE BINARY OPERATION TO VALUE
+    ----------------------------------
+  *)
   and eval_binop (left : Ast.t) (op : Binop.t) (right : Ast.t) : Cvalue.any m =
     let* vleft = eval left in
     match op with
@@ -293,12 +306,22 @@ let eval
             )
         )
 
+  (*
+    ---------------------------------
+    EVALUATE EXPRESSION TO TYPE VALUE
+    ---------------------------------
+  *)
   and eval_type (expr : Ast.t) : Cvalue.tval m =
     let* v = eval expr in
     handle_any v
       ~data:(fun d -> mismatch @@ non_type_value d)
       ~typeval:return
 
+  (*
+    -------------------------
+    CHECK FOR TYPE REFUTATION
+    -------------------------
+  *)
   and check : 'a. Cvalue.any -> Cvalue.tval -> 'a m = fun v t ->
     let refute = fail (Refutation (v, t)) in
     let confirm = fail Confirmation in
@@ -559,7 +582,33 @@ let eval
         else refute
       | _ -> refute
       end
+    | VTypeSingle tval ->
+      handle_any v
+        ~data:(fun _ -> refute)
+        ~typeval:(fun tval' ->
+          let* l_opt = read_input make_label input_env in
+          let check_subset =
+            let* () = push_and_log_label Left in
+            let* genned = gen tval' in
+            check genned tval
+          in
+          let check_superset =
+            let* () = push_and_log_label Right in
+            let* genned = gen tval in
+            check genned tval'
+          in
+          match l_opt with
+          | Some Left -> check_subset
+          | Some Right -> check_superset
+          | Some _ -> bad_input_env ()
+          | None -> let* () = fork check_subset in check_superset
+        )
 
+  (*
+    -------------------------
+    GENERATE MEMBER OF A TYPE
+    -------------------------
+  *)
   and gen (t : Cvalue.tval) : Cvalue.any m =
     let* () = incr_step ~max_step in
     match t with
@@ -662,7 +711,14 @@ let eval
         )
       in
       return_any (VModule genned_body)
+    | VTypeSingle tval ->
+      return_any tval
 
+  (*
+    ---------------------------------------
+    EVALUATE LIST OF STATEMENTS TO A MODULE
+    ---------------------------------------
+  *)
   and eval_statement_list (statements : Ast.statement list) : Cvalue.any m =
     let rec fold_stmts acc_m = function
       | [] -> acc_m
@@ -678,6 +734,11 @@ let eval
     in
     return_any (VModule module_body)
 
+  (*
+    -------------------------------
+    EVALUATE STATEMENT TO A BINDING
+    -------------------------------
+  *)
   and eval_statement (stmt : Ast.statement) : (Ident.t * Cvalue.any) m =
     match stmt with
     | SLet { var = VarUntyped { name } ; defn } ->

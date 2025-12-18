@@ -73,7 +73,7 @@ rule token = parse
 | "mu"                 { MU }
 | "of"                 { OF }
 | "sig"                { SIG }
-(* | "singletype"         { SINGLETYPE_KEYWORD } *)
+| "singletype"         { SINGLETYPE_KEYWORD }
 | "top"                { TOP_KEYWORD }
 | "type"               { TYPE }
 | "unit"               { UNIT_KEYWORD }
@@ -88,7 +88,7 @@ rule token = parse
 | "dep"                { DEP }
 | "list"               { LIST }
 | "rec"                { REC }
-(* | "abstract"           { ABSTRACT } *)
+| "abstract"           { ABSTRACT }
 | digit+ as n          { INT (int_of_string n) }
 | ident_start ident_cont* as s     { IDENTIFIER s }
 

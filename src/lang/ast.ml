@@ -37,7 +37,7 @@ type t =
   | ETypeMu of { var : Ident.t ; body : t }
   | ETypeList of t
   | ETypeVariant of t Variant.t list
-  (* | ETypeSingle *)
+  | ETypeSingle of t
   [@@deriving eq, ord]
 
 and var =

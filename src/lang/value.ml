@@ -46,6 +46,7 @@ module Make (Atom_cell : Utils.Comparable.P1) = struct
     | VTypeVariant : typeval t Labels.Variant.Map.t -> typeval t
     | VTypeRefine : (typeval t, Ast.t closure) Refinement.t -> typeval t
     | VTypeTuple : typeval t * typeval t -> typeval t
+    | VTypeSingle : typeval t -> typeval t
 
   and 'a closure = { captured : 'a ; env : env }
 
@@ -97,7 +98,8 @@ module Make (Atom_cell : Utils.Comparable.P1) = struct
       | VTypeModule _
       | VTypeVariant _
       | VTypeRefine _
-      | VTypeTuple _) as x -> typeval x
+      | VTypeTuple _
+      | VTypeSingle _) as x -> typeval x
 
   let[@inline always] handle_any (type a) (v : any) ~(data : data t -> a) ~(typeval : typeval t -> a) : a =
     map_any { f = handle ~data ~typeval } v
@@ -204,6 +206,8 @@ module Make (Atom_cell : Utils.Comparable.P1) = struct
       Format.sprintf "{ %s : %s | <closure> }" (Ident.to_string var) (to_string tau)
     | VTypeTuple (t1, t2) ->
       Format.sprintf "(%s * %s)" (to_string t1) (to_string t2)
+    | VTypeSingle t ->
+      Format.sprintf "(singletype %s)" (to_string t)
 
   and any_to_string any = map_any { f = to_string } any
 
