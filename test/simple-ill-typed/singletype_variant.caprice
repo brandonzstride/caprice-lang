@@ -1,0 +1,3 @@
+
+let t : singletype (`A of int | `B of bool) =
+  `A of int | `B of bool | `C of unit
