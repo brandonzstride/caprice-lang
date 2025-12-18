@@ -63,4 +63,5 @@ let () = Alcotest.run "typecheck"
     [ "bluejay"
     ; "soft-contract"
     ; "simple"
+    ; "programs"
     ]
