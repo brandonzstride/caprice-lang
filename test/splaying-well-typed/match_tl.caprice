@@ -1,0 +1,14 @@
+
+let f (ls : list int) : int =
+  let is_empty =
+    match ls with
+    | [] -> true
+    | _ :: _ -> false
+    end
+  in
+  if is_empty then
+    match ls with
+    | [] -> 0
+    | _ :: _ -> () (* this case is impossible as long as lazy generation updates the lazy state *)
+    end
+  else 1
