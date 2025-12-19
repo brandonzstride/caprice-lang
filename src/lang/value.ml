@@ -291,41 +291,75 @@ module Make (Atom_cell : Utils.Comparable.P1) = struct
       | Failure of string
   end
 
-  let rec matches : type a. Pattern.t -> a t -> Match_result.t = fun p v ->
-    match p, v with
-    | PAny, _ -> Match
-    | PVariable id, v -> Match_bindings (Env.singleton id (to_any v))
-    | p, VGenPoly _ -> 
-      (* generated polymorphic values cannot be inspected *)
-      Failure (Format.sprintf "Bad match: matching polymorphic value with pattern %s" (Pattern.to_string p))
-    | PVariant { label = pattern_label ; payload = payload_pattern },
-      VVariant { label = subject_label ; payload = Any v } ->
-        if Labels.Variant.equal pattern_label subject_label
-        then matches payload_pattern v
-        else No_match
-    | PTuple (p1, p2), VTuple (Any v1, Any v2) ->
-      match_two (p1, v1) (p2, v2)
-    | PEmptyList, VEmptyList -> Match
-    | PDestructList (p1, p2), VListCons (Any v1, v2) ->
-      match_two (p1, v1) (p2, v2)
-    | _ -> No_match
+  module Make_match (Monad : Utils.Types.MONAD) = struct
+    open Monad
 
-  and match_two : type a b. Pattern.t * a t -> Pattern.t * b t -> Match_result.t = fun (p1, v1) (p2, v2) ->
-    match matches p1 v1 with
-    | (No_match | Failure _) as r -> r
-    | Match -> matches p2 v2
-    | Match_bindings e1 ->
-      begin match matches p2 v2 with
-      | (No_match | Failure _) as r -> r
-      | Match -> Match_bindings e1
-      | Match_bindings e2 -> Match_bindings (Env.extend e1 e2)
-      end
+    (*
+      In case we match on a symbol, we must resolve the symbol to a value.
+      It's expected that this computation is monadic, so we must pass in
+      the monad via a functor.
+    *)
+    let matches (type a) (pat : Pattern.t) (v : a t) ~(resolve_symbol : symbol -> any m) : Match_result.t m =
+      let rec matches 
+        : type a. Pattern.t -> a t -> Match_result.t m 
+        = fun p v ->
+        let open Match_result in
+        match p, v with
+        | _, VLazy symbol ->
+          bind (resolve_symbol symbol) (fun (Any v) ->
+            matches p v
+          )
+        | PAny, _ ->
+          return Match
+        | PVariable id, v -> 
+          return @@ Match_bindings (Env.singleton id (to_any v))
+        | p, VGenPoly _ -> 
+          (* generated polymorphic values cannot be inspected *)
+          return @@ Failure 
+            (Format.sprintf "Bad match: matching polymorphic value with pattern %s" 
+              (Pattern.to_string p))
+        | PVariant { label = pattern_label ; payload = payload_pattern },
+          VVariant { label = subject_label ; payload = Any v } ->
+            if Labels.Variant.equal pattern_label subject_label
+            then matches payload_pattern v
+            else return No_match
+        | PTuple (p1, p2), VTuple (Any v1, Any v2) ->
+          match_two (p1, v1) (p2, v2)
+        | PEmptyList, VEmptyList -> 
+          return Match
+        | PDestructList (p1, p2), VListCons (Any v1, v2) ->
+          match_two (p1, v1) (p2, v2)
+        | _ -> 
+          return No_match
 
-  let matches_any : Pattern.t -> any -> Match_result.t = fun pat a ->
-    let f (type a) (v : a t) : Match_result.t =
+      and match_two 
+        : type a b. Pattern.t * a t -> Pattern.t * b t -> Match_result.t m
+        = fun (p1, v1) (p2, v2) ->
+        let open Match_result in
+        bind (matches p1 v1) (function
+          | (No_match | Failure _) as r ->
+            return r
+          | Match -> 
+            matches p2 v2
+          | Match_bindings e1 ->
+            bind (matches p2 v2) (function
+              | (No_match | Failure _) as r ->
+                return r
+              | Match -> 
+                return (Match_bindings e1)
+              | Match_bindings e2 ->
+                return (Match_bindings (Env.extend e1 e2))
+            )
+        )
+      in
       matches pat v
-    in
-    map_any { f } a
+
+    let match_any (pat : Pattern.t) (a : any) ~(resolve_symbol : symbol -> any m) : Match_result.t m =
+      let f (type a) (v : a t) : Match_result.t m =
+        matches pat v ~resolve_symbol
+      in
+      map_any { f } a
+  end
 end
 
 (*

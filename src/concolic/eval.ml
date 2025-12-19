@@ -64,6 +64,7 @@ let eval
         let* v_arg = eval arg in
         local (fun _ -> Env.set param v_arg env) (eval captured)
       | (Any VFunFix { fvar ; param ; closure = { captured ; env } }) as vfun ->
+        if do_splay then fail (Mismatch "Called rec fun while splaying") else
         let* v_arg = eval arg in
         local (fun _ -> 
           Env.set fvar vfun env
@@ -93,12 +94,15 @@ let eval
       | _ -> mismatch @@ apply_non_function v_func
       end
     | EMatch { subject ; patterns } ->
-      (* FIXME: force eval as deep as the pattern needs, not just to WHNF *)
       let* v = force_eval subject in
       let rec find_match = function
         | [] -> mismatch @@ missing_pattern v (List.map fst patterns)
         | (pat, body) :: tl ->
-          begin match matches_any pat v with
+          let resolve_symbol symbol =
+            force_value (Any (VLazy symbol))
+          in
+          let* res = Matches.match_any pat v ~resolve_symbol in
+          begin match res with
           | Match -> eval body
           | Match_bindings e -> local (fun env -> Env.extend env e) (eval body)
           | No_match -> find_match tl

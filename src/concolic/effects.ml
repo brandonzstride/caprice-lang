@@ -36,7 +36,10 @@ module Context = struct
     { target : Target.t } 
 end
 
-include Effects.Make (State) (Cvalue.Env) (Context) (Eval_result)
+module Monad = Effects.Make (State) (Cvalue.Env) (Context) (Eval_result)
+include Monad
+
+module Matches = Cvalue.Make_match (Monad)
 
 let vanish : 'a m =
   fail Vanish

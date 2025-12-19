@@ -98,26 +98,35 @@ module Make_of_context (C : CONTEXT) : Formula.SOLVABLE = struct
     let e = and_ exprs in
     if Z3.Expr.equal e (const_bool false)
     then Unsat
-    else
-      match Z3.Solver.check solver [ e ] with
-      | Z3.Solver.SATISFIABLE ->
-        let model = Option.get @@ Z3.Solver.get_model solver in
-        let value : type a. (a, 'k) Symbol.t -> a option = fun s ->
-          match s with
-          | I _ -> a_of_expr model (symbol s) unbox_int_expr
-          | B _ -> a_of_expr model (symbol s) unbox_bool_expr
-        in
-        let domain = 
-          List.map (fun decl ->
-            decl
-            |> Z3.FuncDecl.get_name
-            |> Z3.Symbol.get_int
-            |> Utils.Uid.of_int
-          ) (Z3.Model.get_const_decls model)
-        in
-        Sat { value ; domain }
-      | UNKNOWN -> Unknown
-      | UNSATISFIABLE -> Unsat
+    else begin
+      (* Must use the solver stack in order to not keep decls around from previous solves *)
+      (* (and this is faster than making a new solver) *)
+      Z3.Solver.push solver;
+      let result = Z3.Solver.check solver [ e ] in
+      let solution =
+        match result with
+        | Z3.Solver.SATISFIABLE ->
+          let model = Option.get @@ Z3.Solver.get_model solver in
+          let value : type a. (a, 'k) Symbol.t -> a option = fun s ->
+            match s with
+            | I _ -> a_of_expr model (symbol s) unbox_int_expr
+            | B _ -> a_of_expr model (symbol s) unbox_bool_expr
+          in
+          let domain = 
+            List.map (fun decl ->
+              decl
+              |> Z3.FuncDecl.get_name
+              |> Z3.Symbol.get_int
+              |> Utils.Uid.of_int
+            ) (Z3.Model.get_const_decls model)
+          in
+          Solution.Sat { value ; domain }
+        | UNKNOWN -> Unknown
+        | UNSATISFIABLE -> Unsat
+      in
+      Z3.Solver.pop solver 1;
+      solution
+    end
 end
 
 module Make () = Make_of_context (struct let ctx = Z3.mk_context [] end)

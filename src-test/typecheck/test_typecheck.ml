@@ -9,7 +9,7 @@ let testcase_of_filename (typing : typing) (filename : string) : unit Alcotest.t
   Alcotest.test_case filename speed_level
   @@ fun () ->
     let pgm = Lang.Parser.parse_file filename in
-    let answer = Concolic.Loop.begin_ceval pgm ~do_splay:false in
+    let answer = Concolic.Loop.begin_ceval pgm ~do_splay:true in
     let is_correct =
       match typing, answer with
       | Ill_typed, Concolic.Common.Answer.Found_error _
@@ -53,7 +53,7 @@ let testdir (dirs : (typing * string) list) : unit Alcotest.test list =
 
 let make_tests (names : string list) : unit Alcotest.test list =
   List.map (Filename.concat root_dir) names
-  |> List.map (fun name -> [ Ill_typed, name ^ "-ill-typed" ; Well_typed, name ^ "-well-typed" ])
+  |> List.map (fun name -> [ Well_typed, name ^ "-well-typed" ; Ill_typed, name ^ "-ill-typed" ])
   |> List.flatten
   |> List.filter (fun (_, file) -> Sys.file_exists file)
   |> testdir
@@ -64,4 +64,5 @@ let () = Alcotest.run "typecheck"
     ; "soft-contract"
     ; "simple"
     ; "programs"
+    ; "splaying"
     ]
