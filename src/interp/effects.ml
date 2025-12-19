@@ -6,8 +6,6 @@ module Make (State : Utils.Types.T) (Env : Env.S) (Ctx : Utils.Types.T) (Err : s
   val fail_on_fetch : Ident.t -> State.t -> t * State.t
   val fail_on_max_step : Step.t -> State.t -> t * State.t
 end) = struct
-  type empty = private | (* uninhabited type *)
-  let absurd : 'a. empty -> 'a = function _ -> .
 
   type ('a, 'e) t = {
     run : 'r.
@@ -31,14 +29,14 @@ end) = struct
 
   type 'a m = ('a, Err.t) t (* m is for "monad": it includes an error monad *)
 
-  type 'a s = ('a, empty) t (* s for "safe": it cannot error *)
+  type 'a s = ('a, Utils.Empty.t) t (* s for "safe": it cannot error *)
 
-  type 'e u = (empty, 'e) t (* u for "unsafe": it always errors *)
+  type 'e u = (Utils.Empty.t, 'e) t (* u for "unsafe": it always errors *)
 
 
   let make_unsafe (x : 'a s) : ('a, 'e) t =
     { run = fun ~reject:_ ~accept state step env ctx ->
-          x.run state step env ctx ~reject:absurd ~accept
+          x.run state step env ctx ~reject:Utils.Empty.absurd ~accept
     }
 
   (*
@@ -116,12 +114,12 @@ end) = struct
 
   let run_safe (x : 'a s) (init_state : State.t) (init_env : Env.t) (init_ctx : Ctx.t) : 'a * State.t * Step.t =
     x.run init_state Step.zero init_env init_ctx
-      ~reject:absurd
+      ~reject:Utils.Empty.absurd
       ~accept:(fun a state step -> a, state, step)
 
   let run_unsafe (x : 'e u) (init_state : State.t) (init_env : Env.t) (init_ctx : Ctx.t) : 'e * State.t * Step.t =
     x.run init_state Step.zero init_env init_ctx
-      ~accept:absurd
+      ~accept:Utils.Empty.absurd
       ~reject:(fun a state step -> a, state, step)
 
   (*
@@ -153,7 +151,7 @@ end) = struct
     : 'a m =
     { run = fun ~reject ~accept state step env ctx ->
       m.run (setup_state state) step env fork_ctx
-        ~accept:absurd
+        ~accept:Utils.Empty.absurd
         ~reject:(fun e forked_state _ -> 
           (* uses original step count when resuming, not step count after fork *)
           (k e).run ~reject ~accept (restore_state ~og:state ~forked_state) step env ctx

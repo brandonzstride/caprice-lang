@@ -862,9 +862,6 @@ let eval
     -------------------------------
     EVALUATE SYMBOLS TO WHNF VALUES
     -------------------------------
-
-    TODO: instead of using a boolean to splay, have a functor that inserts the logic
-      so we can statically avoid the branch.
   *)
   and force_eval (expr : Ast.t) : Cvalue.any m =
     let* v = eval expr in
