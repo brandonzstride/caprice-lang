@@ -19,3 +19,11 @@
 - command line optional arguments
 - benchmarking setup
 - language docs
+- typechecking pipeline from splaying to non-splaying
+  (and optional skip of splaying mode to check pure refutation performance)
+- SCC of target formulas for smaller solves
+  (solves are taking the vast majority of time still, even with the label flipping)
+- refactor to have labels as different types so there is less `bad_input_env` stuff
+  (we want pattern checking exhaustiveness in left/right and check/eval cases)
+- port more bluejay tests over
+- port liquid haskell and idris tests
