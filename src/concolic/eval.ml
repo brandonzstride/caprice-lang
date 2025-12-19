@@ -391,13 +391,13 @@ let eval
         let* l_opt = read_input make_label input_env in
         let check_left =
           let* () = push_and_log_label Left in
-          if domain == domain' || domain = domain' then confirm else
+          if domain = domain' then confirm else
           let* genned = gen domain in
           check genned domain'
         in
         let check_right =
           let* () = push_and_log_label Right in
-          if codomain == codomain' || codomain = codomain' then confirm else
+          if codomain = codomain' then confirm else
           let* cod_tval, cod_tval' =
             match codomain, codomain' with
             | CodValue cod_tval, CodValue cod_tval' -> 
@@ -484,9 +484,11 @@ let eval
         | LValue v -> check v t
         | LGenMu { var = var' ; closure = { captured = captured' ; env = env' } } ->
           (* FIXME: these names (with the "prime") go the other direction as the spec *)
+          if captured' = captured && env = env' then confirm else
           let* a = gen VType in (* fresh type to use as a stub *)
           let* t_body = local (fun _ -> Env.set var a env) (eval_type captured) in
           let* t_body' = local (fun _ -> Env.set var' a env') (eval_type captured') in
+          if t_body = t_body' then confirm else
           let* genned = gen t_body' in
           check genned t_body
         end
@@ -618,6 +620,7 @@ let eval
       handle_any v
         ~data:(fun _ -> refute)
         ~typeval:(fun tval' ->
+          if tval' = tval then confirm else
           let* l_opt = read_input make_label input_env in
           let check_subset =
             let* () = push_and_log_label Left in
