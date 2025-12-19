@@ -66,7 +66,7 @@ module Make (Atom_cell : Utils.Comparable.P1) = struct
     | CodDependent of Ident.t * Ast.t closure (* dependent function codomain *)
   
   and lazy_v =
-    (* TODO: add lazily generated list *)
+    | LGenList of typeval t
     | LGenMu of { var : Ident.t ; closure : Ast.t closure }
     | LValue of any
 

@@ -482,6 +482,7 @@ let eval
         let* lazy_v = find_symbol s in
         begin match lazy_v with
         | LValue v -> check v t
+        | LGenList _ -> refute (* TODO: make error message description; it will be cryptic like this *)
         | LGenMu { var = var' ; closure = { captured = captured' ; env = env' } } ->
           (* FIXME: these names (with the "prime") go the other direction as the spec *)
           if captured' = captured && env = env' then confirm else
@@ -497,8 +498,17 @@ let eval
         check v t_body
       end
     | VTypeList t ->
-      (* TODO *)
       begin match v with
+      | Any VLazy s ->
+        let* lazy_v = find_symbol s in
+        begin match lazy_v with
+        | LValue v -> check v (VTypeList t) (* TODO: don't reconstruct *)
+        | LGenMu _ -> refute (* see mu todo *)
+        | LGenList t' ->
+          if t' = t then confirm else
+          let* genned = gen t' in
+          check genned t
+        end
       | Any VEmptyList -> confirm
       | Any VListCons (v_hd, v_tl) ->
         let* l_opt = read_input make_label input_env in
@@ -698,18 +708,23 @@ let eval
       | _ -> bad_input_env ()
       end
     | VTypeList t ->
-      let* l = read_and_log_input_with_default make_label input_env ~default:Left in
-      begin match l with
-      | Left ->
-        let* () = push_label Interp.Label.With_alt.left in
-        return_any VEmptyList
-      | Right ->
-        let* () = push_label Interp.Label.With_alt.right in
-        let* hd = gen t in
-        let* Any tl = gen (VTypeList t) in
-        return_any (VListCons (hd, Obj.magic tl)) (* MAGIC: Safe because always returns data *)
-      | _ -> bad_input_env ()
-      end
+      if do_splay then (* see the todo on force_eval *)
+        let* Step id = step in (* use step as fresh identifier *)
+        let* () = add_symbol { id } (LGenList t) in
+        return_any (VLazy { id })
+      else
+        let* l = read_and_log_input_with_default make_label input_env ~default:Left in
+        begin match l with
+        | Left ->
+          let* () = push_label Interp.Label.With_alt.left in
+          return_any VEmptyList
+        | Right ->
+          let* () = push_label Interp.Label.With_alt.right in
+          let* hd = gen t in
+          let* Any tl = gen (VTypeList t) in
+          return_any (VListCons (hd, Obj.magic tl)) (* MAGIC: Safe because always returns data *)
+        | _ -> bad_input_env ()
+        end
     | VTypeRefine { var ; tau ; predicate = { captured ; env } } ->
       let* v = gen tau in
       let* p = local (fun _ -> Env.set var v env) (eval captured) in
@@ -856,7 +871,23 @@ let eval
           (* inline the logic to force the generation of a mu *)
           let t = VTypeMu { var ; closure } in
           let* t_body = local (fun _ -> Env.set var (Any t) closure.env) (eval_type closure.captured) in
-          gen t_body
+          let* genned = gen t_body in
+          let* () = add_symbol symbol (LValue genned) in
+          return genned
+        | LGenList t ->
+          (* generate list; TODO: don't inline this (and similarly with mu ) *)
+          let* l = read_and_log_input_with_default make_label input_env ~default:Left in
+          begin match l with
+          | Left ->
+            let* () = push_label Interp.Label.With_alt.left in
+            return_any VEmptyList
+          | Right ->
+            let* () = push_label Interp.Label.With_alt.right in
+            let* hd = gen t in
+            let* Any tl = gen (VTypeList t) in
+            return_any (VListCons (hd, Obj.magic tl)) (* MAGIC: Safe because always returns data *)
+        | _ -> bad_input_env ()
+        end
         | LValue v -> return v
         end
       | _ -> return v

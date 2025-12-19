@@ -1,0 +1,9 @@
+
+let reverse (type a) (ls : list a) : list a =
+  let rec rev (acc : list a) (ls : list a) : list a =
+    match ls with
+    | [] -> acc
+    | hd :: tl -> rev (hd :: acc) tl
+    end
+  in
+  rev [] ls

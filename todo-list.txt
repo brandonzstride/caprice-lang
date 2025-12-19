@@ -1,7 +1,6 @@
 
 - Avoid recursive variant generation by default
   (simply scan AST for any mu type or reference to one)
-- Lazily generate lists (or desugar them to mu types)
 - Use functor to provide force-eval behavior instead of boolean `do_splay` toggle.
 - Allow flags in test cases
   - and speed and expected result
