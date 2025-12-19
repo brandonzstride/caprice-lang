@@ -7,6 +7,14 @@
 module Make (Atom_cell : Utils.Comparable.P1) = struct
   type data = private Data [@@deriving eq, ord]
   type typeval = private Typeval [@@deriving eq, ord]
+  type neither = private Neither [@@deriving eq, ord]
+
+  (* symbols to identify lazy things *)
+  type symbol = { id : int } [@@unboxed] [@@deriving eq, ord]
+
+  module SymbolMap = Baby.H.Map.Make (struct
+    type t = symbol [@@deriving eq, ord]
+  end)
 
   (*
     Data values and type values are all the same type constructor
@@ -30,6 +38,7 @@ module Make (Atom_cell : Utils.Comparable.P1) = struct
     (* generated values *)
     | VGenFun : (typeval t, fun_cod) Funtype.t -> data t
     | VGenPoly : { id : int ; nonce : int } -> data t
+    | VLazy : symbol -> neither t (* lazily evaluated thing, so state must manage this *)
     (* type values only *)
     | VType : typeval t
     | VTypePoly : { id : int } -> typeval t
@@ -55,6 +64,11 @@ module Make (Atom_cell : Utils.Comparable.P1) = struct
   and fun_cod =
     | CodValue of typeval t (* regular function codomain *)
     | CodDependent of Ident.t * Ast.t closure (* dependent function codomain *)
+  
+  and lazy_v =
+    (* TODO: add lazily generated list *)
+    | LGenMu of { var : Ident.t ; closure : Ast.t closure }
+    | LValue of any
 
   and any = Any : 'a t -> any [@@unboxed]
 
@@ -100,6 +114,7 @@ module Make (Atom_cell : Utils.Comparable.P1) = struct
       | VTypeRefine _
       | VTypeTuple _
       | VTypeSingle _) as x -> typeval x
+    | VLazy _ -> failwith "Invariant failure: handling unforced lazy value as data or type"
 
   let[@inline always] handle_any (type a) (v : any) ~(data : data t -> a) ~(typeval : typeval t -> a) : a =
     map_any { f = handle ~data ~typeval } v
@@ -166,6 +181,8 @@ module Make (Atom_cell : Utils.Comparable.P1) = struct
       Format.sprintf "G(%s)" (to_string (VTypeFun funtype))
     | VGenPoly { id ; nonce } ->
       Format.sprintf "G(poly id : %d, nonce : %d)" id nonce
+    | VLazy { id } ->
+      Format.sprintf "Lazy(id : %d)" id
     | VType ->
       "type"
     | VTypePoly { id } ->

@@ -1,0 +1,14 @@
+
+let t a = mu t.
+  | `Leaf of unit
+  | `Branch of
+    { item : a
+    ; left : t
+    ; right : t }
+
+let rec fold_left (type a acc) (f : acc -> a -> acc) (init : acc) (tree : t a) : acc =
+  match tree with
+  | `Leaf _ -> init
+  | `Branch b ->
+    fold_left a acc f (f (fold_left a acc f init b.left) b.item) b.right 
+  end

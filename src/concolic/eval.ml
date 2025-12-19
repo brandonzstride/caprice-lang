@@ -58,7 +58,7 @@ let eval
       let* (binding, v) = eval_statement (SLetRec { var ; param ; defn }) in
       local (Env.set binding v) (eval body)
     | EAppl { func ; arg } ->
-      let* v_func = eval func in
+      let* v_func = force_eval func in
       begin match v_func with
       | Any VFunClosure { param ; closure = { captured ; env } } ->
         let* v_arg = eval arg in
@@ -93,7 +93,8 @@ let eval
       | _ -> mismatch @@ apply_non_function v_func
       end
     | EMatch { subject ; patterns } ->
-      let* v = eval subject in
+      (* FIXME: force eval as deep as the pattern needs, not just to WHNF *)
+      let* v = force_eval subject in
       let rec find_match = function
         | [] -> mismatch @@ missing_pattern v (List.map fst patterns)
         | (pat, body) :: tl ->
@@ -106,7 +107,7 @@ let eval
       in
       find_match patterns
     | EProject { record ; label } ->
-      let* v = eval record in
+      let* v = force_eval record in
       begin match v with
       | Any VRecord map_body
       | Any VModule map_body ->
@@ -127,7 +128,7 @@ let eval
       return_any VEmptyList
     | EListCons (e1, e2) ->
       let* v1 = eval e1 in
-      let* v2 = eval e2 in
+      let* v2 = force_eval e2 in (* FIXME: special case on generated list *)
       begin match v2 with
       | Any (VEmptyList as tl)
       | Any (VListCons _ as tl) -> return_any (VListCons (v1, tl))
@@ -144,7 +145,7 @@ let eval
       let* i = read_and_log_input_with_default make_int input_env ~default:0 in
       return_any (VInt (i, Stepkey.int_symbol step))
     | ENot e ->
-      let* v = eval e in
+      let* v = force_eval e in
       begin match v with
       | Any VBool (b, s) -> return_any (VBool (not b, Smt.Formula.not_ s))
       | _ -> mismatch @@ not_non_bool v
@@ -152,7 +153,7 @@ let eval
     | EBinop { left ; binop ; right } ->
       eval_binop left binop right
     | EIf { if_ ; then_ ; else_ } ->
-      let* v = eval if_ in
+      let* v = force_eval if_ in
       begin match v with
       | Any VBool (b, s) ->
         let cont = if b then then_ else else_ in
@@ -161,7 +162,7 @@ let eval
       | _ -> mismatch @@ if_non_bool v
       end
     | EAssert e ->
-      let* v = eval e in
+      let* v = force_eval e in
       begin match v with
       | Any VBool (b, s) ->
         if b then
@@ -173,7 +174,7 @@ let eval
       | _ -> mismatch @@ assert_non_bool v
       end
     | EAssume e ->
-      let* v = eval e in
+      let* v = force_eval e in
       begin match v with
       | Any VBool (b, s) ->
         if b then
@@ -234,14 +235,14 @@ let eval
     ----------------------------------
   *)
   and eval_binop (left : Ast.t) (op : Binop.t) (right : Ast.t) : Cvalue.any m =
-    let* vleft = eval left in
+    let* vleft = force_eval left in
     match op with
     | BAnd -> (* Handle short-circuit && *)
       begin match vleft with
       | Any VBool (true, s) ->
         (* The short-circuiting is effectively a branch, so log the formula *)
         let* () = push_formula s in
-        let* vright = eval right in
+        let* vright = force_eval right in
         begin match vright with
         | Any VBool _ -> return vright
         | _ -> mismatch @@ bad_binop vleft op vright
@@ -258,7 +259,7 @@ let eval
         return vleft
       | Any VBool (false, s) ->
         let* () = push_formula (Smt.Formula.not_ s) in
-        let* vright = eval right in
+        let* vright = force_eval right in
         begin match vright with
         | Any VBool _ -> return vright
         | _ -> mismatch @@ bad_binop vleft op vright
@@ -266,7 +267,7 @@ let eval
       | _ -> mismatch @@ bad_binop vleft op (Any VUnit) (* placeholder RHS for Or *)
       end
     | _ ->
-      let* vright = eval right in
+      let* vright = force_eval right in
       let fail_binop = mismatch @@ bad_binop vleft op vright in
       let value_binop a b =
         let k f s1 s2 op =
@@ -313,7 +314,7 @@ let eval
     ---------------------------------
   *)
   and eval_type (expr : Ast.t) : Cvalue.tval m =
-    let* v = eval expr in
+    let* v = force_eval expr in
     handle_any v
       ~data:(fun d -> mismatch @@ non_type_value d)
       ~typeval:return
@@ -327,18 +328,23 @@ let eval
     let refute = fail (Refutation (v, t)) in
     let confirm = fail Confirmation in
     let* () = incr_step ~max_step in
+    (* In just about every case except checking mu type, we want to force the value. *)
+    (* Even though it is wordy, we do this forcing inside each case. *)
     match t with
     | VTypeInt ->
+      let* v = force_value v in
       begin match v with
       | Any VInt _ -> confirm
       | _ -> refute
       end
     | VTypeBool ->
+      let* v = force_value v in
       begin match v with
       | Any VBool _ -> confirm
       | _ -> refute
       end
     | VTypeUnit ->
+      let* v = force_value v in
       begin match v with
       | Any VUnit -> confirm
       | _ -> refute
@@ -346,14 +352,17 @@ let eval
     | VTypeTop -> failwith "Unimplemented check top"
     | VTypeBottom -> refute
     | VTypePoly { id } ->
+      let* v = force_value v in
       begin match v with
       | Any VGenPoly { id = id' ; nonce = _ } when id = id' -> confirm
       | _ -> refute
       end
     | VType ->
       (* TODO: consider a wellformedness check *)
+      let* v = force_value v in
       handle_any v ~data:(fun _ -> refute) ~typeval:(fun _ -> confirm)
     | VTypeFun { domain ; codomain } ->
+      let* v = force_value v in
       begin match v with
       | Any VFunClosure { param ; closure = { captured ; env } } ->
         let* genned = gen domain in
@@ -418,6 +427,7 @@ let eval
       | _ -> refute
       end
     | VTypeVariant variant_t ->
+      let* v = force_value v in
       begin match v with
       | Any VVariant { label ; payload } ->
         begin match Labels.Variant.Map.find_opt label variant_t with
@@ -427,6 +437,7 @@ let eval
       | _ -> refute
       end
     | VTypeRecord record_t ->
+      let* v = force_value v in
       begin match v with
       | Any VRecord record_v ->
         let t_labels = Record.label_set record_t in
@@ -466,9 +477,25 @@ let eval
       | _ -> refute
       end
     | VTypeMu { var ; closure = { captured ; env } } ->
-      let* t_body = local (fun _ -> Env.set var (Any t) env) (eval_type captured) in
-      check v t_body
+      begin match v with
+      | Any VLazy s ->
+        let* lazy_v = find_symbol s in
+        begin match lazy_v with
+        | LValue v -> check v t
+        | LGenMu { var = var' ; closure = { captured = captured' ; env = env' } } ->
+          (* FIXME: these names (with the "prime") go the other direction as the spec *)
+          let* a = gen VType in (* fresh type to use as a stub *)
+          let* t_body = local (fun _ -> Env.set var a env) (eval_type captured) in
+          let* t_body' = local (fun _ -> Env.set var' a env') (eval_type captured') in
+          let* genned = gen t_body' in
+          check genned t_body
+        end
+      | _ ->
+        let* t_body = local (fun _ -> Env.set var (Any t) env) (eval_type captured) in
+        check v t_body
+      end
     | VTypeList t ->
+      (* TODO *)
       begin match v with
       | Any VEmptyList -> confirm
       | Any VListCons (v_hd, v_tl) ->
@@ -490,6 +517,7 @@ let eval
       | _ -> refute
       end
     | VTypeRefine { var ; tau ; predicate = { captured ; env } } ->
+      (* Value is not directly used here, so we don't force it *)
       let* l_opt = read_input make_label input_env in
       let check_t =
         let* () = push_and_log_label Check in
@@ -515,6 +543,7 @@ let eval
       | None -> let* () = fork check_t in eval_pred
       end
     | VTypeTuple (t1, t2) ->
+      let* v = force_value v in
       begin match v with
       | Any VTuple (v1, v2) ->
         let* l_opt = read_input make_label input_env in
@@ -535,6 +564,7 @@ let eval
       | _ -> refute
       end
     | VTypeModule { captured ; env } ->
+      let* v = force_value v in
       begin match v with
       | Any VModule module_v ->
         let t_labels_ls = List.map (fun { Ast.item ; _ } -> item) captured in
@@ -584,6 +614,7 @@ let eval
       | _ -> refute
       end
     | VTypeSingle tval ->
+      let* v = force_value v in
       handle_any v
         ~data:(fun _ -> refute)
         ~typeval:(fun tval' ->
@@ -688,9 +719,14 @@ let eval
         fail Vanish
       | _ -> mismatch @@ non_bool_predicate p
       end 
-    | VTypeMu { var ; closure = { captured ; env } } ->
-      let* t_body = local (fun _ -> Env.set var (Any t) env) (eval_type captured) in
-      gen t_body
+    | VTypeMu { var ; closure } ->
+      if do_splay then (* see the todo on force_eval *)
+        let* Step id = step in (* use step as fresh identifier *)
+        let* () = add_symbol { id } (LGenMu { var ; closure }) in
+        return_any (VLazy { id })
+      else
+        let* t_body = local (fun _ -> Env.set var (Any t) closure.env) (eval_type closure.captured) in
+        gen t_body
     | VTypeTuple (t1, t2) ->
       let* v1 = gen t1 in
       let* v2 = gen t2 in
@@ -794,7 +830,39 @@ let eval
       | Some _ -> bad_input_env ()
       | None -> let* () = fork check_t in cont
       end
+
+  (*
+    -------------------------------
+    EVALUATE SYMBOLS TO WHNF VALUES
+    -------------------------------
+
+    TODO: instead of using a boolean to splay, have a functor that inserts the logic
+      so we can statically avoid the branch.
+  *)
+  and force_eval (expr : Ast.t) : Cvalue.any m =
+    let* v = eval expr in
+    force_value v
+  
+  and force_value (v : Cvalue.any) : Cvalue.any m =
+    if do_splay then
+      match v with 
+      | Any VLazy symbol ->
+        let* lazy_v = find_symbol symbol in
+        begin match lazy_v with
+        | LGenMu { var ; closure } ->
+          (* inline the logic to force the generation of a mu *)
+          let t = VTypeMu { var ; closure } in
+          let* t_body = local (fun _ -> Env.set var (Any t) closure.env) (eval_type closure.captured) in
+          gen t_body
+        | LValue v -> return v
+        end
+      | _ -> return v
+    else
+      (* without splaying, nothing is ever delayed because it adds incompleteness *)
+      return v
   in
+
+
 
   let result, state = run (eval_statement_list pgm) target in
   let this_logged_run =

@@ -19,13 +19,16 @@ module State = struct
     ; logged_inputs : Ienv.t 
     ; branch_depth : int (* only the branch depth while not yet at the target *)
     ; runs : Logged_run.t Utils.Diff_list.t
+    ; lazy_values : Cvalue.lazy_v Cvalue.SymbolMap.t
     }
 
   let empty : t =
     { rev_stem = Path.empty
     ; logged_inputs = Ienv.empty
     ; branch_depth = 0 
-    ; runs = Utils.Diff_list.empty }
+    ; runs = Utils.Diff_list.empty
+    ; lazy_values = Cvalue.SymbolMap.empty
+    }
 end
 
 module Context = struct
@@ -137,6 +140,14 @@ let fork (forked_m : Eval_result.t u) : unit m =
       if Eval_result.is_signal_to_stop res (* FIXME: need to mark as pruned *)
       then fail res (* propagate up the failure *)
       else return ())
+
+(* INVARIANT: the symbol must always exist *)
+let find_symbol (symbol : Cvalue.symbol) : Cvalue.lazy_v m =
+  let* { lazy_values ; _ } = get in
+  return (Cvalue.SymbolMap.find symbol lazy_values)
+
+let add_symbol (symbol : Cvalue.symbol) (lazy_v : Cvalue.lazy_v) : unit m =
+  modify (fun s -> { s with lazy_values = Cvalue.SymbolMap.add symbol lazy_v s.lazy_values })
 
 let run' (x : 'a m) (target : Target.t) (s : State.t) (e : Cvalue.Env.t) : Eval_result.t * State.t =
   match run x s e { target } with
