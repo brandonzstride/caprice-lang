@@ -9,7 +9,7 @@ let testcase_of_filename (typing : typing) (filename : string) : unit Alcotest.t
   Alcotest.test_case filename speed_level
   @@ fun () ->
     let pgm = Lang.Parser.parse_file filename in
-    let answer = Concolic.Loop.begin_ceval pgm in
+    let answer = Concolic.Loop.begin_ceval pgm ~do_splay:false in
     let is_correct =
       match typing, answer with
       | Ill_typed, Concolic.Common.Answer.Found_error _

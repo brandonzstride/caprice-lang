@@ -50,7 +50,7 @@ let c = Utils.Counter.create ()
 
 module T = Smt.Formula.Make_transformer (Overlays.Typed_z3)
 
-let loop (solve : Stepkey.t Smt.Formula.solver) (pgm : Lang.Ast.program) (tq : Target_queue.t) =
+let loop ~(do_splay : bool) (solve : Stepkey.t Smt.Formula.solver) (pgm : Lang.Ast.program) (tq : Target_queue.t) =
   let rec loop tq =
     match Target_queue.pop tq with
     | Some (target, tq) ->
@@ -64,7 +64,7 @@ let loop (solve : Stepkey.t Smt.Formula.solver) (pgm : Lang.Ast.program) (tq : T
   and loop_on_model target tq model =
     let _ = Utils.Counter.next c in
     let ienv = Ienv.extend target.i_env (Ienv.of_model model) in
-    let res, runs = Eval.eval pgm ienv target ~max_step in
+    let res, runs = Eval.eval pgm ienv target ~max_step ~do_splay in
     if Eval_result.is_signal_to_stop res
     then Eval_result.to_answer res
     else 
@@ -82,8 +82,8 @@ let loop (solve : Stepkey.t Smt.Formula.solver) (pgm : Lang.Ast.program) (tq : T
 module Default_Z3 = Overlays.Typed_z3.Default
 module Default_solver = Smt.Formula.Make_solver (Default_Z3)
 
-let begin_ceval (pgm : Lang.Ast.program) : Answer.t =
-  let span, answer = Utils.Time.time (loop Default_solver.solve pgm) Target_queue.initial in
+let begin_ceval (pgm : Lang.Ast.program) ~(do_splay : bool) : Answer.t =
+  let span, answer = Utils.Time.time (loop Default_solver.solve pgm ~do_splay) Target_queue.initial in
   Format.printf "Finished type checking in %0.3f ms and %d runs:\n    %s\n"
     (Utils.Time.span_to_ms span) !(c.cell) (Answer.to_string answer);
   answer

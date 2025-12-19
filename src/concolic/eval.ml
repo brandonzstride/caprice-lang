@@ -18,6 +18,7 @@ let eval
   (input_env : Ienv.t)
   (target : Target.t)
   ~(max_step : Interp.Step.t)
+  ~(do_splay : bool)
   : Eval_result.t * Logged_run.t list
   =
   (*
@@ -770,7 +771,13 @@ let eval
     | SLetRec { var = VarTyped { item ; tau } ; param ; defn } ->
       let* tval = eval_type tau in
       let* env = read in
-      let v = to_any (VFunFix { fvar = item ; param ; closure = { captured = defn ; env } }) in
+      let* v =
+        if do_splay then
+          let* genned = gen tval in
+          return_any (VFunClosure { param ; closure = { captured = defn ; env = Env.set item genned env }})
+        else
+          return_any (VFunFix { fvar = item ; param ; closure = { captured = defn ; env } })
+      in
       let* l_opt = read_input make_label input_env in
       let check_t = 
         let* () = push_and_log_label Check in
