@@ -1,0 +1,21 @@
+
+- Avoid recursive variant generation by default
+  (simply scan AST for any mu type or reference to one)
+- Lazily generate lists (or desugar them to mu types)
+- Use functor to provide force-eval behavior instead of boolean `do_splay` toggle.
+- Allow flags in test cases
+  - and speed and expected result
+- force eval on nested patterns
+- special case on cons to lazily generated list
+- use functor in `value.ml` to put a witness in the lazy value constructor
+  so that the non-splaying mode can put `empty` in, so the case is unreachable,
+  and we don't have to worry about it
+  (I've checked that the type checker can notice a memberless type in a payload
+  and determine the pattern impossible)
+- add wrap
+- add deterministic functions
+- mutually recursive functions
+- mu type parameters (must be careful about divergence from eager evaluation of the type)
+- command line optional arguments
+- benchmarking setup
+- language docs
