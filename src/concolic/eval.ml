@@ -708,10 +708,8 @@ let eval
       | _ -> bad_input_env ()
       end
     | VTypeList t ->
-      if do_splay then (* see the todo on force_eval *)
-        let* Step id = step in (* use step as fresh identifier *)
-        let* () = add_symbol { id } (LGenList t) in
-        return_any (VLazy { id })
+      if do_splay then
+        make_new_lazy_value (LGenList t)
       else
         force_gen_list t
     | VTypeRefine { var ; tau ; predicate = { captured ; env } } ->
@@ -727,10 +725,8 @@ let eval
       | _ -> mismatch @@ non_bool_predicate p
       end 
     | VTypeMu { var ; closure } ->
-      if do_splay then (* see the todo on force_eval *)
-        let* Step id = step in (* use step as fresh identifier *)
-        let* () = add_symbol { id } (LGenMu { var ; closure }) in
-        return_any (VLazy { id })
+      if do_splay then
+        make_new_lazy_value (LGenMu { var ; closure })
       else
         force_gen_mu var closure
     | VTypeTuple (t1, t2) ->
@@ -767,7 +763,8 @@ let eval
       let* () = push_label Interp.Label.With_alt.right in
       let* hd = gen body in
       let* Any tl = gen (VTypeList body) in
-      return_any (VListCons (hd, Obj.magic tl)) (* MAGIC: Safe because always returns data *)
+      (* MAGIC: Safe because always returns data, even though lazily generated list is technically "neither" *)
+      return_any (VListCons (hd, Obj.magic tl))
     | _ -> bad_input_env ()
 
   and force_gen_mu (var : Ident.t) (closure : Ast.t Cvalue.closure) : Cvalue.any m =
@@ -776,7 +773,6 @@ let eval
         (eval_type closure.captured)
     in
     gen t_body
-
 
   (*
     ---------------------------------------
@@ -888,11 +884,9 @@ let eval
         end
       | _ -> return v
     else
-      (* without splaying, nothing is ever delayed because it adds incompleteness *)
+      (* without splaying, nothing is ever delayed because it would be incomplete *)
       return v
   in
-
-
 
   let result, state = run (eval_statement_list pgm) target in
   let this_logged_run =

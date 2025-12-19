@@ -149,6 +149,12 @@ let find_symbol (symbol : Cvalue.symbol) : Cvalue.lazy_v m =
 let add_symbol (symbol : Cvalue.symbol) (lazy_v : Cvalue.lazy_v) : unit m =
   modify (fun s -> { s with lazy_values = Cvalue.SymbolMap.add symbol lazy_v s.lazy_values })
 
+(* Makes a new symbol for this lazy value. Assumes the lazy value is not a symbol itself *)
+let make_new_lazy_value (lazy_v : Cvalue.lazy_v) : Cvalue.any m =
+  let* Step id = step in (* use step as fresh identifier *)
+  let* () = add_symbol { id } lazy_v in
+  return (Cvalue.Any (VLazy { id }))
+
 let run' (x : 'a m) (target : Target.t) (s : State.t) (e : Cvalue.Env.t) : Eval_result.t * State.t =
   match run x s e { target } with
   | Ok _, state, _ -> Done, state
