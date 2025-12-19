@@ -27,3 +27,5 @@
   (we want pattern checking exhaustiveness in left/right and check/eval cases)
 - port more bluejay tests over
 - port liquid haskell and idris tests
+- note pruning from forks
+- global timeout
