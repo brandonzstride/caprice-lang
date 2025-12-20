@@ -7,7 +7,7 @@ let max_step = Interp.Step.Step 100_000
 let make_targets (target : Target.t) (stem : Path.t) (ienv : Ienv.t) 
   ~(max_tree_depth : int) : Target.t list * bool =
   Utils.List_utils.fold_left_until (fun (acc_set, len, formulas) pathunit ->
-    if len > max_tree_depth then 
+    if len > max_tree_depth then
       `Stop (acc_set, true)
     else
       let size = len + 1 in
@@ -37,14 +37,14 @@ let make_targets (target : Target.t) (stem : Path.t) (ienv : Ienv.t)
   ) (fun (acc_set, _, _) -> acc_set, false)
   ([], Target.path_length target, target.all_formulas) stem
 
-let targets_of_logged_runs (runs : Effects.Logged_run.t list) ~(max_tree_depth : int) : Target.t list * bool =
-  List.fold_left (fun (targets, is_pruned) run ->
+let collect_logged_runs (runs : Logged_run.t list) ~(max_tree_depth : int) : Target.t list * bool * Answer.t =
+  List.fold_left (fun (targets, is_pruned, answer) run ->
     let new_targets, new_is_pruned = 
-      let open Effects.Logged_run in
+      let open Logged_run in
       make_targets run.target (List.rev run.rev_stem) run.inputs ~max_tree_depth
     in
-    new_targets @ targets, is_pruned || new_is_pruned
-  ) ([], false) runs
+    new_targets @ targets, is_pruned || new_is_pruned, Answer.min answer run.answer
+  ) ([], false, Exhausted) runs
 
 let c = Utils.Counter.create ()
 
@@ -64,18 +64,19 @@ let loop ~(do_splay : bool) (solve : Stepkey.t Smt.Formula.solver) (pgm : Lang.A
   and loop_on_model target tq model =
     let _ = Utils.Counter.next c in
     let ienv = Ienv.extend target.i_env (Ienv.of_model model) in
-    let res, runs = Eval.eval pgm ienv target ~max_step ~do_splay in
-    if Eval_result.is_signal_to_stop res
-    then Eval_result.to_answer res
+    let answer, runs = Eval.eval pgm ienv target ~max_step ~do_splay in
+    if Answer.is_signal_to_stop answer
+    then answer
     else 
-      Answer.min (Eval_result.to_answer res) @@ 
-        let targets, is_pruned = 
-          targets_of_logged_runs runs ~max_tree_depth
+      Answer.min answer @@
+        let targets, is_pruned, forked_answer = 
+          collect_logged_runs runs ~max_tree_depth
         in
         let a = loop (Target_queue.push_list tq targets) in
-        if is_pruned
-        then Answer.min Answer.Exhausted_pruned a
-        else a
+        Answer.min forked_answer @@
+          if is_pruned
+          then Answer.min Answer.Exhausted_pruned a
+          else a
   in
   loop tq
 

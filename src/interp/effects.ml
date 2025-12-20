@@ -147,14 +147,15 @@ end) = struct
     }
 
   let[@inline always] fork (m : 'e u) (fork_ctx : Ctx.t) (k : 'e -> 'a m)
-    ~(setup_state : State.t -> State.t) ~(restore_state : og:State.t -> forked_state:State.t -> State.t) 
+    ~(setup_state : State.t -> State.t) 
+    ~(restore_state : 'e -> og:State.t -> forked_state:State.t -> State.t) 
     : 'a m =
     { run = fun ~reject ~accept state step env ctx ->
       m.run (setup_state state) step env fork_ctx
         ~accept:Utils.Empty.absurd
         ~reject:(fun e forked_state _ -> 
           (* uses original step count when resuming, not step count after fork *)
-          (k e).run ~reject ~accept (restore_state ~og:state ~forked_state) step env ctx
+          (k e).run ~reject ~accept (restore_state e ~og:state ~forked_state) step env ctx
         )
     }
 end

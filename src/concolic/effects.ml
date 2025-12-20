@@ -5,14 +5,6 @@ open Common
 
 exception InvariantException of string
 
-(* Logs from other runs that are not the main run *)
-module Logged_run = struct
-  type t =
-    { rev_stem : Path.t
-    ; inputs : Ienv.t
-    ; target : Target.t } 
-end
-
 module State = struct
   type t = 
     { rev_stem : Path.t (* we will cons to the path instead of union a log *)
@@ -128,10 +120,13 @@ let fork (forked_m : Eval_result.t u) : unit m =
       (* keeps all the logged runs *)
       { state with rev_stem = Path.empty }
     )
-    ~restore_state:(fun ~og ~forked_state ->
+    ~restore_state:(fun e ~og ~forked_state ->
       { og with runs =
         let forked_run =
-          { Logged_run.rev_stem = forked_state.rev_stem ; inputs = forked_state.logged_inputs ; target }
+          { Logged_run.rev_stem = forked_state.rev_stem 
+          ; inputs = forked_state.logged_inputs 
+          ; target 
+          ; answer = Eval_result.to_answer e }
         in
         let open Utils.Diff_list in
         (* Note that the forked state runs include the original runs (see setup_state) *)

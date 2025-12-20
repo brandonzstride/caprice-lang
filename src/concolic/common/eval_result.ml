@@ -29,6 +29,4 @@ let to_answer = function
   | Reach_max_step _step -> Exhausted_pruned
   | Done -> Exhausted
 
-let is_signal_to_stop = function
-  | Refutation _ | Mismatch _ | Assert_false | Unbound_variable _ -> true
-  | _ -> false
+let is_signal_to_stop res = Answer.is_signal_to_stop @@ to_answer res

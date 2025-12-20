@@ -19,7 +19,7 @@ let eval
   (target : Target.t)
   ~(max_step : Interp.Step.t)
   ~(do_splay : bool)
-  : Eval_result.t * Logged_run.t list
+  : Answer.t * Logged_run.t list
   =
   (*
     ----------------------------
@@ -890,10 +890,14 @@ let eval
   in
 
   let result, state = run (eval_statement_list pgm) target in
+  let answer = Eval_result.to_answer result in
   let this_logged_run =
-    Logged_run.{ target ; inputs = state.logged_inputs ; rev_stem = state.rev_stem }
+    { Logged_run.target 
+    ; inputs = state.logged_inputs 
+    ; rev_stem = state.rev_stem
+    ; answer }
   in
-  result,
+  answer,
   Utils.Diff_list.(
     to_list @@ this_logged_run -:: state.runs
   )

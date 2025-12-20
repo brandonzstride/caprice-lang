@@ -18,3 +18,9 @@ let to_string = function
   | Unknown          -> "Unknown"
   | Exhausted_pruned -> "Exausted pruned tree"
   | Exhausted        -> "Exhausted"
+
+let is_signal_to_stop = function
+  (* If we found an error, then we don't want to do any more runs *)
+  | Found_error _ -> true
+  (* ... otherwise, we still should try to pop another target *)
+  | _ -> false
