@@ -10,6 +10,8 @@
   overlays
   interp
   ; external
+  lwt
+  lwt.unix
   psq
  )
  (synopsis "Concolic evaluator for Caprice")

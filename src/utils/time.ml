@@ -5,10 +5,15 @@ let time f x =
   let t1 = Mtime_clock.now () in
   Mtime.span t0 t1, res
 
-let span_to_ms =
-  let ms_over_ns = Mtime.Span.to_float_ns Mtime.Span.ms /. Mtime.Span.to_float_ns Mtime.Span.ns in
-  fun span ->
-    Mtime.Span.to_float_ns span /. ms_over_ns
+let of_float_sec float_sec =
+  let s_per_ns = Mtime.Span.to_float_ns Mtime.Span.s /. Mtime.Span.to_float_ns Mtime.Span.ns in
+  Mtime.Span.of_float_ns (float_sec *. s_per_ns)
+
+let convert_span span ~to_ =
+  let ns_per_t = Mtime.Span.to_float_ns Mtime.Span.ns /. Mtime.Span.to_float_ns to_ in
+  Mtime.Span.to_float_ns span *. ns_per_t
+
+let span_to_ms = convert_span ~to_:Mtime.Span.ms
 
 let divide_span span n =
   Option.get @@ 

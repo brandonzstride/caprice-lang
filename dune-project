@@ -18,6 +18,7 @@
  (depends
   alcotest
   baby
+  lwt
   menhir
   mtime
   ppx_deriving
