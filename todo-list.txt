@@ -5,7 +5,6 @@
 - add deterministic functions
 - mutually recursive functions
 - mu type parameters (must be careful about divergence from eager evaluation of the type)
-- command line optional arguments
 - benchmarking setup
 - language docs
 - typechecking pipeline from splaying to non-splaying
