@@ -24,19 +24,21 @@ module type SOLVABLE = sig
   val solve : (bool, 'k) t list -> 'k Solution.t
 end
 
-type (_, 'k) t =
-  | Const_int : int -> (int, 'k) t
-  | Const_bool : bool -> (bool, 'k) t
-  | Key : ('a, 'k) Symbol.t -> ('a, 'k) t
-  | Not : (bool, 'k) t -> (bool, 'k) t
-  | And : (bool, 'k) t list -> (bool, 'k) t
-  | Binop : ('a * 'a * 'b) Binop.t * ('a, 'k) t * ('a, 'k) t -> ('b, 'k) t
+module T = struct
+  type (_, 'k) t =
+    | Const_int : int -> (int, 'k) t
+    | Const_bool : bool -> (bool, 'k) t
+    | Key : ('a, 'k) Symbol.t -> ('a, 'k) t
+    | Not : (bool, 'k) t -> (bool, 'k) t
+    | And : (bool, 'k) t list -> (bool, 'k) t
+    | Binop : ('a * 'a * 'b) Binop.t * ('a, 'k) t * ('a, 'k) t -> ('b, 'k) t
+end
+
+include T
 
 (* Polymorphic equality is good enough here because keys just use ints
   underneath. I would only write structural equality anyways. *)
-let equal a b = 
-  Repr.phys_equal a b (* physical equality *)
-  || Repr.equal a b (* polymorphic equality *)
+let equal = Repr.phys_equal
 
 let compare a b =
   Repr.compare a b (* polymorphic compare is also fine *)
@@ -153,6 +155,20 @@ and and_ (e_ls : (bool, 'k) t list) : (bool, 'k) t =
       | other when equal other (not_ e) -> false_
       | other when equal other e -> e
       | other -> And [ e ; other ]
+    
+let symbols (type a) (e : (a, 'k) t) : Utils.Uid.Set.t =
+  let rec symbols : type a. Utils.Uid.Set.t -> (a, 'k) t -> Utils.Uid.Set.t =
+    fun acc e ->
+      match e with
+      | Const_int _
+      | Const_bool _ -> acc
+      | Key I uid
+      | Key B uid -> Utils.Uid.Set.add uid acc
+      | Not e' -> symbols acc e'
+      | And e_ls -> List.fold_left symbols acc e_ls
+      | Binop (_, e1, e2) -> symbols (symbols acc e1) e2
+  in
+  symbols Utils.Uid.Set.empty e
 
 module Make_transformer (X : S) = struct
   let rec transform : type a. (a, 'k) t -> (a, 'k) X.t = fun e ->
@@ -184,5 +200,18 @@ module Set = struct
       type nonrec t = (bool, K.t) t (* boolean formulas *)
       let compare = compare
     end)
+
+    let scc (formula : (bool, K.t) T.t) ~(wrt : t) : (bool, K.t) T.t =
+      let formula_symbols = symbols formula in
+      to_seq wrt
+      |> Seq.fold_left (fun ((acc_symbols, acc_scc) as acc) e ->
+          let e_symbols = symbols e in
+          if Utils.Uid.Set.disjoint acc_symbols e_symbols then
+            acc
+          else
+            Utils.Uid.Set.union acc_symbols e_symbols, e :: acc_scc
+        ) (formula_symbols, [ formula ])
+      |> snd
+      |> and_
   end
 end

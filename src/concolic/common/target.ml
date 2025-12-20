@@ -18,7 +18,7 @@ let make (last_formula : bool Formula.t) (other_formulas : Formula.BSet.t)
   { target_formula = 
     if Formula.is_const last_formula
     then last_formula
-    else Formula.and_ (last_formula :: Formula.BSet.to_list other_formulas) (* TODO: compute SCC *)
+    else Formula.BSet.scc last_formula ~wrt:other_formulas
   ; all_formulas = Formula.BSet.add last_formula other_formulas
   ; i_env 
   ; size 

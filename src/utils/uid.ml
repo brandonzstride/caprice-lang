@@ -14,3 +14,4 @@ let counter = Counter.create ()
 let make_new () = Uid (Counter.next counter)
 
 module Map = Baby.H.Map.Make (T)
+module Set = Baby.H.Set.Make (T)
