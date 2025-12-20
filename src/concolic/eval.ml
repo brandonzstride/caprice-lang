@@ -132,10 +132,20 @@ let eval
       return_any VEmptyList
     | EListCons (e1, e2) ->
       let* v1 = eval e1 in
-      let* v2 = force_eval e2 in (* FIXME: special case on generated list *)
+      let* v2 = eval e2 in (* don't force eval because want to allow cons to lazy list *)
       begin match v2 with
       | Any (VEmptyList as tl)
       | Any (VListCons _ as tl) -> return_any (VListCons (v1, tl))
+      | Any (VLazy symbol as tl) ->
+        let* v_lazy = find_symbol symbol in
+        begin match v_lazy with
+        | LGenList _ -> 
+          (* MAGIC: safe because lazy will evaluate to data eventually *)
+          return_any (VListCons (v1, Obj.magic tl))
+        | LValue Any (VEmptyList as tl)
+        | LValue Any (VListCons _ as tl) -> return_any (VListCons (v1, tl))
+        | _ -> mismatch @@ cons_non_list v1 v2
+        end
       | _ -> mismatch @@ cons_non_list v1 v2
       end
     | EAbstractType ->

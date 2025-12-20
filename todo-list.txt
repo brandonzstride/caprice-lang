@@ -1,7 +1,6 @@
 
 - Allow flags in test cases
   - and speed and expected result
-- special case on cons to lazily generated list
 - add wrap
 - add deterministic functions
 - mutually recursive functions
