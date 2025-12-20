@@ -1,6 +1,4 @@
 
-- Avoid recursive variant generation by default
-  (simply scan AST for any mu type or reference to one)
 - Allow flags in test cases
   - and speed and expected result
 - special case on cons to lazily generated list

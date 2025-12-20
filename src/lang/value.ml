@@ -119,6 +119,71 @@ module Make (Atom_cell : Utils.Comparable.P1) = struct
   let[@inline always] handle_any (type a) (v : any) ~(data : data t -> a) ~(typeval : typeval t -> a) : a =
     map_any { f = handle ~data ~typeval } v
 
+  (* 
+    True if the value has any mu type in its representation.
+    This is used to dodge recursion by default.
+  *)
+  let rec contains_mu : type a. a t -> bool = fun v ->
+    match v with
+    | VUnit
+    | VInt _
+    | VBool _
+    | VGenPoly _
+    | VEmptyList
+    | VType
+    | VTypePoly _
+    | VTypeUnit
+    | VTypeTop
+    | VTypeBottom
+    | VTypeInt
+    | VTypeBool -> false
+    | VTypeMu _ -> true
+    (* Recursive cases: contains mu if any of the subvalues does *)
+    | VVariant { payload = Any v' ; label = _ } -> contains_mu v'
+    | VModule map_body
+    | VRecord map_body ->
+      Labels.Record.Map.exists (fun _ (Any v') -> contains_mu v') map_body
+    | VTuple (Any v1, Any v2) ->
+      contains_mu v1 || contains_mu v2
+    | VListCons (Any v_hd, v_tl) ->
+      contains_mu v_hd || contains_mu v_tl
+    | VTypeList t ->
+      contains_mu t
+    | VTypeRecord record_body ->
+      Labels.Record.Map.exists (fun _ t -> contains_mu t) record_body
+    | VTypeVariant variant_body ->
+      Labels.Variant.Map.exists (fun _ t -> contains_mu t) variant_body
+    | VTypeTuple (t1, t2) ->
+      contains_mu t1 || contains_mu t2
+    | VTypeSingle t ->
+      contains_mu t
+    | VTypeFun { domain ; codomain = CodValue t }
+    | VGenFun { domain ; codomain = CodValue t } ->
+      (* TODO: consider if the negative position makes a difference *)
+      contains_mu domain || contains_mu t
+    (* Closures cases: assume true, but may want to inspect closure *)
+    | VFunClosure _
+    | VFunFix _
+    | VTypeModule _
+    | VLazy _
+    | VGenFun { domain = _ ; codomain = CodDependent _ }
+    | VTypeFun { domain = _ ; codomain = CodDependent _ } -> true
+    (* Refinement types: closure does not escape, so just look at type *)
+    | VTypeRefine { tau ; _ } -> contains_mu tau
+
+  let default_constructor (variant_t : tval Labels.Variant.Map.t) : Labels.Variant.t =
+    (* Default is a variant constructor whose payload does not contain a mu type *)
+    Labels.Variant.Map.to_seq variant_t
+    |> Seq.find_map (fun (label, payload) ->
+        if not (contains_mu payload) then
+          Some label
+        else
+          None
+      )
+    |> function
+      | Some label -> label
+      | None -> fst @@ Labels.Variant.Map.choose variant_t
+
   (* Some setup to write intensional equality *)
   (* let rec equal : type a. a t -> a t -> bool = fun a b ->
     match a, b with

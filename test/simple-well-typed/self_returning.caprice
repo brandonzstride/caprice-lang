@@ -1,0 +1,13 @@
+
+let t = mu t. { f : int -> t }
+
+let g (x : t) : unit =
+  let y : t = x in
+  ()
+
+(* This needs splaying or else it continues forever *)
+let rec f (i : int) : t =
+  if i <= 0 then
+    { f = f }
+  else
+    { f = fun j -> f (i - j) }

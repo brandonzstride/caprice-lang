@@ -64,8 +64,8 @@ let eval
         let* v_arg = eval arg in
         local (fun _ -> Env.set param v_arg env) (eval captured)
       | (Any VFunFix { fvar ; param ; closure = { captured ; env } }) as vfun ->
-        if do_splay then fail (Mismatch "Called rec fun while splaying") else
         let* v_arg = eval arg in
+        if do_splay then fail (Mismatch "Called rec fun while splaying") else
         local (fun _ -> 
           Env.set fvar vfun env
           |> Env.set param v_arg
@@ -272,7 +272,8 @@ let eval
       end
     | _ ->
       let* vright = force_eval right in
-      let fail_binop = mismatch @@ bad_binop vleft op vright in
+      let fail_binop () = (* delay this so as not to eagerly construct the string *)
+        mismatch @@ bad_binop vleft op vright in
       let value_binop a b =
         let k f s1 s2 op =
           return_any @@ f (Smt.Formula.binop op s1 s2)
@@ -294,21 +295,21 @@ let eval
         | BGeq         , VInt (n1, e1)  , VInt (n2, e2)              -> k (v_bool (n1 >= n2)) e1 e2 Greater_than_eq
         (* | BOr          , VBool (b1, e1) , VBool (b2, e2)             -> k (v_bool (b1 || b2)) e1 e2 Or
         | BAnd         , VBool (b1, e1) , VBool (b2, e2) -> return_any @@ VBool (b1 && b2, Smt.Formula.and_ [ e1 ; e2 ]) *)
-        | _ -> fail_binop
+        | _ -> fail_binop ()
       in
       handle_any vleft
         ~data:(fun data_left ->
           handle_any vright
             ~data:(fun data_right -> value_binop data_left data_right)
-            ~typeval:(fun _ -> fail_binop)
+            ~typeval:(fun _ -> fail_binop ())
         )
         ~typeval:(fun type_left ->
           handle_any vright
-            ~data:(fun _ -> fail_binop)
+            ~data:(fun _ -> fail_binop ())
             ~typeval:(fun type_right ->
               match op with
               | BTimes -> return_any (VTypeTuple (type_left, type_right))
-              | _ -> fail_binop
+              | _ -> fail_binop ()
             )
         )
 
@@ -693,8 +694,7 @@ let eval
       let t_labels = Labels.Variant.B.domain variant_t in
       let* l =
         read_and_log_input_with_default make_label input_env
-          (* TODO: choose a nonrecursive variant constructor instead of an arbitrary one *)
-          ~default:(Interp.Label.of_variant_label (Labels.Variant.Set.choose t_labels))
+          ~default:(default_constructor variant_t |> Interp.Label.of_variant_label)
       in
       begin match l with
       | Label id ->
