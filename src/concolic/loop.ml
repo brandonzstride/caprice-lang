@@ -1,10 +1,6 @@
 
 open Common
 
-let max_tree_depth = 30
-let max_step = Interp.Step.Step 100_000
-let default_timeout = Mtime.Span.(10 * s)
-
 let make_targets ~(max_tree_depth : int) (target : Target.t)
   (stem : Path.t) (ienv : Ienv.t) : Target.t list * bool =
   Utils.List_utils.fold_left_until (fun (acc_set, len, formulas) pathunit ->
@@ -54,7 +50,8 @@ module T = Smt.Formula.Make_transformer (Overlays.Typed_z3)
 open Lwt.Let_syntax.Let_syntax
 open Lwt.Syntax
 
-let loop ~(do_splay : bool) (solve : Stepkey.t Smt.Formula.solver) 
+(* Does not do its own timeout, even though timeout is passed in with options *)
+let loop ~(options : Options.t) (solve : Stepkey.t Smt.Formula.solver) 
   (pgm : Lang.Ast.program) (tq : Target_queue.t) : Answer.t Lwt.t =
   let rec loop tq =
     let* () = Lwt.pause () in
@@ -72,13 +69,16 @@ let loop ~(do_splay : bool) (solve : Stepkey.t Smt.Formula.solver)
   and loop_on_model target tq model =
     let _ = Utils.Counter.next c in
     let ienv = Ienv.extend target.i_env (Ienv.of_model model) in
-    let answer, runs = Eval.eval pgm ienv target ~max_step ~do_splay in
+    let answer, runs =
+      Eval.eval pgm ienv target
+        ~max_step:options.max_step ~do_splay:options.do_splay
+    in
     if Answer.is_signal_to_stop answer
     then return answer
     else
       let* loop_answer =
         let targets, is_pruned, forked_answer = 
-          collect_logged_runs runs ~max_tree_depth
+          collect_logged_runs runs ~max_tree_depth:options.max_tree_depth
         in
         let* a = loop (Target_queue.push_list tq targets) in
         return @@
@@ -94,16 +94,15 @@ let loop ~(do_splay : bool) (solve : Stepkey.t Smt.Formula.solver)
 module Default_Z3 = Overlays.Typed_z3.Default
 module Default_solver = Smt.Formula.Make_solver (Default_Z3)
 
-let begin_ceval ?(timeout : Mtime.Span.t = default_timeout) ~(do_splay : bool)
-  (pgm : Lang.Ast.program) : Answer.t =
+let begin_ceval ~(options : Options.t) (pgm : Lang.Ast.program) : Answer.t =
   let go () =
     try
-      let time_sec = Utils.Time.convert_span timeout ~to_:Mtime.Span.s in
+      let time_sec = Utils.Time.convert_span options.global_timeout ~to_:Mtime.Span.s in
       Lwt_main.run (Lwt_unix.with_timeout time_sec @@ fun () ->
-        loop Default_solver.solve pgm Target_queue.initial ~do_splay
+        loop Default_solver.solve pgm Target_queue.initial ~options
       )
     with
-    | Lwt_unix.Timeout -> Answer.Timeout timeout
+    | Lwt_unix.Timeout -> Answer.Timeout options.global_timeout
   in
   let span, answer = Utils.Time.time go () in
   Format.printf "Finished type checking in %0.3f ms and %d runs:\n    %s\n"

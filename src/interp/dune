@@ -6,6 +6,8 @@
   ; internal
   lang
   smt
+  ; external
+  cmdliner
  )
  (synopsis "Interpreter utilities for Caprice")
  (instrumentation (backend landmarks --auto))
