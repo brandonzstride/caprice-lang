@@ -305,6 +305,12 @@ let eval
         | BGeq         , VInt (n1, e1)  , VInt (n2, e2)              -> k (v_bool (n1 >= n2)) e1 e2 Greater_than_eq
         (* | BOr          , VBool (b1, e1) , VBool (b2, e2)             -> k (v_bool (b1 || b2)) e1 e2 Or
         | BAnd         , VBool (b1, e1) , VBool (b2, e2) -> return_any @@ VBool (b1 && b2, Smt.Formula.and_ [ e1 ; e2 ]) *)
+        | BDivide      , VInt (n1, e1)  , VInt (n2, e2) when n2 <> 0 ->
+          let* () = push_formula (Smt.Formula.binop Not_equal e2 (Smt.Formula.const_int 0)) in
+          k (v_int (n1 / n2)) e1 e2 Divide
+        | BModulus     , VInt (n1, e1)  , VInt (n2, e2) when n2 <> 0 ->
+          let* () = push_formula (Smt.Formula.binop Not_equal e2 (Smt.Formula.const_int 0)) in
+          k (v_int (n1 mod n2)) e1 e2 Modulus
         | _ -> fail_binop ()
       in
       handle_any vleft
