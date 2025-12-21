@@ -18,6 +18,8 @@ let eval
   (input_env : Ienv.t)
   (target : Target.t)
   ~(max_step : Interp.Step.t)
+  ~(default_int : unit -> int)
+  ~(default_bool : unit -> bool)
   ~(do_splay : bool)
   : Answer.t * Logged_run.t list
   =
@@ -294,8 +296,6 @@ let eval
         | BPlus        , VInt (n1, e1)  , VInt (n2, e2)              -> k (v_int (n1 + n2)) e1 e2 Plus
         | BMinus       , VInt (n1, e1)  , VInt (n2, e2)              -> k (v_int (n1 - n2)) e1 e2 Minus
         | BTimes       , VInt (n1, e1)  , VInt (n2, e2)              -> k (v_int (n1 * n2)) e1 e2 Times
-        | BDivide      , VInt (n1, e1)  , VInt (n2, e2) when n2 <> 0 -> k (v_int (n1 / n2)) e1 e2 Divide
-        | BModulus     , VInt (n1, e1)  , VInt (n2, e2) when n2 <> 0 -> k (v_int (n1 mod n2)) e1 e2 Modulus
         | BEqual       , VInt (n1, e1)  , VInt (n2, e2)              -> k (v_bool (n1 = n2)) e1 e2 Equal
         | BEqual       , VBool (b1, e1) , VBool (b2, e2)             -> k (v_bool (b1 = b2)) e1 e2 Equal
         | BNeq         , VInt (n1, e1)  , VInt (n2, e2)              -> k (v_bool (n1 <> n2)) e1 e2 Not_equal
@@ -681,11 +681,11 @@ let eval
     | VTypeUnit -> return_any VUnit
     | VTypeInt ->
       let* step = step in
-      let* i = read_and_log_input_with_default make_int input_env ~default:0 in
+      let* i = read_and_log_input_with_default make_int input_env ~default:(default_int ()) in
       return_any (VInt (i, Stepkey.int_symbol step))
     | VTypeBool ->
       let* step = step in
-      let* b = read_and_log_input_with_default make_bool input_env ~default:false in
+      let* b = read_and_log_input_with_default make_bool input_env ~default:(default_bool ()) in
       return_any (VBool (b, Stepkey.bool_symbol step))
     | VTypeFun tfun ->
       return_any (VGenFun tfun)

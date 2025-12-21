@@ -45,7 +45,19 @@ let collect_logged_runs ~(max_tree_depth : int) (runs : Logged_run.t list) : Tar
 
 let c = Utils.Counter.create ()
 
-module T = Smt.Formula.Make_transformer (Overlays.Typed_z3)
+let () = Random.self_init ()
+
+let make_int_feeder ~(run_num : int) : unit -> int =
+  if run_num = 1 then
+    fun () -> 0
+  else
+    fun () -> Random.int_in_range ~min:(-10) ~max:10
+
+let make_bool_feeder ~(run_num : int) : unit -> bool =
+  if run_num = 1 then
+    fun () -> false
+  else
+    Random.bool
 
 open Lwt.Let_syntax.Let_syntax
 open Lwt.Syntax
@@ -53,6 +65,9 @@ open Lwt.Syntax
 (* Does not do its own timeout, even though timeout is passed in with options *)
 let loop ~(options : Options.t) (solve : Stepkey.t Smt.Formula.solver) 
   (pgm : Lang.Ast.program) (tq : Target_queue.t) : Answer.t Lwt.t =
+  let eval =
+    Eval.eval pgm ~max_step:options.max_step ~do_splay:options.do_splay
+  in
   let rec loop tq =
     let* () = Lwt.pause () in
     match Target_queue.pop tq with
@@ -67,11 +82,12 @@ let loop ~(options : Options.t) (solve : Stepkey.t Smt.Formula.solver)
     | None -> return Answer.Exhausted
 
   and loop_on_model target tq model =
-    let _ = Utils.Counter.next c in
+    let run_num = Utils.Counter.next c in
     let ienv = Ienv.extend target.i_env (Ienv.of_model model) in
     let answer, runs =
-      Eval.eval pgm ienv target
-        ~max_step:options.max_step ~do_splay:options.do_splay
+      eval ienv target
+        ~default_int:(make_int_feeder ~run_num)
+        ~default_bool:(make_bool_feeder ~run_num)
     in
     if Answer.is_signal_to_stop answer
     then return answer
