@@ -74,6 +74,7 @@ let rec binop : type a b. (a * a * b) Binop.t -> (a, 'k) t -> (a, 'k) t -> (b, '
       | Key k1, Key k2 when Symbol.equal k1 k2 -> Const_bool true
       | Const_bool b1, Const_bool b2 -> Const_bool (Bool.equal b1 b2)
       | Const_int i1, Const_int i2 -> Const_bool (i1 = i2)
+      | Const_int _, Key _ -> Binop (Equal, y, x)
       | e1, e2 -> Binop (Equal, e1, e2)
     end
   | Not_equal -> not_ (binop Equal x y)
@@ -121,12 +122,12 @@ let rec binop : type a b. (a * a * b) Binop.t -> (a, 'k) t -> (a, 'k) t -> (b, '
   | Greater_than -> begin
       match x, y with
       | Const_int i1, Const_int i2 -> Const_bool (i1 > i2)
-      | e1, e2 -> Binop (Greater_than, e1, e2)
+      | e1, e2 -> Binop (Less_than, e2, e1)
     end
   | Greater_than_eq -> begin
       match x, y with
       | Const_int i1, Const_int i2 -> Const_bool (i1 >= i2)
-      | e1, e2 -> Binop (Greater_than_eq, e1, e2)
+      | e1, e2 -> Binop (Less_than_eq, e2, e1)
   end
 
 and not_ (e : (bool, 'k) t) : (bool, 'k) t =
@@ -190,12 +191,16 @@ module Make_solver (X : SOLVABLE) = struct
     match expr with
     | Const_bool false -> Unsat
     | Const_bool true -> Sat Model.empty
-    | e -> X.solve [ M.transform e ]
+    | Not (Binop (Equal, Key k, Const_int i)) ->
+      Sat (Model.singleton (if i = 0 then 1 else 0) k)
+    | Binop (Equal, Key k, Const_int i) ->
+      Sat (Model.singleton i k)
+    | e ->
+      X.solve [ M.transform e ]
 end
 
 module Set = struct
   module Make (K : Symbol.KEY) = struct
-    (* type k = K.t *)
     include Baby.W.Set.Make (struct
       type nonrec t = (bool, K.t) t (* boolean formulas *)
       let compare = compare
