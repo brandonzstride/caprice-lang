@@ -16,7 +16,7 @@ let bag : t 1 = list
 let rec len ls = 
   match ls with
   | [] -> 0
-  | hd :: tl -> 1 + len tl
+  | _ :: tl -> 1 + len tl
   end
 
 let ngram : int -> t 1 = fun n a -> { ls : list a | (len ls == n) && n >= 0 }

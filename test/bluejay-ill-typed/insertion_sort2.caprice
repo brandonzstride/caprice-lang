@@ -10,8 +10,8 @@ let rec ne_sorted lst =
   match lst with
   | [] -> true
   | a :: [] -> true
-  | a :: b :: tl ->
-    a <= b && ne_sorted (b :: tl)
+  | a :: (b :: _ as tl) ->
+    a <= b && ne_sorted tl
   end
 
 let rec foldl f b l =

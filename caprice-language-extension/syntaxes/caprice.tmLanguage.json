@@ -37,7 +37,7 @@
       "patterns": [
         {
           "name": "keyword.other.caprice",
-          "match": "\\b(if|then|else|match|with|end|let|rec|in|fun|val|sig|struct|of|dep|dependent|and|mu|defer|abstract)\\b"
+          "match": "\\b(if|then|else|match|with|end|let|rec|in|fun|val|sig|struct|of|dep|dependent|and|mu|defer|abstract|as)\\b"
         },
         {
           "name": "constant.language.boolean.caprice",

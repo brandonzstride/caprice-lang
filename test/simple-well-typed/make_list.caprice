@@ -1,5 +1,5 @@
 
-let rec makelist n = 
+let rec makelist (n : int) : list int = 
   if n == 0 then []
   else n :: makelist (n-1)
 

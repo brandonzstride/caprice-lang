@@ -28,6 +28,6 @@ let y = bind int (list int) r x f
 let z = y.continuation (fun ls ->
   match ls with
   | [] -> { b = 0 } (* ERROR: should have label `r` instead of `b` in order to have correct type for `y.continuation` *)
-  | hd :: tl -> { b = hd } (* ERROR: should have label `r` instead of `b` in order to have correct type for `y.continuation` *)
+  | hd :: _ -> { b = hd } (* ERROR: should have label `r` instead of `b` in order to have correct type for `y.continuation` *)
   end
 )

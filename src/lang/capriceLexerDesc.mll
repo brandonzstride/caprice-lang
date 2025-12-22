@@ -89,6 +89,7 @@ rule token = parse
 | "list"               { LIST }
 | "rec"                { REC }
 | "abstract"           { ABSTRACT }
+| "as"                 { AS }
 | digit+ as n          { INT (int_of_string n) }
 | ident_start ident_cont* as s     { IDENTIFIER s }
 

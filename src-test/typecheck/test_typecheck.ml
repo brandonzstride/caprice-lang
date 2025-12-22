@@ -10,7 +10,10 @@ let testcase_of_filename (typing : typing) (filename : string) : unit Alcotest.t
   @@ fun () ->
     let pgm = Lang.Parser.parse_file filename in
     let answer = Concolic.Loop.begin_ceval pgm ~options:
-      { Concolic.Common.Options.default with do_splay = true }
+      { Concolic.Common.Options.default with do_splay =
+        match typing with
+        | Ill_typed -> false
+        | Exhausted | Well_typed -> true }
     in
     let is_correct =
       match typing, answer with

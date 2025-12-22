@@ -69,6 +69,7 @@
 %token LIST
 %token REC
 %token ABSTRACT
+%token AS
 
 /*
  * Precedences and associativities.  Lower precedences come first.
@@ -77,6 +78,7 @@
 %nonassoc prec_if             /* Conditionals */
 %nonassoc prec_mu             /* mu types */
 %nonassoc OF                  /* variant type declarations */
+%nonassoc AS                  /* pattern as ident */
 %left COMMA                   /* tuples */
 %right DOUBLE_PIPE            /* || for boolean or */
 %right DOUBLE_AMPERSAND       /* && for boolean and */
@@ -84,7 +86,7 @@
 /* == <> < <= > >= */
 %left EQUAL_EQUAL NOT_EQUAL LESS LESS_EQUAL GREATER GREATER_EQUAL
 %right DOUBLE_COLON           /* :: */
-%right prec_variant_pattern   /* list destruction pattern */
+%right prec_variant_pattern   /* variant destruction pattern */
 %left PLUS MINUS              /* + - */
 %left ASTERISK SLASH PERCENT  /* * / % */
 %right ARROW /*LONG_ARROW*/       /* -> for type declaration, and --> for deterministic */
@@ -431,6 +433,8 @@ match_expr_list:
     { [ $1, $3 ] }
 
 pattern:
+  | pattern AS ident
+    { PPatternAs ($1, $3) }
   | pattern DOUBLE_COLON pattern
     { PDestructList ($1, $3) }
   | variant_label pattern %prec prec_variant_pattern

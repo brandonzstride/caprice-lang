@@ -123,7 +123,7 @@ module Make (Atom_cell : Utils.Comparable.P1) = struct
     True if the value has any mu type in its representation.
     This is used to dodge recursion by default.
   *)
-  let rec contains_mu : type a. a t -> bool = fun v ->
+  let[@tail_mod_cons] rec contains_mu : type a. a t -> bool = fun v ->
     match v with
     | VUnit
     | VInt _
@@ -370,14 +370,22 @@ module Make (Atom_cell : Utils.Comparable.P1) = struct
         = fun p v ->
         let open Match_result in
         match p, v with
-        | _, VLazy symbol ->
-          bind (resolve_symbol symbol) (fun (Any v) ->
-            matches p v
-          )
         | PAny, _ ->
           return Match
         | PVariable id, v -> 
           return @@ Match_bindings (Env.singleton id (to_any v))
+        | PPatternAs (pat, id), v ->
+          bind (matches pat v) (function
+            | Match ->
+              return (Match_bindings (Env.singleton id (Any v)))
+            | Match_bindings env ->
+              return (Match_bindings (Env.set id (Any v) env))
+            | (No_match | Failure _) as r -> return r
+          )
+        | _, VLazy symbol ->
+          bind (resolve_symbol symbol) (fun (Any v) ->
+            matches p v
+          )
         | p, VGenPoly _ -> 
           (* generated polymorphic values cannot be inspected *)
           return @@ Failure 

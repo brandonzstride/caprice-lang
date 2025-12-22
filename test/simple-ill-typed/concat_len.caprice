@@ -2,7 +2,7 @@
 let rec length x acc = 
   match x with
   | [] -> acc
-  | hd :: tl -> length tl (acc + 1)
+  | _ :: tl -> length tl (acc + 1)
   end
 
 let rec f (dep x : list int) (dep y : list int) (z : list int) : { a : list int | (length a 0) == (length x 0) + (length y 0) } =

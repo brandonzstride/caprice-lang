@@ -16,7 +16,10 @@ let x : t = `A (`A (`B ()))
 
 let _ = 
   match x with
-  | `A `A `B _ -> ()
+  | `A (`A `B _ as y) ->
+    match y with
+    | `A `B _ -> ()
+    end
   end
 
 (* all of the following should be the same *)
