@@ -1,5 +1,5 @@
 (* TEST
-  include exhaustible;
+  include splayable;
 *)
 
 let rec member (x : int) (l : list int) : bool =

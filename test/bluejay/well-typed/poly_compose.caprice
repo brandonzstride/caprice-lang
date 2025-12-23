@@ -1,5 +1,5 @@
 (* TEST
-  include finitely-exhaustible;
+  include finite-well-typed;
 *)
 
 

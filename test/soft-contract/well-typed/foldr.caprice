@@ -1,5 +1,5 @@
 (* TEST
-  include exhaustible;
+  include splayable;
 *)
 
 let rec foldr (f : int -> bool -> bool) (z : bool) (xs : list int) : bool =

@@ -9,7 +9,7 @@ let s (Ident.Ident id) = id
 (*
   Preset: splaying can quickly prove this well typed
 *)
-let exhaustible : Ctl_ast.t =
+let splayable : Ctl_ast.t =
   [ Env_stmt (Assign (speed, s fast))
   ; Env_stmt (Assign (typing, s exhausted))
   ; Env_stmt (Append (flags, " -s")) 
@@ -28,14 +28,14 @@ let refutable : Ctl_ast.t =
 (*
   Preset: there are naturally finitely many paths
 *)
-let finitely_exhaustible : Ctl_ast.t =
+let finite_well_typed : Ctl_ast.t =
   [ Env_stmt (Assign (speed, s fast))
   ; Env_stmt (Assign (typing, s exhausted))
   ; Test Typecheck
   ]
 
 let lookup : ident -> Ctl_ast.t = function
-  | Ident "finitely-exhaustible" -> finitely_exhaustible
-  | Ident "exhaustible" -> exhaustible
+  | Ident "finite-well-typed" -> finite_well_typed
+  | Ident "splayable" -> splayable
   | Ident "refutable" -> refutable
   | _ -> []
