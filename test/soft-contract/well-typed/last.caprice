@@ -1,0 +1,31 @@
+(* TEST
+  typing = no-error;
+  flags += " -t 2.0";
+  speed = slow;
+  typecheck;
+*)
+
+(* y combinator *)
+let Y f =
+  fun y ->
+    (fun x -> f (fun z -> (x x) z))
+    (fun x -> f (fun z -> (x x) z))
+    y
+
+let is_nonempty ls =
+  match ls with
+  | [] -> false
+  | _ -> true
+  end
+
+let last (type a_) (l : list a_ | is_nonempty l) : a_ =
+  Y (
+    fun self x ->
+      match x with
+      | x :: xs -> 
+        match xs with
+        | [] -> x
+        | _ -> self xs
+        end
+      end
+  ) l

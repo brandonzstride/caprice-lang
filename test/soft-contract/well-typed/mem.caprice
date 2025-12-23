@@ -1,0 +1,22 @@
+(* TEST
+  typing = no-error;
+  flags += " -t 2.0";
+  speed = slow;
+  typecheck;
+*)
+
+let rec mem x xs =
+  match xs with
+  | [] -> false
+  | hd :: tl -> hd == x || mem x tl
+  end
+
+let rec mk_list (dependent x : int) (n : int) : { l : list int |
+    match l with
+    | [] -> true
+    | _ :: _ -> mem x l
+    end
+  } =
+  if n < 0
+  then []
+  else x :: mk_list x (n - 1)

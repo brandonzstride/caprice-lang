@@ -1,0 +1,18 @@
+(* TEST
+  include exhaustible;
+*)
+
+let is_nonempty ls = 
+  match ls with
+  | [] -> false
+  | _ -> true
+  end
+
+let rec lastpair (type a_) (x : list a_ | is_nonempty x) : { l : list a_ | is_nonempty l } =
+  match x with
+  | h :: xs ->
+    match xs with
+    | [] -> [ h ]
+    | _ -> lastpair a_ xs
+    end
+  end

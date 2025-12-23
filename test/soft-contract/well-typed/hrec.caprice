@@ -1,0 +1,14 @@
+(* TEST
+  typing = no-error;
+  flags += " -t 2.0";
+  speed = slow;
+  typecheck;
+*)
+
+let rec f g x =
+  if x <= 0
+  then g x
+  else f (fun x -> f g x) (g x)
+
+let main (n : int | n >= 0) : { i : int | i >= 0 } =
+  f (fun x -> x + 1) n

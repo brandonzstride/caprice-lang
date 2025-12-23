@@ -1,0 +1,14 @@
+(* TEST
+  typing = no-error;
+  flags += " -t 2.0";
+  speed = slow;
+  typecheck;
+*)
+
+let rec mult (x : int) (y : int) : int =
+  if x <= 0 || y <= 0
+  then 0
+  else x + mult x (y - 1)
+
+let main (n : int | n >= 6) : { i : int | 600 <= i } = 
+  mult 100 n

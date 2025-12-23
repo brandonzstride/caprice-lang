@@ -1,0 +1,11 @@
+(* TEST
+  include exhaustible;
+*)
+
+let rec all (type a) (p : a -> bool) (xs : list a) : bool =
+  match xs with
+  | [] -> true
+  | x :: [] -> p x
+  | x :: tl -> (p x) && all a p tl
+  end
+

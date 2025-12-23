@@ -1,0 +1,14 @@
+(* TEST
+  include finitely-exhaustible;
+*)
+
+let f x g =
+  g (x + 1)
+
+let h (dependent z : int) (y : int | z < y) : unit =
+  ()
+
+let main (n : int) : unit =
+  if n > 0
+  then f n (h n)
+  else ()

@@ -1,0 +1,15 @@
+(* TEST
+  include exhaustible;
+*)
+
+let is_nonempty ls =
+  match ls with
+  | [] -> false
+  | _ -> true
+  end
+
+let rec foldr1 (type a) (f : a -> a -> a) (xs : list a | is_nonempty xs) : a =
+  match xs with
+  | z :: [] -> z
+  | z :: zs -> f z (foldr1 a f zs)
+  end

@@ -1,0 +1,25 @@
+(* TEST
+  typing = no-error;
+  flags += " -t 2.0";
+  speed = slow;
+  typecheck;
+*)
+
+let rec mk_list n =
+  if n <= 0
+  then []   
+  else (fun m -> m + n) :: mk_list (n - 1)
+
+let rec foldr f z xs =
+  match xs with
+  | [] -> z
+  | x :: xss -> f x (foldr f z xss)
+  end
+
+let compose f g =
+  fun x ->
+    f (g x)
+
+let main (n : int) : { int -> int | fun f -> f 0 >= 0 } =
+  let xs = mk_list n in
+  foldr compose (fun x -> x) xs

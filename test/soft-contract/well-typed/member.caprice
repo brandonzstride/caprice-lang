@@ -1,0 +1,12 @@
+(* TEST
+  include exhaustible;
+*)
+
+let rec member (x : int) (l : list int) : bool =
+  match l with
+  | [] -> false
+  | hd :: tl ->
+    if x == hd
+    then true
+    else member x tl
+  end
