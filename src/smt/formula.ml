@@ -208,6 +208,28 @@ module Set = struct
 
     let scc (formula : (bool, K.t) T.t) ~(wrt : t) : (bool, K.t) T.t =
       let formula_symbols = symbols formula in
+      let all_with_symbols =
+        to_list wrt
+        |> List.map (fun e -> (e, symbols e))
+      in
+      let rec collect acc_symbols acc_scc remaining =
+        let acc_symbols, acc_scc, any_newly_connected, remaining = 
+          List.fold_left (fun (acc_symbols, acc_scc, any_newly_connected, remaining) (e, e_symbols) ->
+            if Utils.Uid.Set.disjoint acc_symbols e_symbols then
+              (acc_symbols, acc_scc, any_newly_connected, (e, e_symbols) :: remaining)
+            else
+              (Utils.Uid.Set.union acc_symbols e_symbols, e :: acc_scc, true, remaining)
+            ) (acc_symbols, acc_scc, false, []) remaining
+        in
+        if any_newly_connected && not (List.is_empty remaining) then
+          collect acc_symbols acc_scc remaining
+        else
+          acc_scc
+      in
+      and_ @@ collect formula_symbols [ formula ] all_with_symbols
+
+    (* let scc (formula : (bool, K.t) T.t) ~(wrt : t) : (bool, K.t) T.t =
+      let formula_symbols = symbols formula in
       to_seq wrt
       |> Seq.fold_left (fun ((acc_symbols, acc_scc) as acc) e ->
           let e_symbols = symbols e in
@@ -217,6 +239,6 @@ module Set = struct
             Utils.Uid.Set.union acc_symbols e_symbols, e :: acc_scc
         ) (formula_symbols, [ formula ])
       |> snd
-      |> and_
+      |> and_ *)
   end
 end
