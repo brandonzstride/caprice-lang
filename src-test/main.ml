@@ -4,8 +4,8 @@ let find_test_dir () =
   match List.find_opt Sys.file_exists candidates with
   | Some dir -> dir
   | None -> 
-      let cwd = Sys.getcwd () in
-      failwith ("Cannot find test directory. CWD: " ^ cwd)
+    let cwd = Sys.getcwd () in
+    failwith ("Cannot find test directory. CWD: " ^ cwd)
 
 let root_dir = find_test_dir ()
 

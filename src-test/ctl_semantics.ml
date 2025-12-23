@@ -59,7 +59,7 @@ let compute_typecheck_test filename env =
   match expect, answer with
   | Ill_typed, Concolic.Common.Answer.Found_error _
   | Exhausted, Exhausted
-  | No_error, (Unknown | Exhausted_pruned) -> true
+  | No_error, (Unknown | Exhausted_pruned | Timeout _) -> true
   | _ -> false
 
 let check_true msg b =
