@@ -1,6 +1,4 @@
 
-- Allow flags in test cases
-  - and speed and expected result
 - add wrap
 - add deterministic functions
 - mutually recursive functions
