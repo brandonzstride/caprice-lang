@@ -45,8 +45,6 @@ let collect_logged_runs ~(max_tree_depth : int) (runs : Logged_run.t list) : Tar
 
 let c = Utils.Counter.create ()
 
-let () = Random.self_init ()
-
 let make_int_feeder ~(run_num : int) : unit -> int =
   if run_num = 1 then
     fun () -> 0
@@ -121,6 +119,7 @@ let begin_ceval ~(options : Options.t) (pgm : Lang.Ast.program) : Answer.t =
     | Lwt_unix.Timeout -> Answer.Timeout options.global_timeout
   in
   Utils.Counter.reset c;
+  if options.is_random then Random.self_init ();
   let span, answer = Utils.Time.time go () in
   Format.printf "Finished type checking in %0.3f ms and %d runs:\n    %s\n"
     (Utils.Time.span_to_ms span) !(c.cell) (Answer.to_string answer);
