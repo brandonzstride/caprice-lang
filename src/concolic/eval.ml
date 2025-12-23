@@ -390,8 +390,8 @@ let eval
         let* res = local (fun _ -> Env.set param genned env) (eval captured) in
         begin match codomain with
         | CodValue cod_tval -> check res cod_tval
-        | CodDependent (id, closure) ->
-          let* cod_tval = local (fun _ -> Env.set id genned closure.env) (eval_type closure.captured) in
+        | CodDependent (id, { captured ; env }) ->
+          let* cod_tval = local (fun _ -> Env.set id genned env) (eval_type captured) in
           check res cod_tval
         end
       | (Any VFunFix { fvar ; param ; closure = { captured ; env } }) as vfun ->
