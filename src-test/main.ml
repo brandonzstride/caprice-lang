@@ -39,5 +39,5 @@ let () = Alcotest.run "test-caprice" (
   root_dir
   |> all_subdirectories
   |> List.filter_map make_test
-) ~quick_only:true (* temporary until we set up command line args *)
+)
 
