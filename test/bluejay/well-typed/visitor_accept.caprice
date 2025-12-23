@@ -2,7 +2,6 @@
   include finite-well-typed;
 *)
 
-
 let result_type = { result : int }
 
 let city =

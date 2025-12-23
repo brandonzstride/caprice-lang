@@ -10,14 +10,14 @@ let pos_int : type = { i : int | i > 0 }
 let rec len ls = 
   match ls with
   | [] -> 0
-  | hd :: tl -> 1 + len tl
+  | _ :: tl -> 1 + len tl
   end
 
-let rec take (type a_) (dep n : pos_int) (l : list a_) : { ls : list a_ | len ls <= n } =
+let rec take (type a) (dep n : pos_int) (l : list a) : { ls : list a | len ls <= n } =
   match l with
   | [] -> []
   | hd :: tl ->
     if n == 1
     then hd (* ERROR: should be `[hd]` here *)
-    else hd :: take a_ (n - 1) tl
+    else hd :: take a (n - 1) tl
   end

@@ -1,0 +1,23 @@
+(* TEST
+  typing = no-error;
+  speed = slow;
+  flags += " -t 2.0";
+  typecheck;
+*)
+
+let pos_int : type = { i : int | i > 0 }
+
+let rec len ls = 
+  match ls with
+  | [] -> 0
+  | _ :: tl -> 1 + len tl
+  end
+
+let rec take (type a) (dependent n : pos_int) (l : list a) : { ls : list a | len ls <= n } =
+  match l with
+  | [] -> []
+  | hd :: tl ->
+    if n == 1
+    then [ hd ]
+    else hd :: take a (n - 1) tl
+  end

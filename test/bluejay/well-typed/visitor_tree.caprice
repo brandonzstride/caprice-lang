@@ -1,5 +1,8 @@
 (* TEST
-  include refutable;
+  typing = no-error;
+  flags += " -t 3.0";
+  speed = slow;
+  typecheck;
 *)
 
 let T n = sig
@@ -67,6 +70,6 @@ let int_bool_client (tr : Tree.t int) : Client.t int (Tree.t int) bool =
     fun vis ->
       match tr with
       | `Leaf leaf -> vis.visit_leaf leaf
-      | `Node node -> vis.visit_leaf node (* ERROR: should be vis.visit_node  *)
+      | `Node node -> vis.visit_node node
       end
   }
