@@ -1,0 +1,6 @@
+(* TEST
+  include finitely-exhaustible;
+*)
+
+
+let x : int * bool * int = (0, false), 0

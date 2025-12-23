@@ -1,0 +1,20 @@
+(* TEST
+  include refutable;
+*)
+
+
+let rec makelist n = 
+  if n == 0 then []
+  else n :: makelist (n-1)
+
+let getHead l = 
+  match l with
+  | hd :: _ -> hd
+  end
+
+let main (n : int | n >= 0) : { a : int | a > 0 } =
+  let l = makelist n in
+  if n > 0
+  then getHead l
+  else 0 (* ERROR: not positive *)
+  

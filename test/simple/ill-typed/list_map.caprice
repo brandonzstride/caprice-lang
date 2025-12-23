@@ -1,0 +1,10 @@
+(* TEST
+  include refutable;
+*)
+
+
+let rec map (type a b) (f : a -> b) (ls : list a) : list b =
+  match ls with
+  | [] -> []
+  | hd :: tl -> f hd :: tl (* ERROR: forgot to map tail *)
+  end

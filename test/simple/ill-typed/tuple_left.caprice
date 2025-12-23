@@ -1,0 +1,6 @@
+(* TEST
+  include refutable;
+*)
+
+
+let x : int * bool = true, true

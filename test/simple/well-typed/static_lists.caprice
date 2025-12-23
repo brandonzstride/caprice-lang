@@ -1,0 +1,31 @@
+(* TEST
+  include finitely-exhaustible;
+*)
+
+
+let _ : list int = [ 1 ]
+
+let _ : list int = [ 1 ; 2 ]
+
+let l : list int = 0 :: []
+
+let _ : list bool = []
+
+let _ : unit =
+  match l with
+  | [] -> assert false
+  | _ :: [] -> ()
+  end
+
+let l : list int = 0 :: 1 :: 2 :: 3 :: 4 :: [ 5 ; 6 ; 7 ]
+
+let _ : list int =
+  match l with
+  | a :: b :: c :: tl ->
+    let _ = assert (a == 0) in
+    let _ = assert (b == 1) in
+    let _ = assert (c == 2) in
+    tl
+  end
+
+let _ : list (int * bool) = [ 0, true ; 1, false ]

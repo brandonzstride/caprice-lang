@@ -1,4 +1,0 @@
-
-let _ 
-  : { r : { a : int ; b : bool } ; s : { x : { y : int ; z : unit } } }
-  = { r = { a = 0   ; b = true } ; s = { x = { y = 0   ; z = ()   } } }

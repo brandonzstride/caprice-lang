@@ -1,0 +1,7 @@
+(* TEST
+  include refutable;
+*)
+
+
+let f (g : int -> int) (x : (int -> int) -> bool) : int = 
+  x g (* ERROR: returns bool, not int *)

@@ -1,0 +1,22 @@
+(* TEST
+  include refutable; # only if we decide wrapping should be on module labels
+  skip; # requires wrapping, which is not yet implemented
+*)
+
+let v = struct
+  let a = fun x -> x
+  let b = fun x -> x
+  let c = 0
+end
+
+let t = sig
+  val a : int -> int
+  val b : int -> int
+  val c : 
+    if a true then (* ERROR: misuses a *)
+      int
+    else
+      bool
+end
+
+let w : t = v

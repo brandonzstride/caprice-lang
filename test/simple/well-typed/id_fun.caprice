@@ -1,0 +1,6 @@
+(* TEST
+  include finitely-exhaustible;
+*)
+
+
+let f : int -> int = fun x -> x

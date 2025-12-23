@@ -1,0 +1,6 @@
+(* TEST
+  include finitely-exhaustible;
+*)
+
+
+let r : { a : int ; b : bool } = { a = 0 ; b = true }

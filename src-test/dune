@@ -1,0 +1,36 @@
+(include_subdirs unqualified)
+
+(ocamllex ctl_lexer)
+
+(menhir
+ (modules ctl_parser))
+
+(library
+ (name caprice_test)
+ (public_name caprice.caprice_test)
+ (synopsis "Caprice Test Language Definition and Semantics")
+ (modules (:standard \ main))
+ (libraries 
+  ; internal
+  lang
+  concolic
+  ; external
+  cmdliner
+  alcotest
+ )
+ (instrumentation (backend landmarks --auto))
+ (instrumentation (backend bisect_ppx))
+ (preprocess (pps ppx_deriving.eq ppx_deriving.ord))
+)
+ 
+(test
+ (name main)
+ (modules main)
+ (libraries
+  ; internal
+  caprice_test 
+  ; external
+  alcotest
+ )
+ (deps
+  (source_tree ../test/)))

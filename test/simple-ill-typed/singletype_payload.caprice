@@ -1,3 +1,0 @@
-
-let t : singletype (`A of int | `B of bool) =
-  `A of int | `B of int

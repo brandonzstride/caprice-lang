@@ -1,0 +1,7 @@
+(* TEST
+  include finitely-exhaustible;
+*)
+
+
+let appl (type a b) (x : a) (f : a -> b) : b =
+  f x

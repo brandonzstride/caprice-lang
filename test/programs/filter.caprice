@@ -1,0 +1,13 @@
+(* TEST
+  include exhaustible;
+*)
+
+
+let rec filter (type a) (ls : list a) (f : a -> bool) : list a =
+  match ls with
+  | [] -> []
+  | hd :: tl ->
+    if f hd
+    then hd :: filter a tl f
+    else filter a tl f
+  end

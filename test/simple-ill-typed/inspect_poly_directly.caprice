@@ -1,7 +1,0 @@
-
-let f (type a) (x : a) : a =
-  match x with
-  | [] -> []
-  | _ :: _ -> []
-  | _ -> x
-  end

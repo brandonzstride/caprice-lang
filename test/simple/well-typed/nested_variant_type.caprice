@@ -1,0 +1,48 @@
+(* TEST
+  include finitely-exhaustible;
+*)
+
+
+(* Should parse as `A of (`B of int | `C of bool) *)
+let t = `A of `B of int | `C of bool
+
+let f (x : t) : int =
+  match x with
+  | `A `B i -> i
+  | `A `C _ -> 0
+  end
+
+let t = mu t.
+  | `A of t
+  | `B of unit
+
+let x : t = `A (`A (`B ()))
+
+let _ = 
+  match x with
+  | `A (`A `B _ as y) ->
+    match y with
+    | `A `B _ -> ()
+    end
+  end
+
+(* all of the following should be the same *)
+let _ : int = 
+  match `A 0 :: [] with
+  | `A i :: [] -> i
+  end
+
+let _ = 
+  match (`A 0) :: [] with
+  | `A i :: [] -> i
+  end
+
+let _ = 
+  match (`A 0) :: [] with
+  | (`A i) :: [] -> i
+  end
+
+let _ = 
+  match `A 0 :: [] with
+  | (`A i) :: [] -> i
+  end

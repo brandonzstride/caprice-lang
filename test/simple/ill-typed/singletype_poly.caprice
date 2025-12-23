@@ -1,0 +1,8 @@
+(* TEST
+  include refutable;
+*)
+
+
+let f (type a b) (dependent t : singletype a) (x : t) : b =
+  x
+

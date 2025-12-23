@@ -18,7 +18,10 @@ let parse_program (input : in_channel) : Ast.statement list =
   CapriceParserDesc.prog CapriceLexerDesc.token buf
 
 let parse_file (filename : string) : Ast.statement list =
-  parse_program @@ In_channel.open_bin filename
+  let channel = In_channel.open_bin filename in
+  let pgm = parse_program channel in
+  In_channel.close channel;
+  pgm
 
 let parse_program_from_argv =
   let open Cmdliner.Term.Syntax in

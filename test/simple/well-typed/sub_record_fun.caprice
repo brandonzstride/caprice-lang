@@ -1,0 +1,12 @@
+(* TEST
+  include finitely-exhaustible;
+*)
+
+
+let t = ({ a : int ; b : int } -> int) -> int
+
+let f (h : { a : int ; b : int ; c : int } -> int) : int =
+  0
+
+let g : t =
+  f

@@ -1,0 +1,28 @@
+(* TEST
+  include refutable;
+  skip; # requires wrapping, which is not yet implemented
+*)
+
+let eq i =
+  fun x ->
+    i == x
+
+let one_of i =
+  { j : int | eq i j }
+
+let lock (st : one_of 0) : one_of 1 = 1
+
+let unlock (st : one_of 1) : one_of 0 = 0
+
+let f n st =
+  if n > 0
+  then lock st
+  else st
+
+let g n st =
+  if n >= 0 (* ERROR: this should be `>` or else tries to unlock an already-unlocked state *)
+  then unlock st
+  else st
+
+let main (n : int) : one_of 0 =
+  g n (f n 0)

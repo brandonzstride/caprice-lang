@@ -1,0 +1,10 @@
+(* TEST
+  include finitely-exhaustible;
+*)
+
+
+let fun_sig = { a : int ; b : int } -> int
+
+let f (x : { a : int }) : int = x.a
+
+let _ : fun_sig = f

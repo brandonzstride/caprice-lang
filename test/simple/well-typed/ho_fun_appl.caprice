@@ -1,0 +1,7 @@
+(* TEST
+  include finitely-exhaustible;
+*)
+
+
+let f (g : int -> int) (x : (int -> int) -> bool) : bool = 
+  x g

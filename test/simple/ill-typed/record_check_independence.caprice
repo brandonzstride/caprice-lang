@@ -1,0 +1,18 @@
+(* TEST
+  include refutable;
+*)
+
+
+(*
+  This test ensures that we can check records when one
+  of the label checks diverges. The translation
+  (sequential-check) style system would diverge here!
+*)
+
+let _ : 
+  { f : { _ : bool | false } -> unit (* every function has this type *)
+  ; y : int } 
+  =
+  { f = fun _ -> ()
+  ; y = true (* ERROR: should be an int *)
+  }

@@ -1,0 +1,9 @@
+(* TEST
+  include refutable;
+*)
+
+
+let fst (type a b) (xy : a * b) : a =
+  match xy with
+  | _, y -> y (* ERROR: is snd *)
+  end

@@ -1,0 +1,12 @@
+(* TEST
+  include exhaustible;
+*)
+
+
+let rec fact (n : int | n >= 0) : { x : int | x >= 0 } =
+  if n == 0 then
+    0
+  else if n == 1 then
+    1
+  else
+    n * fact (n - 1)

@@ -1,0 +1,20 @@
+(* TEST
+  typing = no-error;
+  typecheck;
+*)
+
+
+(* We don't want splaying here because it would be ill-typed *)
+
+(* The check is forked, and it should diverge, so we shouldn't fully exhaust this *)
+let _ 
+  : (i : int) ->
+    let rec f x =
+      if x <= 0
+      then int
+      else f (x - 1)
+    in
+    f 10000000
+  = fun _ -> 10
+
+let _ = ()

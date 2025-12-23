@@ -1,0 +1,6 @@
+(* TEST
+  include finitely-exhaustible;
+*)
+
+
+let t : singletype int = int

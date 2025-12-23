@@ -1,0 +1,6 @@
+(* TEST
+  include refutable;
+*)
+
+
+let f : int -> bool = fun x -> x

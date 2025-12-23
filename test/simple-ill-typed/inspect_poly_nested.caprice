@@ -1,7 +1,0 @@
-
-let f (type a) (x : list a) : a =
-  match x with
-  | [] -> assume false
-  | (y :: z) :: _ -> y :: z (* ERROR: inspecting `a` *)
-  | hd :: _ -> hd
-  end

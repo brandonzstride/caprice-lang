@@ -1,0 +1,7 @@
+(* TEST
+  include refutable;
+*)
+
+
+let f (g : int -> int) : bool -> int =
+  g

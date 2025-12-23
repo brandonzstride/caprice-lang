@@ -1,0 +1,20 @@
+(* TEST
+  include finitely-exhaustible;
+*)
+
+
+let M : sig 
+  val t : singletype int
+  val f : t -> t
+end = struct
+  let t = int 
+  let f = fun x -> x
+end
+
+let M : sig 
+  val t = int
+  val f : t -> t
+end = struct
+  let t = int 
+  let f = fun x -> x
+end

@@ -1,0 +1,7 @@
+(* TEST
+  include refutable;
+*)
+
+
+let f (g : { a : int ; b : bool } -> int) : { a : int } -> int =
+  g (* ERROR: g expects its argument to also have label b *)

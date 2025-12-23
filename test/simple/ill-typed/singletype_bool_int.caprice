@@ -1,0 +1,6 @@
+(* TEST
+  include refutable;
+*)
+
+
+let t : singletype bool = int

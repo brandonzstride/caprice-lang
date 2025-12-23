@@ -1,0 +1,48 @@
+(* TEST
+  include exhaustible;
+*)
+
+
+let t a =
+  { run : (type r) -> (a -> r) -> r }
+
+let bind (type a b) (x : t a) (f : a -> t b) : t b =
+  { run = fun r k ->
+    x.run r (fun a ->
+      (f a).run r k
+    )
+  }
+
+let return (type a) (a : a) : t a =
+  { run = fun r k -> k a }
+
+let run (type a r) (x : t a) (k : a -> r) : r =
+  x.run r k
+
+(* We don't want the user to write this (it explodes) but they _can_ write it. *)
+(* let rec summate (dep n : int) : { m : t int | 
+  run int int m (fun i -> i) == n * (n + 1) / 2
+  } =
+  if n <= 0 then return int 0 else
+  bind int int (summate (n - 1)) (fun sum ->
+    return int (sum + n)
+  ) *)
+
+(* Better is to write this: *)
+let rec summate (dep n : int | n >= 0) : t { i : int | i == n * (n + 1) / 2 } =
+  if n <= 0 then return int 0 else
+  bind int int (summate (n - 1)) (fun sum ->
+    return int (sum + n)
+  )
+
+(* let summate n =
+  let rec aux n =
+    if n <= 0 then return int 0 else
+    bind int int (aux (n - 1)) (fun sum ->
+      return int (sum + n)
+    )
+  in
+  run int int (aux n) (fun i -> i)
+
+let _ : { i : int | i == 10 } = summate 4 *)
+    

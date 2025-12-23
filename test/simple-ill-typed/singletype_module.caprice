@@ -1,8 +1,0 @@
-
-let M : sig 
-  val t : singletype { i : int | i > 0 }
-  val f : t -> t
-end = struct
-  let t = int (* ERROR: is not only positive ints *)
-  let f = fun x -> x
-end

@@ -1,0 +1,13 @@
+(* TEST
+  typing = ill-typed;
+  flags += " -s";
+  typecheck;
+*)
+
+
+let f (x : mu t. `A of unit | `B of t) : int =
+  match x with
+  | `A _ -> 0
+  | `B `A _ -> true (* ERROR: x must be forced enough to match this and return bool *)
+  | _ -> 0
+  end
