@@ -277,8 +277,11 @@ module Make (Atom_cell : Utils.Comparable.P1) = struct
       |> List.map (fun (key, data) -> Format.sprintf "%s : %s" (Labels.Record.to_string key) (to_string data))
       |> String.concat " ; "
       |> Format.sprintf "{ %s }"
-    | VTypeModule _ ->
-      failwith "Unimplemented module type to string"
+    | VTypeModule { captured = alist ; env = _ } ->
+      alist
+      |> List.map (fun { Ast.item ; tau = _ } -> Format.sprintf "val %s : <closure>" (Labels.Record.to_string item))
+      |> String.concat "\n"
+      |> Format.sprintf "sig %s end"
     | VTypeVariant map_body ->
       Labels.Variant.Map.to_list map_body
       |> List.map (fun (key, data) -> Format.sprintf "%s of %s" (Labels.Variant.to_string key) (to_string data))
