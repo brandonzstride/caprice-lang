@@ -5,3 +5,5 @@ type t = C.t
 let create () = C.create 0
 
 let next (t : t) : int = C.update ((+) 1) t
+
+let reset (t : t) : unit = let _ = C.update (fun _ -> 0) t in ()

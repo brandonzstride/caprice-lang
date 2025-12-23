@@ -120,6 +120,7 @@ let begin_ceval ~(options : Options.t) (pgm : Lang.Ast.program) : Answer.t =
     with
     | Lwt_unix.Timeout -> Answer.Timeout options.global_timeout
   in
+  Utils.Counter.reset c;
   let span, answer = Utils.Time.time go () in
   Format.printf "Finished type checking in %0.3f ms and %d runs:\n    %s\n"
     (Utils.Time.span_to_ms span) !(c.cell) (Answer.to_string answer);
