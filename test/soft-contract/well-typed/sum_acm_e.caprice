@@ -1,8 +1,5 @@
 (* TEST
-  typing = no-error;
-  flags += " -t 2.0";
-  speed = slow;
-  typecheck;
+  include finite-well-typed;
 *)
 
 let rec sum x y k =

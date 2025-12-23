@@ -1,0 +1,303 @@
+(* TEST
+  include refutable;
+*)
+
+(*
+  T n is a module with a type with n parameters, e.g.
+
+    T 2 is
+      sig val t : type -> type -> type end
+
+    T 0 is
+      sig val t : type end
+*)
+let T n = sig
+  val t : 
+    let rec loop i =
+      if i <= 0
+      then type
+      else type -> loop (i - 1)
+    in
+    loop n
+end
+
+let Nil : sig 
+  val t : type 
+  val v : t
+end = struct
+  let t = unit
+  let v = ()
+end
+
+let Pair : T 2 = struct
+  let t a b = { left : a ; right : b }
+end
+
+let Triple : T 3 = struct
+  let t a b c = { first : a ; second : b ; third : c }
+end
+
+let Type : sig
+  val t : type
+  val type_int : t
+  val eq : t -> t -> bool
+  val is_int : t -> bool
+end = struct
+  let t = mu t.
+    | `TArrow of Pair.t t t
+    | `TInt of Nil.t
+
+  let type_int = `TInt Nil.v
+
+  let rec eq a b =
+    match a, b with
+    | `TArrow p1, `TArrow p2 ->
+      eq p1.left p2.left
+      && eq p1.right p2.right
+    | `TInt _, `TInt _ ->
+      true
+    | _ ->
+      false
+    end
+
+  let is_int = eq type_int
+end
+
+let Ident : sig
+  val t : type
+  val eq : t -> t -> bool
+end = struct
+  let t = `Id of int
+  let eq a b = 
+    match a, b with
+    | `Id x, `Id y -> x == y
+    end
+end
+
+let Expr : T 0 = struct
+  let t = mu t.
+    | `Int of int
+    | `Var of Ident.t
+    | `Function of sig
+       val first : Ident.t 
+       val second : Type.t 
+       val third : t
+    end
+    | `If_then_else of Triple.t t t t
+    | `Plus of Pair.t t t
+    | `Minus of Pair.t t t
+    | `Equal of Pair.t t t
+    | `Appl of Pair.t t t
+end
+
+let rec mem ls a eq =
+  match ls with
+  | [] -> false
+  | hd :: tl ->
+    eq a hd || mem tl a eq
+  end
+
+let free_vars e bound =
+  let rec loop e bound_ids acc =
+    match e with
+    | `Var var_id ->
+      if mem bound_ids var_id Ident.eq
+      then acc
+      else var_id :: acc
+    | `Int i -> acc
+    | `Function trip -> loop trip.third (trip.first :: bound_ids) acc
+    | `If_then_else trip ->
+      let acc1 = loop trip.first bound_ids acc in
+      let acc2 = loop trip.second bound_ids acc1 in
+      let acc3 = loop trip.third bound_ids acc2 in
+      acc3
+    | _ -> 
+      let p = 
+        match e with
+        | `Plus p -> p
+        | `Minus p -> p
+        | `Equal p -> p
+        | `Appl p -> p
+        end
+      in
+      let acc1 = loop p.left bound_ids acc in
+      let acc2 = loop p.right bound_ids acc1 in
+      acc2
+    end
+  in
+  loop e bound []
+
+let is_closed e bound = 
+  match free_vars e bound with
+  | [] -> true
+  | _ -> false
+  end
+
+let Value : T 0 = struct
+  let t =
+    `Int of int
+    | `Function of sig
+       val first : Ident.t 
+       val second : Type.t 
+       val third : { e : Expr.t | is_closed e [ first ] }
+    end
+end
+
+let Result = struct
+  let t a =
+    | `Ok of a 
+    | `Error of Nil.t
+
+  let bind x f = 
+    match x with
+    | `Error _ -> x
+    | `Ok a -> f a
+    end
+
+  let return a = `Ok a
+
+  let error = `Error Nil.v
+
+  let is_ok x =
+    match x with
+    | `Ok _ -> true
+    | _ -> false
+    end
+end
+
+let typecheck e =
+  let add_to_env gamma id tau =
+    fun id_ ->
+      if Ident.eq id_ id
+      then Result.return tau
+      else gamma id_
+  in
+  let rec typecheck e gamma =
+    let tc e =
+      typecheck e gamma
+    in
+    match e with
+    (* Axioms *)
+    | `Var id -> gamma id
+    | `Int i -> Result.return Type.type_int
+    (* Functions *)
+    | `Function trip ->
+      Result.bind (typecheck trip.third (add_to_env gamma trip.first trip.second)) (fun tau ->
+        Result.return (`TArrow { left = trip.second ; right = tau })
+      )
+    | `Appl p ->
+      Result.bind (tc p.left) (fun res ->
+        match res with
+        | `TArrow p_arrow ->
+          Result.bind (tc p.right) (fun tau_arg ->
+            if Type.eq p_arrow.left tau_arg
+            then Result.return p_arrow.right
+            else Result.error
+          )
+        | _ -> Result.error
+        end
+      )
+    (* Conditions *)
+    | `If_then_else trip -> 
+      Result.bind (tc trip.first) (fun tau_cond ->
+        if Type.is_int tau_cond
+        then
+          Result.bind (tc trip.second) (fun tau_left ->
+            Result.bind (tc trip.third) (fun tau_right ->
+              if Type.eq tau_left tau_right
+              then Result.return tau_left
+              else Result.error
+            )
+          )
+        else Result.error
+      )
+    (* Simple expressions *)
+    | _ ->
+      let p =
+        match e with
+        | `Plus p -> p
+        | `Minus p -> p
+        | `Equal p -> p
+        end
+      in
+      Result.bind (tc p.left) (fun tau_left ->
+        Result.bind (tc p.right) (fun tau_right ->
+          if
+            Type.is_int tau_left
+            && Type.is_int tau_right
+          then
+            Result.return Type.type_int
+          else
+            Result.error
+        )
+      )
+    end
+  in
+  (* default environment is empty, so it is error given any id *)
+  typecheck e (fun _ -> Result.error)
+
+(* 
+  Note that we don't actually have to check for closed because
+  that would be an unbound variable when typechecking.
+*)
+let is_closed_and_well_typed e =
+  Result.is_ok (typecheck e)
+
+let subst e id v =
+  let rec sub e =
+    let sub_pair p =
+      { left = sub p.left
+      ; right = sub p.right }
+    in
+    match e with
+    | `Var var_id ->
+        if Ident.eq var_id id
+        then v
+        else e
+    | `Int i -> e
+    | `Function trip ->
+        if Ident.eq trip.first id
+        then e
+        else `Function struct
+          let first = trip.first 
+          let second = trip.second 
+          let third = sub trip.third
+        end
+    | `Plus p -> `Plus (sub_pair p)
+    | `Minus p -> `Minus (sub_pair p)
+    | `Equal p -> `Equal (sub_pair p)
+    | `Appl p -> `Appl (sub_pair p)
+    | `If_then_else trip -> `If_then_else { first = sub trip.first ; second = sub trip.second ; third = sub trip.third }
+    end
+  in
+  sub e
+
+let int_exn e =
+  match e with
+  | `Int i -> i
+  end
+
+let rec eval (e : Expr.t | is_closed_and_well_typed e) : Value.t =
+  let op_ints p op = 
+    let i1 = int_exn (eval p.left) in
+    let i2 = int_exn (eval p.right) in
+    `Int (op i1 i2)
+  in
+  match e with
+  | `Int i -> e
+  | `Function trip -> e
+  | `Plus p -> op_ints p (fun a -> fun b -> a + b)
+  | `Minus p -> op_ints p (fun a -> fun b -> a - b)
+  | `Equal p -> op_ints p (fun a -> fun b -> if a == b then 1 else 0)
+  | `Appl p ->
+    match eval p.left with
+    | `Function trip -> eval (subst trip.third trip.first (eval p.right))
+    end
+  | `If_then_else trip ->
+    match eval trip.first with
+    | `Int i ->
+      if i <> 0 (* non-zero int is true; like in C *)
+      then eval trip.second
+      else eval trip.trip (* ERROR: should be trip.third *)
+    end
+  end
