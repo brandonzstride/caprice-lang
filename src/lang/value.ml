@@ -39,6 +39,8 @@ module Make (Atom_cell : Utils.Comparable.P1) = struct
     | VGenFun : (typeval t, fun_cod) Funtype.t -> data t
     | VGenPoly : { id : int ; nonce : int } -> data t
     | VLazy : symbol -> neither t (* lazily evaluated thing, so state must manage this *)
+    (* wrapped values *)
+    | VWrapped : { data : data t ; tau : (typeval t, fun_cod) Funtype.t }  -> data t
     (* type values only *)
     | VType : typeval t
     | VTypePoly : { id : int } -> typeval t
@@ -97,7 +99,8 @@ module Make (Atom_cell : Utils.Comparable.P1) = struct
       | VEmptyList
       | VListCons _
       | VGenFun _
-      | VGenPoly _) as x -> data x
+      | VGenPoly _
+      | VWrapped _) as x -> data x
     | ( VType
       | VTypePoly _
       | VTypeUnit 
@@ -157,6 +160,8 @@ module Make (Atom_cell : Utils.Comparable.P1) = struct
       contains_mu t1 || contains_mu t2
     | VTypeSingle t ->
       contains_mu t
+    | VWrapped { data ; tau } ->
+      contains_mu data || contains_mu (VTypeFun tau)
     | VTypeFun { domain ; codomain = CodValue t }
     | VGenFun { domain ; codomain = CodValue t } ->
       (* TODO: consider if the negative position makes a difference *)
@@ -246,6 +251,8 @@ module Make (Atom_cell : Utils.Comparable.P1) = struct
       Format.sprintf "G(%s)" (to_string (VTypeFun funtype))
     | VGenPoly { id ; nonce } ->
       Format.sprintf "G(poly id : %d, nonce : %d)" id nonce
+    | VWrapped { data ; tau } ->
+      Format.sprintf "W(%s, %s)" (to_string data) (to_string (VTypeFun tau))
     | VLazy { id } ->
       Format.sprintf "Lazy(id : %d)" id
     | VType ->

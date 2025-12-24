@@ -1,6 +1,6 @@
 (* TEST
   include refutable;
-  skip; # requires wrap
+  flags += " -d 100";
 *)
 
 (*

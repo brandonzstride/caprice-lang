@@ -1,6 +1,5 @@
 (* TEST
-  include refutable; # only if we decide wrapping should be on module labels
-  skip; # requires wrapping, which is not yet implemented
+  include refutable;
 *)
 
 let v = struct
@@ -9,6 +8,9 @@ let v = struct
   let c = 0
 end
 
+(* Even if we don't wrap when evaluating the module initially, we wrap when evaluating
+  it when we wrap finally, so when we wrap `v` with type `t`, we catch the error, but not
+  when checking if `v` has type `t`. *)
 let t = sig
   val a : int -> int
   val b : int -> int

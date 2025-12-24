@@ -1,6 +1,5 @@
 (* TEST
   include refutable;
-  skip; # requires wrapping, which is not yet implemented
 *)
 
 let eq i =

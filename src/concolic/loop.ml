@@ -65,6 +65,7 @@ let loop ~(options : Options.t) (solve : Stepkey.t Smt.Formula.solver)
   (pgm : Lang.Ast.program) (tq : Target_queue.t) : Answer.t Lwt.t =
   let eval =
     Eval.eval pgm ~max_step:options.max_step ~do_splay:options.do_splay
+      ~do_wrap:options.do_wrap
   in
   let rec loop tq =
     let* () = Lwt.pause () in

@@ -1,6 +1,5 @@
 (* TEST
   include refutable;
-  skip; # depends on wrap
 *)
 
 
@@ -22,5 +21,3 @@ let rec f n zero_arg =
 
 let main (n : int) : bool =
   f n 0
-
-(* NOTE: this error depends on wrap, which is not yet implemented *)

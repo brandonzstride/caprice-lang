@@ -12,7 +12,7 @@ let s (Ident.Ident id) = id
 let splayable : Ctl_ast.t =
   [ Env_stmt (Assign (speed, s fast))
   ; Env_stmt (Assign (typing, s exhausted))
-  ; Env_stmt (Append (flags, " -s")) 
+  ; Env_stmt (Append (flags, " -s")) (* TODO: add wrap here *)
   ; Test Typecheck
   ]
 
@@ -22,6 +22,7 @@ let splayable : Ctl_ast.t =
 let refutable : Ctl_ast.t =
   [ Env_stmt (Assign (speed, s fast))
   ; Env_stmt (Assign (typing, s ill_typed))
+  ; Env_stmt (Append (flags, " -w"))
   ; Test Typecheck
   ]
 
@@ -31,6 +32,7 @@ let refutable : Ctl_ast.t =
 let finite_well_typed : Ctl_ast.t =
   [ Env_stmt (Assign (speed, s fast))
   ; Env_stmt (Assign (typing, s exhausted))
+  ; Env_stmt (Append (flags, " -w"))
   ; Test Typecheck
   ]
 

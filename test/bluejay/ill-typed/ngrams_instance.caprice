@@ -1,6 +1,6 @@
 (* TEST
   include refutable;
-  skip; # have not yet implemeted parameterized mu, so this is parse error for now
+  skip; # have not yet implemented parameterized mu, so this is parse error for now
 *)
 
 

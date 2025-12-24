@@ -21,6 +21,7 @@ let eval
   ~(default_int : unit -> int)
   ~(default_bool : unit -> bool)
   ~(do_splay : bool)
+  ~(do_wrap : bool)
   : Answer.t * Logged_run.t list
   =
   (*
@@ -62,17 +63,11 @@ let eval
     | EAppl { func ; arg } ->
       let* v_func = force_eval func in
       begin match v_func with
-      | Any VFunClosure { param ; closure = { captured ; env } } ->
+      | Any (VFunClosure _ as vfun)
+      | Any (VFunFix _ as vfun) ->
         let* v_arg = eval arg in
-        local (fun _ -> Env.set param v_arg env) (eval captured)
-      | (Any VFunFix { fvar ; param ; closure = { captured ; env } }) as vfun ->
-        let* v_arg = eval arg in
-        if do_splay then fail (Mismatch "Called rec fun while splaying") else
-        local (fun _ -> 
-          Env.set fvar vfun env
-          |> Env.set param v_arg
-        ) (eval captured)
-      | Any VGenFun { domain ; codomain } ->
+        eval_appl vfun v_arg
+      | Any (VGenFun { domain ; _ } as vfun) ->
         let* v_arg = eval arg in
         let* l = read_input make_label input_env in
         let check_f =
@@ -81,11 +76,32 @@ let eval
         in
         let eval_f =
           let* () = push_and_log_label Eval in
-          match codomain with
-          | CodValue cod_tval -> gen cod_tval
-          | CodDependent (id, { captured ; env }) ->
-            let* cod_tval = local (fun _ -> Env.set id v_arg env) (eval_type captured) in
-            gen cod_tval
+          eval_appl vfun v_arg
+        in
+        begin match l with
+        | Some Check -> check_f
+        | Some Eval -> eval_f
+        | Some _ -> bad_input_env ()
+        | None -> let* () = fork check_f in eval_f
+        end
+      | Any (VWrapped { data ; tau } as self_fun) ->
+        let* v_arg = eval arg in
+        let* l = read_input make_label input_env in
+        let check_f =
+          let* () = push_and_log_label Check in
+          check v_arg tau.domain
+        in
+        let eval_f =
+          let* () = push_and_log_label Eval in
+          let* tval =
+            begin match tau.codomain with
+            | CodValue tval -> return tval
+            | CodDependent (id, { captured ; env }) ->
+              local (fun _ -> Env.set id v_arg env) (eval_type captured)
+            end
+          in
+          let* v_res = eval_appl ~self_fun data v_arg in
+          wrap v_res tval
         in
         begin match l with
         | Some Check -> check_f
@@ -330,6 +346,38 @@ let eval
         )
 
   (*
+    ---------------------
+    EVALUATE APPLICATIONS
+    ---------------------
+
+    Always takes the evaluation side. Does not do any checking.
+    Does not push any labels corresponding to the evaluation.
+    Does not wrap the result.
+
+    ?self_fun is the optional value to put in the environment as
+    the self for recursive functions, in case of wrapping.
+    The default value is the actual fixed function.
+  *)
+  and eval_appl (v_func : Cvalue.dval) ?(self_fun : Cvalue.dval = v_func) (v_arg : Cvalue.any) : Cvalue.any m =
+    match v_func with
+    | VFunClosure { param ; closure = { captured ; env } } ->
+      local (fun _ -> Env.set param v_arg env) (eval captured)
+    | VFunFix { fvar ; param ; closure = { captured ; env } } ->
+      if do_splay then fail (Mismatch "Called rec fun while splaying") else
+      local (fun _ -> 
+        Env.set fvar (Any self_fun) env
+        |> Env.set param v_arg
+      ) (eval captured)
+    | VGenFun { domain = _ ; codomain } ->
+      begin match codomain with
+      | CodValue cod_tval -> gen cod_tval
+      | CodDependent (id, { captured ; env }) ->
+        let* cod_tval = local (fun _ -> Env.set id v_arg env) (eval_type captured) in
+        gen cod_tval
+      end
+    | _ -> mismatch @@ apply_non_function (Any v_func)
+    
+  (*
     ---------------------------------
     EVALUATE EXPRESSION TO TYPE VALUE
     ---------------------------------
@@ -445,6 +493,8 @@ let eval
         | Some _ -> bad_input_env ()
         | None -> let* () = fork check_left in check_right
         end
+      | Any VWrapped { data ; _ } ->
+        check (Any data) t (* FIXME: actually consider the wrapping type *)
       | _ -> refute
       end
     | VTypeVariant variant_t ->
@@ -794,6 +844,104 @@ let eval
     in
     gen t_body
 
+  and wrap (v : Cvalue.any) (t : Cvalue.tval) : Cvalue.any m =
+    if not do_wrap then return v else
+    match t with
+    | VType
+    | VTypePoly _
+    | VTypeUnit
+    | VTypeTop
+    | VTypeInt
+    | VTypeBool
+    | VTypeSingle _ -> return v
+    | VTypeBottom -> fail @@ Mismatch "Cannot wrap with bottom"
+    | VTypeMu { var ; closure = { captured ; env } } ->
+      (* TODO: handle splaying *)
+      let* tval = local (fun _ -> Env.set var (Any t) env) (eval_type captured) in
+      wrap v tval
+    | VTypeList t_body ->
+      (* TODO: handle splaying *)
+      begin match v with
+      | Any VEmptyList -> return v
+      | Any VListCons (v_hd, v_tl) ->
+        let* w_hd = wrap v_hd t_body in
+        let* Any w_tl = wrap (Any v_tl) t in
+        return_any (VListCons (w_hd, Obj.magic w_tl))
+      | _ -> fail @@ Mismatch "Wrap non-list with list type"
+      end
+    | VTypeFun tfun ->
+      begin match v with
+      | Any VWrapped { data ; tau = _ } -> return_any (VWrapped { data ; tau = tfun })
+      | Any v' ->
+        handle v'
+          ~data:(fun data -> return_any (VWrapped { data ; tau = tfun }))
+          ~typeval:(fun _ -> fail @@ Mismatch "Wrap non-data with function type")
+      end
+    | VTypeRecord t_body ->
+      begin match v with
+      | Any VRecord v_body ->
+        let* w_body =
+          Labels.Record.Map.fold (fun k t acc_m ->
+            let* acc = acc_m in
+            match Labels.Record.Map.find_opt k v_body with
+            | Some v' -> 
+              let* w = wrap v' t in
+              return (Labels.Record.Map.add k w acc)
+            | None -> fail @@ Mismatch "Wrap missing record label"
+          ) t_body (return Labels.Record.Map.empty)
+        in
+        return_any (VRecord w_body)
+      | _ -> fail @@ Mismatch "Wrap non-record"
+      end
+    | VTypeModule { captured = t_ls ; env } ->
+      begin match v with
+      | Any VModule v_body ->
+        let rec fold_labels acc_m = function
+          | [] -> acc_m
+          | { Ast.item ; tau } :: tl ->
+            let* acc = acc_m in
+            begin match Labels.Record.Map.find_opt item v_body with
+            | Some v' ->
+              let* tval = eval_type tau in
+              let* v = wrap v' tval in
+              local (Env.set (Labels.Record.to_ident item) v) (
+                fold_labels (return @@ Labels.Record.Map.add item v acc) tl
+              )
+            | None ->
+              fail @@ Mismatch "Wrap missing module label"
+            end
+        in
+        let* wrapped_body =
+          local (fun _ -> env) (
+            fold_labels (return Labels.Record.Map.empty) t_ls
+          )
+        in
+        return_any (VModule wrapped_body)
+      | _ -> fail @@ Mismatch "Wrap non-module"
+      end
+    | VTypeVariant t_body ->
+      begin match v with
+      | Any VVariant { label ; payload } ->
+        begin match Labels.Variant.Map.find_opt label t_body with
+        | Some t ->
+          let* w = wrap payload t in
+          return_any (VVariant { label ; payload = w })
+        | None -> 
+          fail @@ Mismatch "Wrap missing variant label"
+        end
+      | _ -> fail @@ Mismatch "Wrap non-variant"
+      end
+    | VTypeTuple (t1, t2) ->
+      begin match v with
+      | Any VTuple (v1, v2) ->
+        let* w1 = wrap v1 t1 in
+        let* w2 = wrap v2 t2 in
+        return_any (VTuple (w1, w2))
+      | _ -> fail @@ Mismatch "Wrap non-tuple"
+      end
+    | VTypeRefine { var = _ ; tau ; predicate = _ } ->
+      wrap v tau
+
   (*
     ---------------------------------------
     EVALUATE LIST OF STATEMENTS TO A MODULE
@@ -838,8 +986,8 @@ let eval
       in
       let cont =
         let* () = push_and_log_label Eval in
-        (* TODO: wrap *)
-        return (item, v)
+        let* w = wrap v tval in
+        return (item, w)
       in
       begin match l_opt with
       | Some Check -> check_t
@@ -864,8 +1012,8 @@ let eval
       in
       let cont =
         let* () = push_and_log_label Eval in
-        (* TODO: wrap *)
-        return (item, v)
+        let* w = wrap v tval in
+        return (item, w)
       in
       begin match l_opt with
       | Some Check -> check_t

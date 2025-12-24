@@ -4,6 +4,7 @@ type t =
   ; max_step       : Interp.Step.t
   ; global_timeout : Mtime.Span.t
   ; do_splay       : bool
+  ; do_wrap        : bool
   ; is_random      : bool
   }  
 
@@ -12,6 +13,7 @@ let default : t =
   ; max_step       = Step 100_000
   ; global_timeout = Mtime.Span.(10 * s)
   ; do_splay       = false
+  ; do_wrap        = false
   ; is_random      = false
   }  
 
@@ -29,8 +31,10 @@ let of_argv =
     & info ["t"; "timeout"] ~docv:"TIMEOUT" ~doc:"Global timeout seconds"
   and+ do_splay = 
     value & flag & info ["s"; "splay"] ~doc:"Do type splay"
+  and+ do_wrap = 
+    value & flag & info ["w"; "wrap"] ~doc:"Do wrap"
   and+ is_random = 
     value & flag & info ["r"; "random"] ~doc:"Randomize"
   in
-  { max_tree_depth ; max_step ; global_timeout ; do_splay ; is_random }
+  { max_tree_depth ; max_step ; global_timeout ; do_splay ; do_wrap ; is_random }
 

@@ -1,6 +1,5 @@
 (* TEST
   include refutable;
-  skip; # depends on wrap
 *)
 
 
@@ -13,6 +12,6 @@ let t a b i =
 let rec f (type a_ b_) (dependent i : int) (a : a_) (b : b_) : t a_ b_ i =
   if i == 0
   then b
-  else f a_ b_ (i - 1) b a (* ERROR: need to flip a_ and b_ *) (* This error depends on wrap, which is not yet implemented *)
+  else f a_ b_ (i - 1) b a (* ERROR: need to flip a_ and b_ *)
 
 let res = f int bool 2 0 true

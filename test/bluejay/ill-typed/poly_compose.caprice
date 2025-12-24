@@ -1,6 +1,5 @@
 (* TEST
   include refutable;
-  skip; # depends on wrap, which is not implemented
 *)
 
 (* Polymorphic compose *)
