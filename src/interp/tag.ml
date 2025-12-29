@@ -39,8 +39,11 @@ end
 include T
 
 let priority = function
-  | Label _ -> 1
-  | _ -> 0
+  | Label _ -> 1 (* TODO: we'd like to not count this when checking -- only generating *)
+  | (Left reason | Right reason) ->
+    match reason with
+    | GenList -> 1
+    | _ -> 0
 
 let to_string = function
   | Left reason -> Format.sprintf "Left (%s)" (reason_to_string reason)

@@ -177,17 +177,16 @@ module Make (Atom_cell : Utils.Comparable.P1) = struct
     | VTypeRefine { tau ; _ } -> contains_mu tau
 
   let default_constructor (variant_t : tval Labels.Variant.Map.t) : Labels.Variant.t =
-    (* Default is a variant constructor whose payload does not contain a mu type *)
-    Labels.Variant.Map.to_seq variant_t
-    |> Seq.find_map (fun (label, payload) ->
-        if not (contains_mu payload) then
-          Some label
-        else
-          None
-      )
-    |> function
-      | Some label -> label
-      | None -> fst @@ Labels.Variant.Map.choose variant_t
+    (* Default is a random variant constructor whose payload does not contain a mu type *)
+    let without_mu =
+      Labels.Variant.Map.filter (fun _ payload ->
+          not (contains_mu payload)
+        ) variant_t
+    in
+    Labels.Variant.Map.random_binding_opt
+      (if Labels.Variant.Map.is_empty without_mu then variant_t else without_mu)
+    |> Option.get
+    |> fst
 
   (* Some setup to write intensional equality *)
   (* let rec equal : type a. a t -> a t -> bool = fun a b ->

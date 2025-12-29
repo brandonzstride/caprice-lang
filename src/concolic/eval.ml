@@ -528,7 +528,7 @@ let eval
           | Some _ -> bad_input_env ()
           | None ->
             (* is in exploration mode, so we want to check them all *)
-            begin match Labels.Record.Set.choose_opt t_labels with
+            begin match Labels.Record.Set.random_opt t_labels with
             | Some main_label ->
               let* () =
                 let rec go = function

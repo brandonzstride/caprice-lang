@@ -12,9 +12,7 @@ module Variant = struct
 
   let to_string (VariantLabel id) = "`" ^ Ident.to_string id
 
-  module B = Baby.H.Make (T)
-  module Map = B.Map
-  module Set = B.Set
+  include Utils.Set_map.Make_H (T)
 end
 
 module Record = struct
@@ -30,7 +28,5 @@ module Record = struct
 
   let to_string (RecordLabel id) = Ident.to_string id
 
-  module B = Baby.H.Make (T)
-  module Map = B.Map
-  module Set = B.Set
+  include Utils.Set_map.Make_H (T)
 end
