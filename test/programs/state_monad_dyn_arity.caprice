@@ -1,0 +1,79 @@
+(* TEST
+  typing = no-error;
+  flags = " -t 3.0";
+  speed = slow;
+  typecheck;
+*)
+
+(* 
+  In this program; we have a function to recursively generate a type
+    (int -> int -> ... -> int)
+  depending on the size of the input.
+
+  Not only that; but we use a state monad to do it.
+*)
+
+let State_monad = struct
+  let m a s =
+    s -> { res : a ; new_state : s }
+
+  let bind x f =
+    fun s ->
+      let xs = x s in
+      f xs.res xs.new_state
+
+  let return x = 
+    fun s -> 
+      { res = x ; new_state = s }
+
+  let modify f =
+    fun s ->
+      let fs = f s in
+      { res = fs ; new_state = fs }
+
+  let read = fun s -> { res = s ; new_state = s }
+
+  let run x s =
+    (x s).res
+end
+
+let confirm_type_of_state_monad 
+  : (type a b s) -> let m = State_monad.m in sig
+      val read : m s s
+      val bind : m a s -> (a -> m b s) -> m b s
+      val return : a -> m a s
+      val modify : (s -> s) -> m s s
+      val run : m a s -> s -> a 
+    end
+  = fun _ _ _ -> State_monad
+
+(*
+  This is a neat generation of a type, using a state monad to build it
+*)
+let t n = 
+  int -> (
+    let rec loop acc_m =
+      State_monad.bind (State_monad.modify (fun i -> i - 1)) (fun i ->
+        if i <= 1 
+        then acc_m
+        else
+          State_monad.bind acc_m (fun acc ->
+            loop (State_monad.return (int -> acc))
+          )
+      )
+    in
+    State_monad.run (loop (State_monad.return int)) n
+    (* EXAMPLE ERROR: don't use run. Just apply state by self (and thereby forget to project the result from the record) *)
+    (* But such an error is instant to catch just in the generation of a value with type t *)
+  )
+
+(*
+  Now use the cool type
+*)
+let main (dependent n : int) (f : t n) : (int -> int) =
+  let rec loop i = 
+    if i <= 0
+    then f
+    else loop (i - 1) i
+  in
+  loop (n - 2)
