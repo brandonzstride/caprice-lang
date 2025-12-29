@@ -134,7 +134,7 @@ end) = struct
   let step : (Step.t, 'e) t =
     { run = fun ~reject:_ ~accept state step _ _ -> accept step state step }
 
-  let[@inline always] incr_step ~(max_step : Step.t) : unit m = 
+  let[@inline always][@specialise] incr_step ~(max_step : Step.t) : unit m = 
     { run = fun ~reject ~accept state step _ _ ->
         let step = Step.next step in
         if Step.(step > max_step)
@@ -149,7 +149,7 @@ end) = struct
         | Some v -> accept v state step
     }
 
-  let[@inline always] fork (m : 'e u) (fork_ctx : Ctx.t) (k : 'e -> 'a m)
+  let[@inline always][@specialise] fork (m : 'e u) (fork_ctx : Ctx.t) (k : 'e -> 'a m)
     ~(setup_state : State.t -> State.t) 
     ~(restore_state : 'e -> og:State.t -> forked_state:State.t -> State.t) 
     : 'a m =

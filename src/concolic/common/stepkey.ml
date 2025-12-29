@@ -5,7 +5,7 @@ module T = struct
   type t = Stepkey of Step.t [@@unboxed]
     [@@deriving eq, ord]
 
-  let uid (Stepkey step) = Step.uid step
+  let[@inline always] uid (Stepkey step) = Step.uid step
 end
 
 include T

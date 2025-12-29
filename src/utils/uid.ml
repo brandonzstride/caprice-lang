@@ -6,8 +6,8 @@ end
 
 include T
 
-let of_int i = Uid i
-let to_int (Uid i) = i
+let[@inline always] of_int i = Uid i
+let[@inline always] to_int (Uid i) = i
 
 let counter = Counter.create ()
 
