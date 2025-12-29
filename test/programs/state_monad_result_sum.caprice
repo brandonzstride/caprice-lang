@@ -19,9 +19,9 @@ let T = { t : type }
 
 let F : (State : T) -> (Err : T) -> sig
   val m : type -> type
-  val bind : (a : type) -> (b : type) -> m a -> (a -> m b) -> m b (* having `m b` twice is safe here *)
-  val return : (a : type) -> a -> m a
-  val fail   : (a : type) -> Err.t -> m a
+  val bind : (type a b) -> m a -> (a -> m b) -> m b (* having `m b` twice is safe here *)
+  val return : (type a) -> a -> m a
+  val fail   : (type a) -> Err.t -> m a
   val read   : m State.t
   val modify : (State.t -> State.t) -> m unit
 end =
