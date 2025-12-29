@@ -1,5 +1,5 @@
 .PHONY: test
 test:
-	dune test --no-buffer
+	dune test --no-buffer --force
 clean:
 	dune clean

@@ -32,7 +32,9 @@ let make_test (dir : string) : unit Alcotest.test option =
   match find_caprice_files dir with
   | [] -> None
   | ls -> Option.some (
-    dir, List.filter_map Caprice_test.Ctl_semantics.make_test ls
+    dir, 
+    List.sort String.compare ls
+    |> List.filter_map Caprice_test.Ctl_semantics.make_test
   )
 
 let () = Alcotest.run "test-caprice" (

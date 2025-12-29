@@ -2,6 +2,8 @@
   include refutable;
 *)
 
+(* Is this slow just because the negative case diverges and takes a while? *)
+
 (* error is fixed when `n` param for `main` is non-negative *)
 
 let rec f g x =

@@ -12,7 +12,10 @@ end) = struct
       reject:('e -> State.t -> Step.t -> 'r) ->
       accept:('a -> State.t -> Step.t -> 'r) ->
       State.t -> Step.t -> Env.t -> Ctx.t -> 'r
-  }
+  } [@@unboxed]
+  (* With flambda and compiler flag O3, it is faster to unbox. In all other
+    combinations (of regular compiler, O3, flambda without O3), it is faster
+    to leave this boxed. *)
 
   let[@inline always][@specialise] bind (x : ('a, 'e) t) (f : 'a -> ('b, 'e) t) : ('b, 'e) t =
     { run =

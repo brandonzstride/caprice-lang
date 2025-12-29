@@ -112,6 +112,7 @@ let target_to_here : Target.t m =
       (Formula.BSet.union target.all_formulas (Path.formulas state.rev_stem))
       state.logged_inputs
       ~size:(Target.path_length target + List.length state.rev_stem)
+      ~priority:(target.priority + Path.priority state.rev_stem)
 
 let fork (forked_m : Eval_result.t u) : unit m =
   let* target = target_to_here in

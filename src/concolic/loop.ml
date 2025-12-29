@@ -3,21 +3,23 @@ open Common
 
 let make_targets ~(max_tree_depth : int) (target : Target.t)
   (stem : Path.t) (ienv : Ienv.t) : Target.t list * bool =
-  Utils.List_utils.fold_left_until (fun (acc_set, len, formulas) pathunit ->
+  Utils.List_utils.fold_left_until (fun (acc_set, len, formulas, prio) pathunit ->
     if len > max_tree_depth then
       `Stop (acc_set, true)
     else
       let size = len + 1 in
+      let priority = prio + Path.priority_of_punit pathunit in
       match pathunit with
       | Path.Nonflipping formula ->
-        `Continue (acc_set, size, Formula.BSet.add formula formulas)
+        `Continue (acc_set, size, Formula.BSet.add formula formulas, priority)
       | Formula (formula, key) ->
         let new_ienv = Ienv.remove_greater key ienv in
         let new_target =
           Target.make (Formula.not_ formula) formulas new_ienv 
             ~size
+            ~priority
         in
-        `Continue (new_target :: acc_set, size, Formula.BSet.add formula formulas)
+        `Continue (new_target :: acc_set, size, Formula.BSet.add formula formulas, priority)
       | Label { key ; label = { main = _ ; alts } } ->
         let new_ienv = Ienv.remove_greater key ienv in
         `Continue (
@@ -27,12 +29,13 @@ let make_targets ~(max_tree_depth : int) (target : Target.t)
               formulas
               (Ienv.add (KLabel key) alt_label new_ienv)
               ~size
+              ~priority:(prio + Interp.Label.priority alt_label)
             :: acc
           ) acc_set alts
-          , size, formulas
+          , size, formulas, priority
         )
-  ) (fun (acc_set, _, _) -> acc_set, false)
-  ([], Target.path_length target, target.all_formulas) stem
+  ) (fun (acc_set, _, _, _) -> acc_set, false)
+  ([], Target.path_length target, target.all_formulas, target.priority) stem
 
 let collect_logged_runs ~(max_tree_depth : int) (runs : Logged_run.t list) : Target.t list * bool * Answer.t =
   List.fold_left (fun (targets, is_pruned, answer) run ->

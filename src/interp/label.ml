@@ -22,6 +22,10 @@ end
 
 include T
 
+let priority = function
+  | Label _ -> 1
+  | _ -> 0
+
 let to_string = function
   | Check -> "Check"
   | Eval -> "Eval"

@@ -27,3 +27,12 @@ let formulas (t : t) : Formula.BSet.t =
     | Nonflipping formula -> Formula.BSet.add formula set
     | Label _ -> set
   ) Formula.BSet.empty t
+
+let priority_of_punit (u : punit) : int =
+  match u with
+  | Formula _ -> 1
+  | Nonflipping _ -> 0
+  | Label { label = { main ; _ } ; _ } -> Interp.Label.priority main
+
+let priority (p : t) : int =
+  List.fold_left (fun acc u -> acc + priority_of_punit u) 0 p

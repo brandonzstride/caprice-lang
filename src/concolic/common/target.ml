@@ -4,17 +4,19 @@ type t =
   ; all_formulas : Formula.BSet.t
   ; i_env : Ienv.t
   ; size : int
-  ; id : Utils.Uid.t }
+  ; id : Utils.Uid.t
+  ; priority : int }
 
 let empty : t = 
   { target_formula = Formula.trivial
   ; all_formulas = Formula.BSet.empty
   ; i_env = Ienv.empty
   ; size = 0
-  ; id = Utils.Uid.make_new () }
+  ; id = Utils.Uid.make_new ()
+  ; priority = 0 }
 
 let make (last_formula : bool Formula.t) (other_formulas : Formula.BSet.t) 
-  (i_env : Ienv.t) ~(size : int) : t =
+  (i_env : Ienv.t) ~(size : int) ~(priority : int) : t =
   { target_formula = 
     if Formula.is_const last_formula
     then last_formula
@@ -22,7 +24,8 @@ let make (last_formula : bool Formula.t) (other_formulas : Formula.BSet.t)
   ; all_formulas = Formula.BSet.add last_formula other_formulas
   ; i_env 
   ; size 
-  ; id = Utils.Uid.make_new () }
+  ; id = Utils.Uid.make_new ()
+  ; priority }
 
 let compare a b = 
   Utils.Uid.compare a.id b.id
