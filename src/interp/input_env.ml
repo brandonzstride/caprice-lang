@@ -6,11 +6,11 @@ module Make (K : Smt.Symbol.KEY) = struct
     type _ t =
       | KBool : K.t -> bool t
       | KInt : K.t -> int t
-      | KLabel : K.t -> Label.t t
+      | KTag : K.t -> Tag.t t
 
     let make_bool k = KBool k
     let make_int k = KInt k
-    let make_label k = KLabel k
+    let make_tag k = KTag k
   end
 
   type t = Input.t Utils.Uid.Map.t
@@ -25,14 +25,14 @@ module Make (K : Smt.Symbol.KEY) = struct
     match key with
     | KBool k -> find_and_extract_exn Input.bool_exn k m
     | KInt k -> find_and_extract_exn Input.int_exn k m
-    | KLabel k -> find_and_extract_exn Input.label_exn k m
+    | KTag k -> find_and_extract_exn Input.tag_exn k m
 
   let add (type a) (key : a Key.t) (input : a) (m : t) : t =
     let add k i = Utils.Uid.Map.add (K.uid k) i m in
     match key with
     | KBool k -> add k (Input.IBool input)
     | KInt k -> add k (Input.IInt input)
-    | KLabel k -> add k (Input.ILabel input)
+    | KTag k -> add k (Input.ITag input)
 
   let extend (base_map : t) (extending_map : t) : t =
     Utils.Uid.Map.union (fun _ _ v -> Some v)

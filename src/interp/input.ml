@@ -4,7 +4,7 @@ exception ExtractionException
 type t =
   | IBool of bool
   | IInt of int
-  | ILabel of Label.t
+  | ITag of Tag.t
   [@@deriving eq, ord]
 
 let bool_opt = function
@@ -15,8 +15,8 @@ let int_opt = function
   | IInt i -> Some i
   | _ -> None
 
-let label_opt = function
-  | ILabel l -> Some l
+let tag_opt = function
+  | ITag t -> Some t
   | _ -> None
 
 let bool_exn = function
@@ -27,11 +27,11 @@ let int_exn = function
   | IInt i -> i
   | _ -> raise ExtractionException
 
-let label_exn = function
-  | ILabel l -> l
+let tag_exn = function
+  | ITag t -> t
   | _ -> raise ExtractionException
 
 let to_string = function
   | IBool b -> Bool.to_string b
   | IInt i -> Int.to_string i
-  | ILabel l -> Label.to_string l
+  | ITag t -> Tag.to_string t

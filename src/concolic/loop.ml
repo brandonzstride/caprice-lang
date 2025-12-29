@@ -20,16 +20,16 @@ let make_targets ~(max_tree_depth : int) (target : Target.t)
             ~priority
         in
         `Continue (new_target :: acc_set, size, Formula.BSet.add formula formulas, priority)
-      | Label { key ; label = { main = _ ; alts } } ->
+      | Tag { key ; tag = { main = _ ; alts } } ->
         let new_ienv = Ienv.remove_greater key ienv in
         `Continue (
-          List.fold_left (fun acc alt_label ->
+          List.fold_left (fun acc alt_tag ->
             Target.make 
               Formula.trivial
               formulas
-              (Ienv.add (KLabel key) alt_label new_ienv)
+              (Ienv.add (KTag key) alt_tag new_ienv)
               ~size
-              ~priority:(prio + Interp.Label.priority alt_label)
+              ~priority:(prio + Interp.Tag.priority alt_tag)
             :: acc
           ) acc_set alts
           , size, formulas, priority

@@ -39,30 +39,30 @@ let vanish : 'a m =
 let mismatch (msg : string) : 'a m =
   fail (Mismatch msg)
 
-(* We will also want to log this label in input env, but at what time? *)
-let push_label (label : Label.With_alt.t) : unit m =
+(* We will also want to log this tag in input env, but at what time? *)
+let push_tag (tag : Tag.With_alt.t) : unit m =
   let* step = step in
   let* { target } = read_ctx in
   modify (fun s -> 
     if s.branch_depth >= Target.path_length target
     then 
-      { s with rev_stem = Path.cons_label { key = Stepkey step ; label } s.rev_stem 
+      { s with rev_stem = Path.cons_tag { key = Stepkey step ; tag } s.rev_stem 
       ; branch_depth = s.branch_depth + 1 }
     else 
       { s with branch_depth = s.branch_depth + 1 }
   )
 
-(* Pushes the label to the path and logs it in input environment *)
-let push_and_log_label (label : Label.t) : unit m =
+(* Pushes the tag to the path and logs it in input environment *)
+let push_and_log_tag (tag : Tag.t) : unit m =
   let* step = step in
   let* { target } = read_ctx in
   modify (fun s -> 
     { s with
       branch_depth = s.branch_depth + 1
-    ; logged_inputs = Ienv.add (KLabel (Stepkey step)) label s.logged_inputs
+    ; logged_inputs = Ienv.add (KTag (Stepkey step)) tag s.logged_inputs
     ; rev_stem = 
       if s.branch_depth >= Target.path_length target
-      then Path.cons_label { key = Stepkey step ; label = { main = label ; alts = [] } } s.rev_stem 
+      then Path.cons_tag { key = Stepkey step ; tag = { main = tag ; alts = [] } } s.rev_stem 
       else s.rev_stem
     }
   )

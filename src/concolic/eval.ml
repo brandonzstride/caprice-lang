@@ -69,30 +69,30 @@ let eval
         eval_appl vfun v_arg
       | Any (VGenFun { domain ; _ } as vfun) ->
         let* v_arg = eval arg in
-        let* l = read_input make_label input_env in
+        let* l = read_input make_tag input_env in
         let check_f =
-          let* () = push_and_log_label Check in
+          let* () = push_and_log_tag @@ Left ApplGenFun in
           check v_arg domain
         in
         let eval_f =
-          let* () = push_and_log_label Eval in
+          let* () = push_and_log_tag @@ Right ApplGenFun in
           eval_appl vfun v_arg
         in
         begin match l with
-        | Some Check -> check_f
-        | Some Eval -> eval_f
+        | Some Left ApplGenFun -> check_f
+        | Some Right ApplGenFun -> eval_f
         | Some _ -> bad_input_env ()
         | None -> let* () = fork check_f in eval_f
         end
       | Any (VWrapped { data ; tau } as self_fun) ->
         let* v_arg = eval arg in
-        let* l = read_input make_label input_env in
+        let* l = read_input make_tag input_env in
         let check_f =
-          let* () = push_and_log_label Check in
+          let* () = push_and_log_tag @@ Left ApplWrappedFun in
           check v_arg tau.domain
         in
         let eval_f =
-          let* () = push_and_log_label Eval in
+          let* () = push_and_log_tag @@ Right ApplWrappedFun in
           let* tval =
             begin match tau.codomain with
             | CodValue tval -> return tval
@@ -104,8 +104,8 @@ let eval
           wrap v_res tval
         in
         begin match l with
-        | Some Check -> check_f
-        | Some Eval -> eval_f
+        | Some Left ApplWrappedFun -> check_f
+        | Some Right ApplWrappedFun -> eval_f
         | Some _ -> bad_input_env ()
         | None -> let* () = fork check_f in eval_f
         end
@@ -457,15 +457,15 @@ let eval
           check res cod_tval
         end
       | Any VGenFun { domain = domain' ; codomain = codomain' } ->
-        let* l_opt = read_input make_label input_env in
+        let* l_opt = read_input make_tag input_env in
         let check_left =
-          let* () = push_and_log_label Left in
+          let* () = push_and_log_tag @@ Left CheckGenFun in
           if domain = domain' then confirm else
           let* genned = gen domain in
           check genned domain'
         in
         let check_right =
-          let* () = push_and_log_label Right in
+          let* () = push_and_log_tag @@ Right CheckGenFun in
           if codomain = codomain' then confirm else
           let* cod_tval, cod_tval' =
             match codomain, codomain' with
@@ -488,8 +488,8 @@ let eval
           check genned' cod_tval
         in
         begin match l_opt with
-        | Some Left -> check_left
-        | Some Right -> check_right
+        | Some Left CheckGenFun -> check_left
+        | Some Right CheckGenFun -> check_right
         | Some _ -> bad_input_env ()
         | None -> let* () = fork check_left in check_right
         end
@@ -517,12 +517,12 @@ let eval
         then
           let push_and_check label =
             (* alternatives do not matter when we are running every label right now *)
-            let* () = push_and_log_label (Interp.Label.of_record_label label) in
+            let* () = push_and_log_tag (Interp.Tag.of_record_label label) in
             check
               (Labels.Record.Map.find label record_v)
               (Labels.Record.Map.find label record_t)
           in
-          let* l_opt = read_input make_label input_env in
+          let* l_opt = read_input make_tag input_env in
           match l_opt with
           | Some Label id -> push_and_check (Labels.Record.RecordLabel id)
           | Some _ -> bad_input_env ()
@@ -582,18 +582,18 @@ let eval
         end
       | Any VEmptyList -> confirm
       | Any VListCons (v_hd, v_tl) ->
-        let* l_opt = read_input make_label input_env in
+        let* l_opt = read_input make_tag input_env in
         let check_hd =
-          let* () = push_and_log_label Left in
+          let* () = push_and_log_tag @@ Left CheckList in
           check v_hd t
         in
         let check_tl =
-          let* () = push_and_log_label Right in
+          let* () = push_and_log_tag @@ Right CheckList in
           check (Any v_tl) (VTypeList t)
         in
         begin match l_opt with
-        | Some Left -> check_hd
-        | Some Right -> check_tl
+        | Some Left CheckList -> check_hd
+        | Some Right CheckList -> check_tl
         | Some _ -> bad_input_env ()
         | None -> let* () = fork check_hd in check_tl
         end
@@ -601,13 +601,13 @@ let eval
       end
     | VTypeRefine { var ; tau ; predicate = { captured ; env } } ->
       (* Value is not directly used here, so we don't force it *)
-      let* l_opt = read_input make_label input_env in
+      let* l_opt = read_input make_tag input_env in
       let check_t =
-        let* () = push_and_log_label Check in
+        let* () = push_and_log_tag @@ Left CheckRefinementType in
         check v tau
       in
       let eval_pred =
-        let* () = push_and_log_label Eval in
+        let* () = push_and_log_tag @@ Right CheckRefinementType in
         let* p = local (fun _ -> Env.set var v env) (eval captured) in
         match p with
         | Any VBool (b, s) ->
@@ -620,8 +620,8 @@ let eval
         | _ -> mismatch @@ non_bool_predicate p
       in
       begin match l_opt with
-      | Some Check -> check_t
-      | Some Eval -> eval_pred
+      | Some Left CheckRefinementType -> check_t
+      | Some Right CheckRefinementType -> eval_pred
       | Some _ -> bad_input_env ()
       | None -> let* () = fork check_t in eval_pred
       end
@@ -629,18 +629,18 @@ let eval
       let* v = force_value v in
       begin match v with
       | Any VTuple (v1, v2) ->
-        let* l_opt = read_input make_label input_env in
+        let* l_opt = read_input make_tag input_env in
         let check_left =
-          let* () = push_and_log_label Left in
+          let* () = push_and_log_tag @@ Left CheckTuple in
           check v1 t1
         in
         let check_right =
-          let* () = push_and_log_label Right in
+          let* () = push_and_log_tag @@ Right CheckTuple in
           check v2 t2
         in
         begin match l_opt with
-        | Some Left -> check_left
-        | Some Right -> check_right
+        | Some Left CheckTuple -> check_left
+        | Some Right CheckTuple -> check_right
         | Some _ -> bad_input_env ()
         | None -> let* () = fork check_left in check_right
         end
@@ -657,7 +657,7 @@ let eval
         then
           let push_and_check label =
             (* alternatives do not matter when we are running every label right now *)
-            let* () = push_and_log_label (Interp.Label.of_record_label label) in
+            let* () = push_and_log_tag (Interp.Tag.of_record_label label) in
             let new_env, tau = 
               (* TODO: share this computation because it is redone on every fork *)
               Utils.List_utils.fold_left_until (fun env { Ast.item = label' ; tau } ->
@@ -671,7 +671,7 @@ let eval
             let* t = local (fun _ -> new_env) (eval_type tau) in
             check (Labels.Record.Map.find label module_v) t
           in
-          let* l_opt = read_input make_label input_env in
+          let* l_opt = read_input make_tag input_env in
           match l_opt with
           | Some Label id -> push_and_check (Labels.Record.RecordLabel id)
           | Some _ -> bad_input_env ()
@@ -702,20 +702,20 @@ let eval
         ~data:(fun _ -> refute)
         ~typeval:(fun tval' ->
           if tval' = tval then confirm else
-          let* l_opt = read_input make_label input_env in
+          let* l_opt = read_input make_tag input_env in
           let check_subset =
-            let* () = push_and_log_label Left in
+            let* () = push_and_log_tag @@ Left CheckSingletype in
             let* genned = gen tval' in
             check genned tval
           in
           let check_superset =
-            let* () = push_and_log_label Right in
+            let* () = push_and_log_tag @@ Right CheckSingletype in
             let* genned = gen tval in
             check genned tval'
           in
           match l_opt with
-          | Some Left -> check_subset
-          | Some Right -> check_superset
+          | Some Left CheckSingletype -> check_subset
+          | Some Right CheckSingletype -> check_superset
           | Some _ -> bad_input_env ()
           | None -> let* () = fork check_subset in check_superset
         )
@@ -759,18 +759,18 @@ let eval
     | VTypeVariant variant_t ->
       let t_labels = Labels.Variant.B.domain variant_t in
       let* l =
-        read_and_log_input_with_default make_label input_env
-          ~default:(default_constructor variant_t |> Interp.Label.of_variant_label)
+        read_and_log_input_with_default make_tag input_env
+          ~default:(default_constructor variant_t |> Interp.Tag.of_variant_label)
       in
       begin match l with
       | Label id ->
         let to_gen = Labels.Variant.of_ident id in
         let t = Labels.Variant.Map.find to_gen variant_t in
         let* () =
-          push_label Interp.Label.With_alt.{ main = l ; alts =
+          push_tag Interp.Tag.With_alt.{ main = l ; alts =
             Labels.Variant.Set.remove to_gen t_labels
             |> Labels.Variant.Set.to_list
-            |> List.map Interp.Label.of_variant_label
+            |> List.map Interp.Tag.of_variant_label
           }
         in
         let* payload = gen t in
@@ -824,13 +824,13 @@ let eval
       return_any tval
 
   and force_gen_list (body : Cvalue.tval) : Cvalue.any m =
-    let* l = read_and_log_input_with_default make_label input_env ~default:Left in
+    let* l = read_and_log_input_with_default make_tag input_env ~default:(Left GenList) in
     match l with
-    | Left ->
-      let* () = push_label Interp.Label.With_alt.left in
+    | Left GenList ->
+      let* () = push_tag Interp.Tag.With_alt.{ main = Left GenList ; alts = [ Right GenList ] } in
       return_any VEmptyList
-    | Right ->
-      let* () = push_label Interp.Label.With_alt.right in
+    | Right GenList ->
+      let* () = push_tag Interp.Tag.With_alt.{ main = Right GenList ; alts = [ Left GenList ] } in
       let* hd = gen body in
       let* Any tl = gen (VTypeList body) in
       (* MAGIC: Safe because always returns data, even though lazily generated list is technically "neither" *)
@@ -979,19 +979,19 @@ let eval
     | SLet { var = VarTyped { item ; tau } ; defn } ->
       let* tval = eval_type tau in
       let* v = eval defn in
-      let* l_opt = read_input make_label input_env in
+      let* l_opt = read_input make_tag input_env in
       let check_t =
-        let* () = push_and_log_label Check in
+        let* () = push_and_log_tag @@ Left CheckLetExpr in
         check v tval
       in
       let cont =
-        let* () = push_and_log_label Eval in
+        let* () = push_and_log_tag @@ Right CheckLetExpr in
         let* w = wrap v tval in
         return (item, w)
       in
       begin match l_opt with
-      | Some Check -> check_t
-      | Some Eval -> cont
+      | Some Left CheckLetExpr -> check_t
+      | Some Right CheckLetExpr -> cont
       | Some _ -> bad_input_env ()
       | None -> let* () = fork check_t in cont
       end
@@ -1005,19 +1005,19 @@ let eval
         else
           return_any (VFunFix { fvar = item ; param ; closure = { captured = defn ; env } })
       in
-      let* l_opt = read_input make_label input_env in
+      let* l_opt = read_input make_tag input_env in
       let check_t = 
-        let* () = push_and_log_label Check in
+        let* () = push_and_log_tag @@ Left CheckLetExpr in
         check v tval
       in
       let cont =
-        let* () = push_and_log_label Eval in
+        let* () = push_and_log_tag @@ Right CheckLetExpr in
         let* w = wrap v tval in
         return (item, w)
       in
       begin match l_opt with
-      | Some Check -> check_t
-      | Some Eval -> cont
+      | Some Left CheckLetExpr -> check_t
+      | Some Right CheckLetExpr -> cont
       | Some _ -> bad_input_env ()
       | None -> let* () = fork check_t in cont
       end
