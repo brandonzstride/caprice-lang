@@ -11,9 +11,9 @@
     ["{", "}"],
     ["[", "]"],
     ["(", ")"],
-    ["struct", "end"],
-    ["sig", "end"],
-    ["with", "end"],
+    ["struct", " end"],
+    ["sig", " end"],
+    ["with", "\n|\nend"],
     ["(*", "*)"]
   ],
   "surroundingPairs": [
