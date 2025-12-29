@@ -4,8 +4,7 @@
 
 let t = (v : (`A of unit | `B of unit | `C of int)) ->
   match v with
-  | `A _ -> int
-  | `B _ -> int
+  | `A _ | `B _ -> int
   | `C _ -> list int
   end
 

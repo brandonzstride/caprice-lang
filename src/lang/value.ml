@@ -391,6 +391,15 @@ module Make (Atom_cell : Utils.Comparable.P1) = struct
               return (Match_bindings (Env.set id (Any v) env))
             | (No_match | Failure _) as r -> return r
           )
+        | PPatternOr p_ls, v ->
+          List.fold_left (fun acc_m pat ->
+            bind acc_m (fun acc ->
+              match acc with
+              | No_match ->
+                matches pat v
+              | _ -> return acc
+            )
+          ) (return No_match) p_ls
         | _, VLazy symbol ->
           bind (resolve_symbol symbol) (fun (Any v) ->
             matches p v

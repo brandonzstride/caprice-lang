@@ -86,8 +86,7 @@ let is_bst x =
   in
   let rec is_increasing_strictly ls =
     match ls with
-    | [] -> true
-    | _ :: [] -> true
+    | [] | _ :: [] -> true
     | hd :: (next :: _ as tl) -> hd < next && is_increasing_strictly tl
     end
   in

@@ -1,0 +1,34 @@
+(* TEST
+  include splayable;
+*)
+
+let ls = [ 1 ; 2 ; 3 ]
+
+let _ =
+  match ls with
+  | (a :: b :: c :: [] | b :: a :: []) ->
+    assert (a == 1 && b == 2)
+  end
+
+let f (x : `A of unit | `B of unit) : int =
+  match x with
+  | `A _
+  | `B _ -> 0
+  end
+
+let g (ls : list int) : int =
+  match ls with
+  | (_ :: (_ :: [] as tl) | _ :: ([] as tl)) ->
+    match tl with
+    | a :: [] -> a
+    | [] -> 0
+    end
+  | [] -> 1
+  | a :: b :: c :: _ -> a + b + c
+  end
+
+let h (x : `A of unit | `B of (`A of unit | `B of `A of unit)) : bool =
+  match x with
+  | `A _ | `B `A _ -> true
+  | `B `B `A _ -> false
+  end

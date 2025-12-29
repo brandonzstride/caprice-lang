@@ -36,7 +36,6 @@ let is_ordered (type a) (tree : t a) (compare : a -> a -> int) : bool =
     ) (`Empty ()) tree
   in
   match res with
-  | `Empty _ -> true
-  | `Ordered_with_min _ -> true
+  | `Empty _ | `Ordered_with_min _ -> true
   | `Not_ordered _ -> false
   end

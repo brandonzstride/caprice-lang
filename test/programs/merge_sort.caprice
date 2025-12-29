@@ -24,8 +24,7 @@ let rec list_length (type a) (ls : list a) : non_neg =
 
 let rec merge (type a) (p : list a) (q : list a) (cmp : a -> a -> int) : list a =
   match p, q with
-  | [], _ -> q
-  | _, [] -> p
+  | [], x | x, [] -> x
   | x :: p_tl, y :: q_tl ->
     if cmp x y < 0
     then x :: merge a p_tl q cmp
@@ -41,8 +40,7 @@ let rec merge (type a) (p : list a) (q : list a) (cmp : a -> a -> int) : list a 
 *)
 let rec merge_sort (type a) (ls : list a) (cmp : a -> a -> int) : list a =
   match ls with
-  | [] -> []
-  | hd :: [] -> [ hd ]
+  | [] | _ :: [] -> ls
   | _ ->
     let r = split_list a ls (list_length a ls / 2) in
     let sorted_left = merge_sort a r.first_n cmp in

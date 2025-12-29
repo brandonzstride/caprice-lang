@@ -5,16 +5,14 @@
 
 let rec fold2 (type a b acc) (ls1 : list a) (ls2 : list b) (init : acc) (f : acc -> a -> b -> acc) : acc =
   match ls1, ls2 with
-  | _, [] -> init
-  | [], _ -> init
+  | _, [] | [], _ -> init
   | hd1 :: tl1, hd2 :: tl2 ->
     fold2 a b acc tl1 tl2 (f init hd1 hd2) f
   end
 
 let rec map2 (type a b c) (ls1 : list a) (ls2 : list b) (f : a -> b -> c) : list c =
   match ls1, ls2 with
-  | _, [] -> []
-  | [], _ -> []
+  | _, [] | [], _ -> []
   | hd1 :: tl1, hd2 :: tl2 -> 
     f hd1 hd2 :: map2 a b c tl1 tl2 f
   end

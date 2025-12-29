@@ -1,5 +1,6 @@
 (* TEST
   include finite-well-typed;
+  flags = ""; # no wrap
 *)
 
 (* TODO: we would like this to be fast with wrap *)

@@ -78,6 +78,7 @@
 %nonassoc prec_if             /* Conditionals */
 %nonassoc prec_mu             /* mu types */
 %nonassoc OF                  /* variant type declarations */
+%left PIPE                    /* multiple patterns */
 %nonassoc AS                  /* pattern as ident */
 %left COMMA                   /* tuples */
 %right DOUBLE_PIPE            /* || for boolean or */
@@ -445,6 +446,11 @@ pattern:
     { PEmptyList }
   | UNDERSCORE
     { PAny }
+  | pattern PIPE pattern
+    { match $3 with
+      | Pattern.PPatternOr p_ls -> PPatternOr ($1 :: p_ls)
+      | p -> PPatternOr [ $1 ; p ]
+    }
   | ident
     { Pattern.PVariable $1 } (* not l_ident because we handle underscore immediately above *)
   | OPEN_PAREN pattern CLOSE_PAREN

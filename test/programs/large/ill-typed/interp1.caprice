@@ -112,18 +112,12 @@ let free_vars e bound =
       let acc2 = loop trip.second bound_ids acc1 in
       let acc3 = loop trip.third bound_ids acc2 in
       acc3
-    | _ -> 
-      let p = 
-        match e with
-        | `Plus p -> p
-        | `Minus p -> p
-        | `Equal p -> p
-        | `Appl p -> p
-        end
-      in
+    | `Plus p
+    | `Minus p
+    | `Equal p
+    | `Appl p ->
       let acc1 = loop p.left bound_ids acc in
-      let acc2 = loop p.right bound_ids acc1 in
-      acc2
+      loop p.right bound_ids acc1
     end
   in
   loop e bound []
@@ -213,14 +207,9 @@ let typecheck e =
         else Result.error
       )
     (* Simple expressions *)
-    | _ ->
-      let p =
-        match e with
-        | `Plus p -> p
-        | `Minus p -> p
-        | `Equal p -> p
-        end
-      in
+    | `Plus p
+    | `Minus p
+    | `Equal p -> p
       Result.bind (tc p.left) (fun tau_left ->
         Result.bind (tc p.right) (fun tau_right ->
           if

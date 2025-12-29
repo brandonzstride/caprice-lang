@@ -12,8 +12,7 @@ let is_nonempty lst =
 
 let rec ne_sorted lst =
   match lst with
-  | [] -> true
-  | a :: [] -> true
+  | [] | _ :: [] -> true
   | a :: (b :: _ as tl) ->
     a <= b && ne_sorted tl
   end
