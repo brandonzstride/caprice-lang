@@ -1,0 +1,18 @@
+(* TEST
+  include refutable;
+*)
+
+let f (a : bool) (b : bool) (c : bool) : { b : bool | b } =
+  if a || b then
+    if a then
+      a
+    else
+      b
+  else
+    if a && b then
+      if c then
+        a
+      else
+        b
+    else
+      a || b || c (* ERROR: may be false *)

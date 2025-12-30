@@ -274,82 +274,61 @@ let eval
   *)
   and eval_binop (left : Ast.t) (op : Binop.t) (right : Ast.t) : Cvalue.any m =
     let* vleft = force_eval left in
-    match op with
-    | BAnd -> (* Handle short-circuit && *)
-      begin match vleft with
-      | Any VBool (true, s) ->
+    let eval_short_circuit vleft =
+      match vleft with
+      | Any VBool (b, s) when (not b && op = BAnd) || (b && op = BOr) ->
+        (* Cases here are: false AND rhs, true OR rhs *)
         (* The short-circuiting is effectively a branch, so log the formula *)
-        let* () = push_formula s in
+        let* () = push_formula (Smt.Formula.binop Equal s (Smt.Formula.const_bool b)) in
+        return vleft
+      | Any VBool (b, s) ->
+        (* Need to evaluate RHS here *)
+        let* () = push_formula (Smt.Formula.binop Equal s (Smt.Formula.const_bool b)) in
         let* vright = force_eval right in
         begin match vright with
         | Any VBool _ -> return vright
         | _ -> mismatch @@ bad_binop vleft op vright
         end
-      | Any VBool (false, s) ->
-        let* () = push_formula (Smt.Formula.not_ s) in
-        return vleft
-      | _ -> mismatch @@ bad_binop vleft op (Any VUnit) (* placeholder RHS for And *)
-      end
-    | BOr -> (* Handle short-circuit || *)
-      begin match vleft with
-      | Any VBool (true, s) ->
-        let* () = push_formula s in
-        return vleft
-      | Any VBool (false, s) ->
-        let* () = push_formula (Smt.Formula.not_ s) in
-        let* vright = force_eval right in
-        begin match vright with
-        | Any VBool _ -> return vright
-        | _ -> mismatch @@ bad_binop vleft op vright
-        end
-      | _ -> mismatch @@ bad_binop vleft op (Any VUnit) (* placeholder RHS for Or *)
-      end
+      | _ -> mismatch @@ bad_binop vleft op (Any VUnit) (* placeholder because there is no expr printing yet *)
+    in
+    match op with
+    | BAnd | BOr -> eval_short_circuit vleft
     | _ ->
       let* vright = force_eval right in
       let fail_binop () = (* delay this so as not to eagerly construct the string *)
         mismatch @@ bad_binop vleft op vright in
-      let value_binop a b =
-        let k f s1 s2 op =
-          return_any @@ f (Smt.Formula.binop op s1 s2)
-        in
-        let v_int n s = VInt (n, s) in
-        let v_bool n s = VBool (n, s) in
-        match op, a, b with
-        | BPlus        , VInt (n1, e1)  , VInt (n2, e2)              -> k (v_int (n1 + n2)) e1 e2 Plus
-        | BMinus       , VInt (n1, e1)  , VInt (n2, e2)              -> k (v_int (n1 - n2)) e1 e2 Minus
-        | BTimes       , VInt (n1, e1)  , VInt (n2, e2)              -> k (v_int (n1 * n2)) e1 e2 Times
-        | BEqual       , VInt (n1, e1)  , VInt (n2, e2)              -> k (v_bool (n1 = n2)) e1 e2 Equal
-        | BEqual       , VBool (b1, e1) , VBool (b2, e2)             -> k (v_bool (b1 = b2)) e1 e2 Equal
-        | BNeq         , VInt (n1, e1)  , VInt (n2, e2)              -> k (v_bool (n1 <> n2)) e1 e2 Not_equal
-        | BLessThan    , VInt (n1, e1)  , VInt (n2, e2)              -> k (v_bool (n1 < n2)) e1 e2 Less_than
-        | BLeq         , VInt (n1, e1)  , VInt (n2, e2)              -> k (v_bool (n1 <= n2)) e1 e2 Less_than_eq
-        | BGreaterThan , VInt (n1, e1)  , VInt (n2, e2)              -> k (v_bool (n1 > n2)) e1 e2 Greater_than
-        | BGeq         , VInt (n1, e1)  , VInt (n2, e2)              -> k (v_bool (n1 >= n2)) e1 e2 Greater_than_eq
-        (* | BOr          , VBool (b1, e1) , VBool (b2, e2)             -> k (v_bool (b1 || b2)) e1 e2 Or
-        | BAnd         , VBool (b1, e1) , VBool (b2, e2) -> return_any @@ VBool (b1 && b2, Smt.Formula.and_ [ e1 ; e2 ]) *)
-        | BDivide      , VInt (n1, e1)  , VInt (n2, e2) when n2 <> 0 ->
-          let* () = push_formula (Smt.Formula.binop Not_equal e2 (Smt.Formula.const_int 0)) in
-          k (v_int (n1 / n2)) e1 e2 Divide
-        | BModulus     , VInt (n1, e1)  , VInt (n2, e2) when n2 <> 0 ->
-          let* () = push_formula (Smt.Formula.binop Not_equal e2 (Smt.Formula.const_int 0)) in
-          k (v_int (n1 mod n2)) e1 e2 Modulus
-        | _ -> fail_binop ()
+      let k f s1 s2 op =
+        return_any @@ f (Smt.Formula.binop op s1 s2)
       in
-      handle_any vleft
-        ~data:(fun data_left ->
-          handle_any vright
-            ~data:(fun data_right -> value_binop data_left data_right)
-            ~typeval:(fun _ -> fail_binop ())
-        )
-        ~typeval:(fun type_left ->
-          handle_any vright
-            ~data:(fun _ -> fail_binop ())
-            ~typeval:(fun type_right ->
-              match op with
-              | BTimes -> return_any (VTypeTuple (type_left, type_right))
-              | _ -> fail_binop ()
-            )
-        )
+      let v_int n s = VInt (n, s) in
+      let v_bool n s = VBool (n, s) in
+      match op, vleft, vright with
+      | BPlus       , Any VInt (n1, e1) , Any VInt (n2, e2)  -> k (v_int (n1 + n2)) e1 e2 Plus
+      | BMinus      , Any VInt (n1, e1) , Any VInt (n2, e2)  -> k (v_int (n1 - n2)) e1 e2 Minus
+      | BTimes      , Any VInt (n1, e1) , Any VInt (n2, e2)  -> k (v_int (n1 * n2)) e1 e2 Times
+      | BEqual      , Any VInt (n1, e1) , Any VInt (n2, e2)  -> k (v_bool (n1 = n2)) e1 e2 Equal
+      | BEqual      , Any VBool (b1, e1), Any VBool (b2, e2) -> k (v_bool (b1 = b2)) e1 e2 Equal
+      | BNeq        , Any VInt (n1, e1) , Any VInt (n2, e2)  -> k (v_bool (n1 <> n2)) e1 e2 Not_equal
+      | BLessThan   , Any VInt (n1, e1) , Any VInt (n2, e2)  -> k (v_bool (n1 < n2)) e1 e2 Less_than
+      | BLeq        , Any VInt (n1, e1) , Any VInt (n2, e2)  -> k (v_bool (n1 <= n2)) e1 e2 Less_than_eq
+      | BGreaterThan, Any VInt (n1, e1) , Any VInt (n2, e2)  -> k (v_bool (n1 > n2)) e1 e2 Greater_than
+      | BGeq        , Any VInt (n1, e1) , Any VInt (n2, e2)  -> k (v_bool (n1 >= n2)) e1 e2 Greater_than_eq
+      | BDivide, Any VInt (n1, e1), Any VInt (n2, e2) when n2 <> 0 ->
+        let* () = push_formula (Smt.Formula.binop Not_equal e2 (Smt.Formula.const_int 0)) in
+        k (v_int (n1 / n2)) e1 e2 Divide
+      | BModulus, Any VInt (n1, e1), Any VInt (n2, e2) when n2 <> 0 ->
+        let* () = push_formula (Smt.Formula.binop Not_equal e2 (Smt.Formula.const_int 0)) in
+        k (v_int (n1 mod n2)) e1 e2 Modulus
+      | BTimes, Any v1, Any v2 ->
+        (* Make tuple if v1 and v2 are types. Note that integer muliplication is handled above. *)
+        handle v1
+          ~typeval:(fun t1 ->
+            handle v2
+              ~typeval:(fun t2 -> return_any @@ VTypeTuple (t1, t2))
+              ~data:(fun _ -> fail_binop ())
+          )
+          ~data:(fun _ -> fail_binop ())
+      | _ -> fail_binop ()
 
   (*
     ---------------------
