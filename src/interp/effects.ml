@@ -36,6 +36,8 @@ end) = struct
 
   type 'e u = (Utils.Empty.t, 'e) t (* u for "unsafe": it always errors *)
 
+  type 'e failing = { run_failing : 'a. ('a, 'e) t } [@@unboxed]
+
 
   let make_unsafe (x : 'a s) : ('a, 'e) t =
     { run = fun ~reject:_ ~accept state step env ctx ->

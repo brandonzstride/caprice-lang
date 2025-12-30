@@ -13,6 +13,8 @@ let bad_input_env : 'a. unit -> 'a = fun () ->
 open Cvalue.Error_messages
 open Ienv.Key
 
+type left = { left : 'a. 'a m }
+
 let eval
   (pgm : Ast.statement list)
   (input_env : Ienv.t)
@@ -24,6 +26,32 @@ let eval
   ~(do_wrap : bool)
   : Answer.t * Logged_run.t list
   =
+  (*
+    Reads a tag from the input environment. If the tag was planned,
+    then run the left or right accordingly (pushing the tag to this
+    path).
+    Otherwise, fork on the left and continue on the right.
+  *)
+  let fork_on_left (type a) ~(left : Eval_result.t failing) ~(right : a m) ~reason =
+    let* l_opt = read_input make_tag input_env in
+    match l_opt with
+    | Some Left reason' when reason = reason' -> 
+      let* () = push_and_log_tag @@ Left reason in
+      left.run_failing
+    | Some Right reason' when reason = reason' ->
+      let* () = push_and_log_tag @@ Right reason in
+      right
+    | Some _ ->
+      bad_input_env ()
+    | None ->
+      let* () = fork (
+        let* () = push_and_log_tag @@ Left reason in
+        left.run_failing
+      ) in
+      let* () = push_and_log_tag @@ Right reason in
+      right
+  in
+
   (*
     ----------------------------
     EVALUATE EXPRESSION TO VALUE 
@@ -69,46 +97,24 @@ let eval
         eval_appl vfun v_arg
       | Any (VGenFun { domain ; _ } as vfun) ->
         let* v_arg = eval arg in
-        let* l = read_input make_tag input_env in
-        let check_f =
-          let* () = push_and_log_tag @@ Left ApplGenFun in
-          check v_arg domain
-        in
-        let eval_f =
-          let* () = push_and_log_tag @@ Right ApplGenFun in
-          eval_appl vfun v_arg
-        in
-        begin match l with
-        | Some Left ApplGenFun -> check_f
-        | Some Right ApplGenFun -> eval_f
-        | Some _ -> bad_input_env ()
-        | None -> let* () = fork check_f in eval_f
-        end
+        fork_on_left ~reason:ApplGenFun
+          ~left:{ run_failing = check v_arg domain }
+          ~right:(eval_appl vfun v_arg)
       | Any (VWrapped { data ; tau } as self_fun) ->
         let* v_arg = eval arg in
-        let* l = read_input make_tag input_env in
-        let check_f =
-          let* () = push_and_log_tag @@ Left ApplWrappedFun in
-          check v_arg tau.domain
-        in
-        let eval_f =
-          let* () = push_and_log_tag @@ Right ApplWrappedFun in
-          let* tval =
-            begin match tau.codomain with
-            | CodValue tval -> return tval
-            | CodDependent (id, { captured ; env }) ->
-              local (fun _ -> Env.set id v_arg env) (eval_type captured)
-            end
-          in
-          let* v_res = eval_appl ~self_fun data v_arg in
-          wrap v_res tval
-        in
-        begin match l with
-        | Some Left ApplWrappedFun -> check_f
-        | Some Right ApplWrappedFun -> eval_f
-        | Some _ -> bad_input_env ()
-        | None -> let* () = fork check_f in eval_f
-        end
+        fork_on_left ~reason:ApplWrappedFun
+          ~left:{ run_failing = check v_arg tau.domain }
+          ~right:(
+            let* tval =
+              begin match tau.codomain with
+              | CodValue tval -> return tval
+              | CodDependent (id, { captured ; env }) ->
+                local (fun _ -> Env.set id v_arg env) (eval_type captured)
+              end
+            in
+            let* v_res = eval_appl ~self_fun data v_arg in
+            wrap v_res tval
+          )
       | _ -> mismatch @@ apply_non_function v_func
       end
     | EMatch { subject ; patterns } ->
@@ -457,42 +463,34 @@ let eval
           check res cod_tval
         end
       | Any VGenFun { domain = domain' ; codomain = codomain' } ->
-        let* l_opt = read_input make_tag input_env in
-        let check_left =
-          let* () = push_and_log_tag @@ Left CheckGenFun in
-          if domain = domain' then confirm else
-          let* genned = gen domain in
-          check genned domain'
-        in
-        let check_right =
-          let* () = push_and_log_tag @@ Right CheckGenFun in
-          if codomain = codomain' then confirm else
-          let* cod_tval, cod_tval' =
-            match codomain, codomain' with
-            | CodValue cod_tval, CodValue cod_tval' -> 
-              return (cod_tval, cod_tval')
-            | _ ->
-              let* genned = gen domain in
-              let evaluate cod =
-                match cod with
-                | CodValue t -> return t
-                | CodDependent (id, { captured ; env }) ->
-                  local (fun _ -> Env.set id genned env) (eval_type captured)
-              in
-              let* cod_tval = evaluate codomain in
-              let* cod_tval' = evaluate codomain' in
-              return (cod_tval, cod_tval')
-          in
-          if cod_tval = cod_tval' then confirm else
-          let* genned' = gen cod_tval' in
-          check genned' cod_tval
-        in
-        begin match l_opt with
-        | Some Left CheckGenFun -> check_left
-        | Some Right CheckGenFun -> check_right
-        | Some _ -> bad_input_env ()
-        | None -> let* () = fork check_left in check_right
-        end
+        fork_on_left ~reason:CheckGenFun
+          ~left:{ run_failing =
+            if domain = domain' then confirm else
+            let* genned = gen domain in
+            check genned domain'
+          }
+          ~right:(
+            if codomain = codomain' then confirm else
+            let* cod_tval, cod_tval' =
+              match codomain, codomain' with
+              | CodValue cod_tval, CodValue cod_tval' -> 
+                return (cod_tval, cod_tval')
+              | _ ->
+                let* genned = gen domain in
+                let evaluate cod =
+                  match cod with
+                  | CodValue t -> return t
+                  | CodDependent (id, { captured ; env }) ->
+                    local (fun _ -> Env.set id genned env) (eval_type captured)
+                in
+                let* cod_tval = evaluate codomain in
+                let* cod_tval' = evaluate codomain' in
+                return (cod_tval, cod_tval')
+            in
+            if cod_tval = cod_tval' then confirm else
+            let* genned' = gen cod_tval' in
+            check genned' cod_tval
+          )
       | Any VWrapped { data ; _ } ->
         check (Any data) t (* FIXME: actually consider the wrapping type *)
       | _ -> refute
@@ -582,68 +580,34 @@ let eval
         end
       | Any VEmptyList -> confirm
       | Any VListCons (v_hd, v_tl) ->
-        let* l_opt = read_input make_tag input_env in
-        let check_hd =
-          let* () = push_and_log_tag @@ Left CheckList in
-          check v_hd t_body
-        in
-        let check_tl =
-          let* () = push_and_log_tag @@ Right CheckList in
-          check (Any v_tl) t
-        in
-        begin match l_opt with
-        | Some Left CheckList -> check_hd
-        | Some Right CheckList -> check_tl
-        | Some _ -> bad_input_env ()
-        | None -> let* () = fork check_hd in check_tl
-        end
+        fork_on_left ~reason:CheckList
+          ~left:{ run_failing = check v_hd t_body }
+          ~right:(check (Any v_tl) t)
       | _ -> refute
       end
     | VTypeRefine { var ; tau ; predicate = { captured ; env } } ->
       (* Value is not directly used here, so we don't force it *)
-      let* l_opt = read_input make_tag input_env in
-      let check_t =
-        let* () = push_and_log_tag @@ Left CheckRefinementType in
-        check v tau
-      in
-      let eval_pred =
-        let* () = push_and_log_tag @@ Right CheckRefinementType in
-        let* p = local (fun _ -> Env.set var v env) (eval captured) in
-        match p with
-        | Any VBool (b, s) ->
-          if b then 
-            let* () = push_formula s in
-            confirm
-          else 
-            let* () = push_formula ~allow_flip:false (Smt.Formula.not_ s) in
-            refute
-        | _ -> mismatch @@ non_bool_predicate p
-      in
-      begin match l_opt with
-      | Some Left CheckRefinementType -> check_t
-      | Some Right CheckRefinementType -> eval_pred
-      | Some _ -> bad_input_env ()
-      | None -> let* () = fork check_t in eval_pred
-      end
+      fork_on_left ~reason:CheckRefinementType
+        ~left:{ run_failing = check v tau }
+        ~right:(
+          let* p = local (fun _ -> Env.set var v env) (eval captured) in
+          match p with
+          | Any VBool (b, s) ->
+            if b then 
+              let* () = push_formula s in
+              confirm
+            else 
+              let* () = push_formula ~allow_flip:false (Smt.Formula.not_ s) in
+              refute
+          | _ -> mismatch @@ non_bool_predicate p
+        )
     | VTypeTuple (t1, t2) ->
       let* v = force_value v in
       begin match v with
       | Any VTuple (v1, v2) ->
-        let* l_opt = read_input make_tag input_env in
-        let check_left =
-          let* () = push_and_log_tag @@ Left CheckTuple in
-          check v1 t1
-        in
-        let check_right =
-          let* () = push_and_log_tag @@ Right CheckTuple in
-          check v2 t2
-        in
-        begin match l_opt with
-        | Some Left CheckTuple -> check_left
-        | Some Right CheckTuple -> check_right
-        | Some _ -> bad_input_env ()
-        | None -> let* () = fork check_left in check_right
-        end
+        fork_on_left ~reason:CheckTuple
+          ~left:{ run_failing = check v1 t1 }
+          ~right:(check v2 t2)
       | _ -> refute
       end
     | VTypeModule { captured ; env } ->
@@ -702,22 +666,17 @@ let eval
         ~data:(fun _ -> refute)
         ~typeval:(fun tval' ->
           if tval' = tval then confirm else
-          let* l_opt = read_input make_tag input_env in
-          let check_subset =
-            let* () = push_and_log_tag @@ Left CheckSingletype in
-            let* genned = gen tval' in
-            check genned tval
-          in
-          let check_superset =
-            let* () = push_and_log_tag @@ Right CheckSingletype in
-            let* genned = gen tval in
-            check genned tval'
-          in
-          match l_opt with
-          | Some Left CheckSingletype -> check_subset
-          | Some Right CheckSingletype -> check_superset
-          | Some _ -> bad_input_env ()
-          | None -> let* () = fork check_subset in check_superset
+          fork_on_left ~reason:CheckSingletype
+            ~left:{ run_failing =
+              (* check subset *)
+              let* genned = gen tval' in
+              check genned tval
+            }
+            ~right:(
+              (* check superset *)
+              let* genned = gen tval in
+              check genned tval'
+            )
         )
 
   (*
@@ -979,22 +938,12 @@ let eval
     | SLet { var = VarTyped { item ; tau } ; defn } ->
       let* tval = eval_type tau in
       let* v = eval defn in
-      let* l_opt = read_input make_tag input_env in
-      let check_t =
-        let* () = push_and_log_tag @@ Left CheckLetExpr in
-        check v tval
-      in
-      let cont =
-        let* () = push_and_log_tag @@ Right CheckLetExpr in
-        let* w = wrap v tval in
-        return (item, w)
-      in
-      begin match l_opt with
-      | Some Left CheckLetExpr -> check_t
-      | Some Right CheckLetExpr -> cont
-      | Some _ -> bad_input_env ()
-      | None -> let* () = fork check_t in cont
-      end
+      fork_on_left ~reason:CheckLetExpr
+        ~left:{ run_failing = check v tval }
+        ~right:(
+          let* w = wrap v tval in
+          return (item, w)
+        )
     | SLetRec { var = VarTyped { item ; tau } ; param ; defn } ->
       let* tval = eval_type tau in
       let* env = read in
@@ -1005,22 +954,12 @@ let eval
         else
           return_any (VFunFix { fvar = item ; param ; closure = { captured = defn ; env } })
       in
-      let* l_opt = read_input make_tag input_env in
-      let check_t = 
-        let* () = push_and_log_tag @@ Left CheckLetExpr in
-        check v tval
-      in
-      let cont =
-        let* () = push_and_log_tag @@ Right CheckLetExpr in
-        let* w = wrap v tval in
-        return (item, w)
-      in
-      begin match l_opt with
-      | Some Left CheckLetExpr -> check_t
-      | Some Right CheckLetExpr -> cont
-      | Some _ -> bad_input_env ()
-      | None -> let* () = fork check_t in cont
-      end
+      fork_on_left ~reason:CheckLetExpr
+        ~left:{ run_failing = check v tval }
+        ~right:(
+          let* w = wrap v tval in
+          return (item, w)
+        )
 
   (*
     -------------------------------
