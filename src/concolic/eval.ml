@@ -568,28 +568,28 @@ let eval
         let* t_body = local (fun _ -> Env.set var (Any t) env) (eval_type captured) in
         check v t_body
       end
-    | VTypeList t ->
+    | VTypeList t_body ->
       begin match v with
       | Any VLazy s ->
         let* lazy_v = find_symbol s in
         begin match lazy_v with
-        | LValue v -> check v (VTypeList t) (* TODO: don't reconstruct *)
+        | LValue v -> check v t
         | LGenMu _ -> refute (* see mu todo *)
         | LGenList t' ->
-          if t' = t then confirm else
+          if t' = t_body then confirm else
           let* genned = gen t' in
-          check genned t
+          check genned t_body
         end
       | Any VEmptyList -> confirm
       | Any VListCons (v_hd, v_tl) ->
         let* l_opt = read_input make_tag input_env in
         let check_hd =
           let* () = push_and_log_tag @@ Left CheckList in
-          check v_hd t
+          check v_hd t_body
         in
         let check_tl =
           let* () = push_and_log_tag @@ Right CheckList in
-          check (Any v_tl) (VTypeList t)
+          check (Any v_tl) t
         in
         begin match l_opt with
         | Some Left CheckList -> check_hd

@@ -1,5 +1,6 @@
 
 - add wrap
+  (added, but need to specially check wrapped things and also wrap lazily generate things)
 - add deterministic functions
 - mutually recursive functions
 - mu type parameters (must be careful about divergence from eager evaluation of the type)
@@ -7,6 +8,5 @@
 - language docs
 - typechecking pipeline from splaying to non-splaying
   (and optional skip of splaying mode to check pure refutation performance)
-- refactor to have labels as different types so there is less `bad_input_env` stuff
-  (we want pattern checking exhaustiveness in left/right and check/eval cases)
+- check only one statement given an initial environment
 - port liquid haskell and idris tests
