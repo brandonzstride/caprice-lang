@@ -103,13 +103,7 @@ let eval
         fork_on_left ~reason:ApplWrappedFun
           ~left:{ run_failing = check v_arg tau.domain }
           ~right:(
-            let* tval =
-              begin match tau.codomain with
-              | CodValue tval -> return tval
-              | CodDependent (id, { captured ; env }) ->
-                local (fun _ -> Env.set id v_arg env) (eval_type captured)
-              end
-            in
+            let* tval = eval_codomain tau.codomain v_arg in
             let* v_res = eval_appl ~self_fun data v_arg in
             wrap v_res tval
           )
@@ -264,7 +258,7 @@ let eval
         ) (return Labels.Variant.Map.empty) ls
       in
       return_any (VTypeVariant variant_bodies)
-
+    
   (*
     ----------------------------------
     EVALUATE BINARY OPERATION TO VALUE
@@ -352,12 +346,8 @@ let eval
         |> Env.set param v_arg
       ) (eval captured)
     | VGenFun { domain = _ ; codomain } ->
-      begin match codomain with
-      | CodValue cod_tval -> gen cod_tval
-      | CodDependent (id, { captured ; env }) ->
-        let* cod_tval = local (fun _ -> Env.set id v_arg env) (eval_type captured) in
-        gen cod_tval
-      end
+      let* cod_tval = eval_codomain codomain v_arg in
+      gen cod_tval
     | _ -> mismatch @@ apply_non_function (Any v_func)
     
   (*
@@ -370,6 +360,22 @@ let eval
     handle_any v
       ~data:(fun d -> mismatch @@ non_type_value d)
       ~typeval:return
+
+  (*
+    --------------------------
+    EVALUATE FUNCTION CODOMAIN
+    --------------------------
+
+    Given a witness value of the domain type, evaluate the codomain
+    (whether it is already a type value or it depends on the witness)
+    to a type value.
+  *)
+  and eval_codomain (cod : Cvalue.fun_cod) (dom_witness : Cvalue.any) : Cvalue.tval m =
+    match cod with
+    | CodValue cod_tval ->
+      return cod_tval
+    | CodDependent (id, { captured ; env }) ->
+      local (fun _ -> Env.set id dom_witness env) (eval_type captured)
 
   (*
     -------------------------
@@ -419,12 +425,8 @@ let eval
       | Any VFunClosure { param ; closure = { captured ; env } } ->
         let* genned = gen domain in
         let* res = local (fun _ -> Env.set param genned env) (eval captured) in
-        begin match codomain with
-        | CodValue cod_tval -> check res cod_tval
-        | CodDependent (id, { captured ; env }) ->
-          let* cod_tval = local (fun _ -> Env.set id genned env) (eval_type captured) in
-          check res cod_tval
-        end
+        let* cod_tval = eval_codomain codomain genned in
+        check res cod_tval
       | (Any VFunFix { fvar ; param ; closure = { captured ; env } }) as vfun ->
         let* genned = gen domain in
         let* res = local (fun _ -> 
@@ -432,13 +434,8 @@ let eval
             |> Env.set param genned
           ) (eval captured)
         in
-        (* TODO: remove this duplication with the above *)
-        begin match codomain with
-        | CodValue cod_tval -> check res cod_tval
-        | CodDependent (id, { captured ; env }) ->
-          let* cod_tval = local (fun _ -> Env.set id genned env) (eval_type captured) in
-          check res cod_tval
-        end
+        let* cod_tval = eval_codomain codomain genned in
+        check res cod_tval
       | Any VGenFun { domain = domain' ; codomain = codomain' } ->
         fork_on_left ~reason:CheckGenFun
           ~left:{ run_failing =
@@ -454,14 +451,8 @@ let eval
                 return (cod_tval, cod_tval')
               | _ ->
                 let* genned = gen domain in
-                let evaluate cod =
-                  match cod with
-                  | CodValue t -> return t
-                  | CodDependent (id, { captured ; env }) ->
-                    local (fun _ -> Env.set id genned env) (eval_type captured)
-                in
-                let* cod_tval = evaluate codomain in
-                let* cod_tval' = evaluate codomain' in
+                let* cod_tval = eval_codomain codomain genned in
+                let* cod_tval' = eval_codomain codomain' genned in
                 return (cod_tval, cod_tval')
             in
             if cod_tval = cod_tval' then confirm else
