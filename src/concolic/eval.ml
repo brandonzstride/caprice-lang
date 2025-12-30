@@ -13,8 +13,6 @@ let bad_input_env : 'a. unit -> 'a = fun () ->
 open Cvalue.Error_messages
 open Ienv.Key
 
-type left = { left : 'a. 'a m }
-
 let eval
   (pgm : Ast.statement list)
   (input_env : Ienv.t)
