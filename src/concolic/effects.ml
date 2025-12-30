@@ -9,7 +9,7 @@ module State = struct
   type t = 
     { rev_stem : Path.t (* we will cons to the path instead of union a log *)
     ; logged_inputs : Ienv.t 
-    ; branch_depth : int (* only the branch depth while not yet at the target *)
+    ; path_len : Path_length.t (* total length of the path to this point (up to and including the stem) *)
     ; runs : Logged_run.t Utils.Diff_list.t
     ; lazy_values : Cvalue.lazy_v Cvalue.SymbolMap.t
     }
@@ -17,7 +17,7 @@ module State = struct
   let empty : t =
     { rev_stem = Path.empty
     ; logged_inputs = Ienv.empty
-    ; branch_depth = 0 
+    ; path_len = Path_length.zero
     ; runs = Utils.Diff_list.empty
     ; lazy_values = Cvalue.SymbolMap.empty
     }
@@ -44,12 +44,12 @@ let push_tag (tag : Tag.With_alt.t) : unit m =
   let* step = step in
   let* { target } = read_ctx in
   modify (fun s -> 
-    if s.branch_depth >= Target.path_length target
-    then 
-      { s with rev_stem = Path.cons_tag { key = Stepkey step ; tag } s.rev_stem 
-      ; branch_depth = s.branch_depth + 1 }
-    else 
-      { s with branch_depth = s.branch_depth + 1 }
+    { s with rev_stem = 
+      if Path_length.geq s.path_len (Target.path_length target) then
+        Path.cons_tag { key = Stepkey step ; tag } s.rev_stem 
+      else
+        s.rev_stem
+    ; path_len = Path_length.plus_int s.path_len (Tag.priority tag.main) }
   )
 
 (* Pushes the tag to the path and logs it in input environment *)
@@ -57,13 +57,13 @@ let push_and_log_tag (tag : Tag.t) : unit m =
   let* step = step in
   let* { target } = read_ctx in
   modify (fun s -> 
-    { s with
-      branch_depth = s.branch_depth + 1
+    { s with rev_stem =
+      if Path_length.geq s.path_len (Target.path_length target) then
+        Path.cons_tag { key = Stepkey step ; tag = { main = tag ; alts = [] } } s.rev_stem 
+      else
+        s.rev_stem
+    ; path_len = Path_length.plus_int s.path_len (Tag.priority tag)
     ; logged_inputs = Ienv.add (KTag (Stepkey step)) tag s.logged_inputs
-    ; rev_stem = 
-      if s.branch_depth >= Target.path_length target
-      then Path.cons_tag { key = Stepkey step ; tag = { main = tag ; alts = [] } } s.rev_stem 
-      else s.rev_stem
     }
   )
 
@@ -74,15 +74,15 @@ let push_formula ?(allow_flip : bool = true) (formula : (bool, Stepkey.t) Smt.Fo
     let* step = step in
     let* { target } = read_ctx in
     modify (fun s -> 
-      if s.branch_depth >= Target.path_length target
-      then 
-        { s with rev_stem =
-          if allow_flip
-          then Path.cons_formula formula (Stepkey step) s.rev_stem
-          else Path.cons_nonflipping formula s.rev_stem
-        ; branch_depth = s.branch_depth + 1 }
-      else
-        { s with branch_depth = s.branch_depth + 1 }
+      { s with rev_stem =
+        if Path_length.geq s.path_len (Target.path_length target) then
+          if allow_flip then
+            Path.cons_formula formula (Stepkey step) s.rev_stem
+          else
+            Path.cons_nonflipping formula s.rev_stem 
+        else
+          s.rev_stem
+      ; path_len = Path_length.plus_int s.path_len 1 }
     )
 
 let log_input (key : 'a Ienv.Key.t) (input : 'a) : unit m =
@@ -104,18 +104,26 @@ let read_and_log_input_with_default (make_key : Stepkey.t -> 'a Ienv.Key.t)
 let target_to_here : Target.t m =
   let* { target } = read_ctx in
   let* state = get in
-  if state.branch_depth < Target.path_length target then 
-    raise @@ InvariantException "Trying to fork the computation, but has not surpassed the original target"
-  else
-    return @@
-    Target.make Formula.trivial
-      (Formula.BSet.union target.all_formulas (Path.formulas state.rev_stem))
-      state.logged_inputs
-      ~size:(Target.path_length target + List.length state.rev_stem)
-      ~priority:(target.priority + Path.priority state.rev_stem)
+  (* Assertion fails when trying to fork the computation, but have not
+    surpassed the original target. *)
+  assert (Path_length.geq state.path_len (Target.path_length target));
+  return @@
+  Target.make Formula.trivial
+    (Formula.BSet.union target.all_formulas (Path.formulas state.rev_stem))
+    state.logged_inputs
+    ~path_length:state.path_len
 
 let fork (forked_m : Eval_result.t u) : unit m =
   let* target = target_to_here in
+  let* s = get in
+  let* ctx = read_ctx in
+  assert (
+    let Len n = s.path_len in
+    let Len n' = Target.path_length ctx.target in
+    n = n' + List.fold_left (fun acc punit ->
+      acc + Path.priority_of_punit punit
+      ) 0 s.rev_stem
+  );
   fork forked_m { target }
     ~setup_state:(fun state ->
       (* keeps all the logged runs *)

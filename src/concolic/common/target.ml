@@ -3,29 +3,26 @@ type t =
   { target_formula : bool Formula.t
   ; all_formulas : Formula.BSet.t
   ; i_env : Ienv.t
-  ; size : int
   ; id : Utils.Uid.t
-  ; priority : int }
+  ; path_length : Path_length.t }
 
 let empty : t = 
   { target_formula = Formula.trivial
   ; all_formulas = Formula.BSet.empty
   ; i_env = Ienv.empty
-  ; size = 0
   ; id = Utils.Uid.make_new ()
-  ; priority = 0 }
+  ; path_length = Path_length.zero }
 
 let make (last_formula : bool Formula.t) (other_formulas : Formula.BSet.t) 
-  (i_env : Ienv.t) ~(size : int) ~(priority : int) : t =
+  (i_env : Ienv.t) ~(path_length : Path_length.t) : t =
   { target_formula = 
     if Formula.is_const last_formula
     then last_formula
     else Formula.BSet.scc last_formula ~wrt:other_formulas
   ; all_formulas = Formula.BSet.add last_formula other_formulas
   ; i_env 
-  ; size 
   ; id = Utils.Uid.make_new ()
-  ; priority }
+  ; path_length }
 
 let compare a b = 
   Utils.Uid.compare a.id b.id
@@ -33,5 +30,5 @@ let compare a b =
 let equal a b = 
   Utils.Uid.equal a.id b.id
 
-let path_length ({ size ; _ } : t) : int =
-  size
+let path_length ({ path_length ; _ } : t) : Path_length.t =
+  path_length

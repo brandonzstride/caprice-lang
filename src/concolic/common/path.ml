@@ -28,11 +28,20 @@ let formulas (t : t) : Formula.BSet.t =
     | Tag _ -> set
   ) Formula.BSet.empty t
 
+(*
+  Nonflipping formulas must count for the priority because priority is
+  used for path length, and since a formula is flipped according to its
+  concrete value, not according to its position in the path tree, the
+  path length / priority would vary depending on values. We need path
+  length to be the same no matter which direction was taking along a
+  branch. This is mainly because the path length of a target should be
+  computed from the path, and that path does not know whether the formula
+  would be flipped had it taken a different direction.
+  We could fix this by noting whether the other direction would be flipped,
+  but this current fix (of saying all formulas count to path length) is
+  easiest.
+*)
 let priority_of_punit (u : punit) : int =
   match u with
-  | Formula _ -> 1
-  | Nonflipping _ -> 0
+  | Formula _ | Nonflipping _ -> 1
   | Tag { tag = { main ; _ } ; _ } -> Interp.Tag.priority main
-
-let priority (p : t) : int =
-  List.fold_left (fun acc u -> acc + priority_of_punit u) 0 p
