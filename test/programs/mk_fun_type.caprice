@@ -1,0 +1,28 @@
+(* TEST
+  include refutable;
+*)
+
+(* 
+  This is ill-typed because it alternates like
+    fun x ->
+      x ->
+        fun x -> 
+          x -> ...
+
+  We want
+    fun x1 ->
+      fun x2 ->
+        ...
+          x1 -> x2 -> ...
+*)
+let rec mk_fun_type n =
+  if n <= 1
+  then fun x -> x
+  else fun x ->
+    x -> mk_fun_type (n - 1) (* ERROR: see the comment above *)
+
+let f : mk_fun_type 3 int bool int =
+  fun i b ->
+    if b
+    then i
+    else 0 - i
