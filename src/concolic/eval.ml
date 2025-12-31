@@ -329,7 +329,8 @@ let eval
 
     Always takes the evaluation side. Does not do any checking.
     Does not push any labels corresponding to the evaluation.
-    Does not wrap the result.
+    Does not wrap the result. Does not accept wrapped values as
+    function to apply.
 
     ?self_fun is the optional value to put in the environment as
     the self for recursive functions, in case of wrapping.
@@ -340,11 +341,16 @@ let eval
     | VFunClosure { param ; closure = { captured ; env } } ->
       local (fun _ -> Env.set param v_arg env) (eval captured)
     | VFunFix { fvar ; param ; closure = { captured ; env } } ->
-      if do_splay then fail (Mismatch "Called rec fun while splaying") else
-      local (fun _ -> 
-        Env.set fvar (Any self_fun) env
-        |> Env.set param v_arg
-      ) (eval captured)
+      if do_splay && is_any_symbolic v_arg then
+        fail @@ Mismatch (
+          Format.sprintf "Called rec fun with symbolic value %s while splaying"
+            (Cvalue.any_to_string v_arg)
+          )
+      else
+        local (fun _ -> 
+          Env.set fvar (Any self_fun) env
+          |> Env.set param v_arg
+        ) (eval captured)
     | VGenFun { domain = _ ; codomain } ->
       let* cod_tval = eval_codomain codomain v_arg in
       gen cod_tval
@@ -422,18 +428,10 @@ let eval
     | VTypeFun { domain ; codomain } ->
       let* v = force_value v in
       begin match v with
-      | Any VFunClosure { param ; closure = { captured ; env } } ->
+      | Any (VFunClosure _ as vfun)
+      | Any (VFunFix _ as vfun) ->
         let* genned = gen domain in
-        let* res = local (fun _ -> Env.set param genned env) (eval captured) in
-        let* cod_tval = eval_codomain codomain genned in
-        check res cod_tval
-      | (Any VFunFix { fvar ; param ; closure = { captured ; env } }) as vfun ->
-        let* genned = gen domain in
-        let* res = local (fun _ -> 
-            Env.set fvar vfun env
-            |> Env.set param genned
-          ) (eval captured)
-        in
+        let* res = eval_appl vfun genned in
         let* cod_tval = eval_codomain codomain genned in
         check res cod_tval
       | Any VGenFun { domain = domain' ; codomain = codomain' } ->
@@ -453,7 +451,7 @@ let eval
             in
             cod_tval' <: cod_tval
           )
-      | Any VWrapped { data ; tau = { domain = domain' ; codomain = codomain' } } ->
+      | Any (VWrapped { data ; tau = { domain = domain' ; codomain = codomain' } } as self_fun) ->
         fork_on_left ~reason:CheckWrappedFun
           ~left:{ run_failing = domain <: domain' }
           ~right:(
@@ -461,23 +459,12 @@ let eval
               (this is almost just the "right" side of checking functions but
               with wrapping the result in the wrapping codomain'). *)
             match data with
-            | VFunClosure { param ; closure = { captured ; env } } ->
+            | VFunClosure _
+            | VFunFix _ ->
               let* genned = gen domain in
               let* cod_tval = eval_codomain codomain genned in (* note og codomain uses unwrapped value *)
               let* w = wrap genned domain' in
-              let* res = local (fun _ -> Env.set param w env) (eval captured) in
-              let* cod_tval' = eval_codomain codomain' w in
-              let* w_res = wrap res cod_tval' in
-              check w_res cod_tval
-            | VFunFix { fvar ; param ; closure = { captured ; env } } ->
-              let* genned = gen domain in
-              let* cod_tval = eval_codomain codomain genned in
-              let* w = wrap genned domain' in
-              let* res = local (fun _ -> 
-                  Env.set fvar (Any data) env
-                  |> Env.set param w
-                ) (eval captured)
-              in
+              let* res = eval_appl data ~self_fun genned in
               let* cod_tval' = eval_codomain codomain' w in
               let* w_res = wrap res cod_tval' in
               check w_res cod_tval

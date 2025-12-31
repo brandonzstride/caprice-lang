@@ -1,8 +1,5 @@
 (* TEST
-  typing = no-error;
-  flags += " -t 3.0";
-  speed = slow;
-  typecheck;
+  include splayable;
 *)
 
 let T n = sig
@@ -43,8 +40,9 @@ let Client : T 3 = struct
     ; accept : Visitor.t a result_type -> result_type }
 end
 
-let make_list f n = 
-  let rec loop i =
+(* Requires this type annotation, whereas the ill-typed version does not have this *)
+let make_list (type a) (f : int -> a) (n : int) : list a = 
+  let rec loop (i : int) : list a =
     if i == 0
     then []
     else f n :: loop (i - 1)
@@ -60,7 +58,7 @@ let rec make_tree (n : int) : Tree.t int =
       else
         `Node
         { v = n
-        ; children = make_list make_tree (n - 1) }
+        ; children = make_list (Tree.t int) make_tree (n - 1) }
   in
   ob ob
 
