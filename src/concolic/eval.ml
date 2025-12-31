@@ -438,11 +438,7 @@ let eval
         check res cod_tval
       | Any VGenFun { domain = domain' ; codomain = codomain' } ->
         fork_on_left ~reason:CheckGenFun
-          ~left:{ run_failing =
-            if domain = domain' then confirm else
-            let* genned = gen domain in
-            check genned domain'
-          }
+          ~left:{ run_failing = domain <: domain' }
           ~right:(
             if codomain = codomain' then confirm else
             let* cod_tval, cod_tval' =
@@ -455,12 +451,55 @@ let eval
                 let* cod_tval' = eval_codomain codomain' genned in
                 return (cod_tval, cod_tval')
             in
-            if cod_tval = cod_tval' then confirm else
-            let* genned' = gen cod_tval' in
-            check genned' cod_tval
+            cod_tval' <: cod_tval
           )
-      | Any VWrapped { data ; _ } ->
-        check (Any data) t (* FIXME: actually consider the wrapping type *)
+      | Any VWrapped { data ; tau = { domain = domain' ; codomain = codomain' } } ->
+        fork_on_left ~reason:CheckWrappedFun
+          ~left:{ run_failing = domain <: domain' }
+          ~right:(
+            (* TODO: remove this duplication with all the above cases
+              (this is almost just the "right" side of checking functions but
+              with wrapping the result in the wrapping codomain'). *)
+            match data with
+            | VFunClosure { param ; closure = { captured ; env } } ->
+              let* genned = gen domain in
+              let* w = wrap genned domain' in
+              let* res = local (fun _ -> Env.set param w env) (eval captured) in
+              let* cod_tval' = eval_codomain codomain' w in
+              let* w_res = wrap res cod_tval' in
+              let* cod_tval = eval_codomain codomain w in
+              check w_res cod_tval
+            | VFunFix { fvar ; param ; closure = { captured ; env } } ->
+              let* genned = gen domain in
+              let* w = wrap genned domain' in
+              let* res = local (fun _ -> 
+                  Env.set fvar (Any data) env
+                  |> Env.set param w
+                ) (eval captured)
+              in
+              let* cod_tval' = eval_codomain codomain' w in
+              let* w_res = wrap res cod_tval' in
+              let* cod_tval = eval_codomain codomain w in
+              check w_res cod_tval
+            | VGenFun { domain = _ ; codomain = codomain'' } ->
+                let* cod_tval, cod_tval', cod_tval'' =
+                  match codomain, codomain', codomain'' with
+                  | CodValue cod_tval, CodValue cod_tval', CodValue cod_tval'' -> 
+                    return (cod_tval, cod_tval', cod_tval'')
+                  | _ ->
+                    let* genned = gen domain in
+                    let* w = wrap genned domain' in
+                    let* cod_tval = eval_codomain codomain w in
+                    let* cod_tval' = eval_codomain codomain' w in
+                    let* cod_tval'' = eval_codomain codomain'' w in
+                    return (cod_tval, cod_tval', cod_tval'')
+                in
+                if cod_tval = cod_tval'' then confirm else
+                let* genned = gen cod_tval'' in
+                let* w = wrap genned cod_tval' in
+                check w cod_tval
+            | _ -> refute
+          )
       | _ -> refute
       end
     | VTypeVariant variant_t ->
@@ -526,9 +565,7 @@ let eval
           let* a = gen VType in (* fresh type to use as a stub *)
           let* t_body = local (fun _ -> Env.set var a env) (eval_type captured) in
           let* t_body' = local (fun _ -> Env.set var' a env') (eval_type captured') in
-          if t_body = t_body' then confirm else
-          let* genned = gen t_body' in
-          check genned t_body
+          t_body' <: t_body
         end
       | _ ->
         let* t_body = local (fun _ -> Env.set var (Any t) env) (eval_type captured) in
@@ -635,17 +672,26 @@ let eval
         ~typeval:(fun tval' ->
           if tval' = tval then confirm else
           fork_on_left ~reason:CheckSingletype
-            ~left:{ run_failing =
-              (* check subset *)
-              let* genned = gen tval' in
-              check genned tval
-            }
-            ~right:(
-              (* check superset *)
-              let* genned = gen tval in
-              check genned tval'
-            )
+            ~left:{ run_failing = tval' <: tval }
+            ~right:(tval <: tval')
         )
+
+  (*
+    -------------
+    CHECK SUBTYPE
+    -------------
+
+    [t1 <: t2] can be a refutation if t1 is not
+      a subtype of t2. It is a confirmation on failure to
+      find such refutation.
+  *)
+  and (<:) : 'a. Cvalue.tval -> Cvalue.tval -> 'a m =
+    fun t1 t2 ->
+      if t1 = t2 then
+        fail Confirmation
+      else
+        let* genned = gen t1 in
+        check genned t2
 
   (*
     -------------------------

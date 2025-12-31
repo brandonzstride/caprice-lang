@@ -1,0 +1,16 @@
+(* TEST
+  include finite-well-typed;
+*)
+
+(*
+module type A = sig type a end
+
+module F(X:A) = struct end
+module R = F(struct end[@warning "-73"]);;
+*)
+
+let A = sig val a : type end
+
+let F (X : A) : sig end = struct end
+
+let R = F (struct let a = abstract end)

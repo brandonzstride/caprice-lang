@@ -4,7 +4,7 @@
 
 
 (* this is how we gen an `a` when splaying types *)
-let rec gen (dependent a : type) : a =
+let rec gen (type a) : a =
   gen a
 
 (*

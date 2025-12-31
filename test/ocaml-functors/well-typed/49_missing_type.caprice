@@ -1,0 +1,22 @@
+(* TEST
+  include finite-well-typed;
+*)
+
+(*
+module G
+    (A : sig type 'a t = 'a * 'a end)
+    (B : sig
+       val f : 'a A.t -> 'a
+     end) =
+struct end
+
+module R = G(struct end)(struct let f (x,_) = x end)
+*)
+
+let G
+  (dependent A : sig val t : (type a) -> singletype { fst : a ; snd : a } end)
+  (dependent B : sig val f : (type a) -> A.t a -> a end)
+  : sig end =
+  struct end
+
+let R = G(struct let t a = { fst : a ; snd : a } end)(struct let f _ x = x.fst end)

@@ -8,7 +8,7 @@
     testsuite/tests/typing-poly/poly.ml
 *)
 
-let t = { id : (a : type) -> a -> a }
+let t = { id : (type a) -> a -> a }
 
 let id _ x = x
 

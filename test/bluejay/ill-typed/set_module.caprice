@@ -3,7 +3,7 @@
 *)
 
 
-let Set : (a : type) -> sig
+let Set : (type a) -> sig
   val t : type
   val emptyset : t
   val add : a -> t -> t

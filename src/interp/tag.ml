@@ -5,6 +5,7 @@ type reason =
   | CheckTuple          (* check left or right side of tuple *)
   | CheckSingletype     (* check subset or superset *)
   | CheckGenFun         (* check domain or codomain *)
+  | CheckWrappedFun     (* check domain or codomain of a wrapped function *)
   | CheckRefinementType (* check underlying type or evaluate the predicate *)
   | CheckLetExpr        (* type check a let-expression, or eval body *)
   | ApplGenFun          (* type check argument, or generate result *)
@@ -17,6 +18,7 @@ let reason_to_string = function
   | CheckTuple          -> "Check tuple"
   | CheckSingletype     -> "Check singletype"
   | CheckGenFun         -> "Check generated function"
+  | CheckWrappedFun     -> "Check wrapped function"
   | CheckRefinementType -> "Check refinement type"
   | CheckLetExpr        -> "Check let-expression"
   | ApplGenFun          -> "Apply generated function"

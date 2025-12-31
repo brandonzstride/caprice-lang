@@ -1,0 +1,6 @@
+This test directory contains every single ill-typed test, in order, from the OCaml repository's typing tests on functors at `testsuite/tests/typing-modules/functors.ml`.
+Each test has be translated to Caprice to preserve the meaning as much as possible. Each test also has a well-typed version.
+
+The OCaml tests seem to exercise the ability of the OCaml typechecker to give meaningful error messages. However, many are still interesting from an acceptance perspective: can the typechecker find the type error, and when the type error is removed, can the typechecker show that the program is well-typed?
+
+These tests rely on wrapping. The meaning of typing without wrapping is significantly different from OCaml, and the typing of these tests would change.
