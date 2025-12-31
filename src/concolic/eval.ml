@@ -463,14 +463,15 @@ let eval
             match data with
             | VFunClosure { param ; closure = { captured ; env } } ->
               let* genned = gen domain in
+              let* cod_tval = eval_codomain codomain genned in (* note og codomain uses unwrapped value *)
               let* w = wrap genned domain' in
               let* res = local (fun _ -> Env.set param w env) (eval captured) in
               let* cod_tval' = eval_codomain codomain' w in
               let* w_res = wrap res cod_tval' in
-              let* cod_tval = eval_codomain codomain w in
               check w_res cod_tval
             | VFunFix { fvar ; param ; closure = { captured ; env } } ->
               let* genned = gen domain in
+              let* cod_tval = eval_codomain codomain genned in
               let* w = wrap genned domain' in
               let* res = local (fun _ -> 
                   Env.set fvar (Any data) env
@@ -479,7 +480,6 @@ let eval
               in
               let* cod_tval' = eval_codomain codomain' w in
               let* w_res = wrap res cod_tval' in
-              let* cod_tval = eval_codomain codomain w in
               check w_res cod_tval
             | VGenFun { domain = _ ; codomain = codomain'' } ->
                 let* cod_tval, cod_tval', cod_tval'' =
@@ -488,10 +488,10 @@ let eval
                     return (cod_tval, cod_tval', cod_tval'')
                   | _ ->
                     let* genned = gen domain in
+                    let* cod_tval = eval_codomain codomain genned in
                     let* w = wrap genned domain' in
-                    let* cod_tval = eval_codomain codomain w in
                     let* cod_tval' = eval_codomain codomain' w in
-                    let* cod_tval'' = eval_codomain codomain'' w in
+                    let* cod_tval'' = eval_codomain codomain'' w in (* TODO: should this "w" be wrapped with domain''? *)
                     return (cod_tval, cod_tval', cod_tval'')
                 in
                 if cod_tval = cod_tval'' then confirm else
