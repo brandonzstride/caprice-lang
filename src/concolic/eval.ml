@@ -122,7 +122,7 @@ let eval
           | Match -> eval body
           | Match_bindings e -> local (fun env -> Env.extend env e) (eval body)
           | No_match -> find_match tl
-          | Failure msg -> fail (Mismatch msg)
+          | Failure msg -> escape (Mismatch msg)
           end
       in
       find_match patterns
@@ -200,7 +200,7 @@ let eval
           return_any VUnit
         else
           let* () = push_formula (Smt.Formula.not_ s) in
-          fail Assert_false
+          escape Assert_false
       | _ -> mismatch @@ assert_non_bool v
       end
     | EAssume e ->
@@ -212,7 +212,7 @@ let eval
           return_any VUnit
         else
           let* () = push_formula (Smt.Formula.not_ s) in
-          fail Vanish
+          escape Vanish
       | _ -> mismatch @@ assume_non_bool v
       end
     (* types *)
@@ -342,7 +342,7 @@ let eval
       local (fun _ -> Env.set param v_arg env) (eval captured)
     | VFunFix { fvar ; param ; closure = { captured ; env } } ->
       if do_splay && is_any_symbolic v_arg then
-        fail @@ Mismatch (
+        escape @@ Mismatch (
           Format.sprintf "Called rec fun with symbolic value %s while splaying"
             (Cvalue.any_to_string v_arg)
           )
@@ -389,8 +389,8 @@ let eval
     -------------------------
   *)
   and check : 'a. Cvalue.any -> Cvalue.tval -> 'a m = fun v t ->
-    let refute = fail (Refutation (v, t)) in
-    let confirm = fail Confirmation in
+    let refute = escape (Refutation (v, t)) in
+    let confirm = escape Confirmation in
     let* () = incr_step ~max_step in
     (* In just about every case except checking mu type, we want to force the value. *)
     (* Even though it is wordy, we do this forcing inside each case. *)
@@ -675,7 +675,7 @@ let eval
   and (<:) : 'a. Cvalue.tval -> Cvalue.tval -> 'a m =
     fun t1 t2 ->
       if t1 = t2 then
-        fail Confirmation
+        escape Confirmation
       else
         let* genned = gen t1 in
         check genned t2
@@ -706,7 +706,7 @@ let eval
       let* Step nonce = step in (* will use step for a fresh nonce *)
       return_any (VGenPoly { id ; nonce })
     | VTypeTop -> failwith "Unimplemented top gen"
-    | VTypeBottom -> fail Vanish
+    | VTypeBottom -> escape Vanish
     | VTypeRecord record_t ->
       let* genned_body =
         Record.fold (fun l t acc_m ->
@@ -751,7 +751,7 @@ let eval
         return v
       | Any VBool (false, s) ->
         let* () = push_formula (Smt.Formula.not_ s) in
-        fail Vanish
+        escape Vanish
       | _ -> mismatch @@ non_bool_predicate p
       end 
     | VTypeMu { var ; closure } ->
@@ -814,7 +814,7 @@ let eval
     | VTypeInt
     | VTypeBool
     | VTypeSingle _ -> return v
-    | VTypeBottom -> fail @@ Mismatch "Cannot wrap with bottom"
+    | VTypeBottom -> escape @@ Mismatch "Cannot wrap with bottom"
     | VTypeMu { var ; closure = { captured ; env } } ->
       (* TODO: handle splaying *)
       let* tval = local (fun _ -> Env.set var (Any t) env) (eval_type captured) in
@@ -827,7 +827,7 @@ let eval
         let* w_hd = wrap v_hd t_body in
         let* Any w_tl = wrap (Any v_tl) t in
         return_any (VListCons (w_hd, Obj.magic w_tl))
-      | _ -> fail @@ Mismatch "Wrap non-list with list type"
+      | _ -> escape @@ Mismatch "Wrap non-list with list type"
       end
     | VTypeFun tfun ->
       begin match v with
@@ -835,7 +835,7 @@ let eval
       | Any v' ->
         handle v'
           ~data:(fun data -> return_any (VWrapped { data ; tau = tfun }))
-          ~typeval:(fun _ -> fail @@ Mismatch "Wrap non-data with function type")
+          ~typeval:(fun _ -> escape @@ Mismatch "Wrap non-data with function type")
       end
     | VTypeRecord t_body ->
       begin match v with
@@ -847,11 +847,11 @@ let eval
             | Some v' -> 
               let* w = wrap v' t in
               return (Labels.Record.Map.add k w acc)
-            | None -> fail @@ Mismatch "Wrap missing record label"
+            | None -> escape @@ Mismatch "Wrap missing record label"
           ) t_body (return Labels.Record.Map.empty)
         in
         return_any (VRecord w_body)
-      | _ -> fail @@ Mismatch "Wrap non-record"
+      | _ -> escape @@ Mismatch "Wrap non-record"
       end
     | VTypeModule { captured = t_ls ; env } ->
       begin match v with
@@ -868,7 +868,7 @@ let eval
                 fold_labels (return @@ Labels.Record.Map.add item v acc) tl
               )
             | None ->
-              fail @@ Mismatch "Wrap missing module label"
+              escape @@ Mismatch "Wrap missing module label"
             end
         in
         let* wrapped_body =
@@ -877,7 +877,7 @@ let eval
           )
         in
         return_any (VModule wrapped_body)
-      | _ -> fail @@ Mismatch "Wrap non-module"
+      | _ -> escape @@ Mismatch "Wrap non-module"
       end
     | VTypeVariant t_body ->
       begin match v with
@@ -887,9 +887,9 @@ let eval
           let* w = wrap payload t in
           return_any (VVariant { label ; payload = w })
         | None -> 
-          fail @@ Mismatch "Wrap missing variant label"
+          escape @@ Mismatch "Wrap missing variant label"
         end
-      | _ -> fail @@ Mismatch "Wrap non-variant"
+      | _ -> escape @@ Mismatch "Wrap non-variant"
       end
     | VTypeTuple (t1, t2) ->
       begin match v with
@@ -897,7 +897,7 @@ let eval
         let* w1 = wrap v1 t1 in
         let* w2 = wrap v2 t2 in
         return_any (VTuple (w1, w2))
-      | _ -> fail @@ Mismatch "Wrap non-tuple"
+      | _ -> escape @@ Mismatch "Wrap non-tuple"
       end
     | VTypeRefine { var = _ ; tau ; predicate = _ } ->
       wrap v tau

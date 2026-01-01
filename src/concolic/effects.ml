@@ -34,10 +34,10 @@ include Monad
 module Matches = Cvalue.Make_match (Monad)
 
 let vanish : 'a m =
-  fail Vanish
+  escape Vanish
 
 let mismatch (msg : string) : 'a m =
-  fail (Mismatch msg)
+  escape (Mismatch msg)
 
 (* We will also want to log this tag in input env, but at what time? *)
 let push_tag (tag : Tag.With_alt.t) : unit m =
@@ -144,7 +144,7 @@ let fork (forked_m : Eval_result.t u) : unit m =
     )
     (fun res ->
       if Eval_result.is_signal_to_stop res
-      then fail res (* propagate up the failure *)
+      then escape res (* propagate up the failure *)
       else return ())
 
 (* INVARIANT: the symbol must always exist *)

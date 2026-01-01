@@ -89,11 +89,8 @@ end) = struct
     -----
   *)
 
-  let[@inline always][@specialise] fail (env : Err.t) : 'a m =
+  let[@inline always][@specialise] escape (env : Err.t) : 'a m =
     { run = fun ~reject ~accept:_ state step _ _ -> reject env state step }
-
-  let fail_map (f : State.t -> Err.t * State.t) : 'a m = 
-    { run = fun ~reject ~accept:_ state step _ _ -> let e, s = f state in reject e s step }
 
   let[@inline always] handle_error (x : ('a, 'e1) t) (ok : 'a -> ('b, 'e2) t) (err : Err.t -> ('b, 'e2) t) : ('b, 'e2) t =
     { run = fun ~reject ~accept state step env ctx ->
