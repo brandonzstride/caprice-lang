@@ -1,19 +1,18 @@
 (* TEST
-  typing = no-error;
-  flags += " -t 2.0";
-  speed = slow;
-  typecheck;
+  include splayable;
 *)
 
-let rec mk_list n =
+let t = (x : int) -> { y : int | y >= x }
+
+let rec mk_list (n : int) : list t =
   if n <= 0
   then []   
   else (fun m -> m + n) :: mk_list (n - 1)
 
-let rec foldr f z xs =
+let rec foldr (type a acc) (f : a -> acc -> acc) (z : acc) (xs : list a) : acc =
   match xs with
   | [] -> z
-  | x :: xss -> f x (foldr f z xss)
+  | x :: xss -> f x (foldr a acc f z xss)
   end
 
 let compose f g =
@@ -22,4 +21,5 @@ let compose f g =
 
 let main (n : int) : { f : int -> int | f 0 >= 0 } =
   let xs = mk_list n in
-  foldr compose (fun x -> x) xs
+  foldr t t compose (fun x -> x) xs
+
