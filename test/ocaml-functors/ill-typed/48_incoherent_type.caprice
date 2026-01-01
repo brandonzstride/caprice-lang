@@ -1,6 +1,5 @@
 (* TEST
   include refutable;
-  skip; # because deterministic functions
 *)
 
 (*
@@ -25,9 +24,9 @@ include
     end)
 *)
 
-let F (dependent A : sig val t : type --> type end)
+let F (dependent A : sig val t : type -> type end)
   (B : sig
-    val t : type --> type
+    val t : type -> type
     val f : (type a) -> A.t a -> t a
   end) : sig end = struct end
 

@@ -1,0 +1,15 @@
+(* TEST
+  include splayable;
+*)
+
+let is_cons xs =
+  match xs with
+  | _ :: _ -> true
+  | _ -> false
+  end
+
+let apply_twice (type a) 
+  (f : (xs : list a | is_cons xs) -> { ys : list a | is_cons ys })
+  (xs : list a | is_cons xs) 
+  : { result : list a | is_cons result } =
+  f (f xs)

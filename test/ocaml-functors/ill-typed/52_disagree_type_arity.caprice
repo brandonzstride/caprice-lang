@@ -1,6 +1,5 @@
 (* TEST
   include refutable;
-  skip; # because deterministic functions
 *)
 
 (*
@@ -27,8 +26,8 @@ module _ =
 *)
 
 let H (dependent X : sig
-  val t : type --> type
-  val s : type --> type
+  val t : type -> type
+  val s : type -> type
 end) (Y : sig
   val f : (type a) -> X.s a -> a
 end) : sig end = struct end

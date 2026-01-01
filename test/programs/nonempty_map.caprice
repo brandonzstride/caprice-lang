@@ -1,0 +1,15 @@
+(* TEST
+  include splayable;
+*)
+
+let is_cons ls =
+  match ls with
+  | _ :: _ -> true
+  | _ -> false
+  end
+
+let rec map (type a b) (f : a -> b) (xs : list a | is_cons xs) : { xs : list b | is_cons xs } = 
+  match xs with
+  | x :: [] -> f x :: []
+  | x :: rest -> f x :: map a b f rest
+  end
