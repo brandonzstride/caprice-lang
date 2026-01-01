@@ -38,7 +38,7 @@ module Make (Atom_cell : Utils.Comparable.P1) = struct
     (* generated values *)
     | VGenFun : (typeval t, fun_cod) Funtype.t -> data t
     | VGenPoly : { id : int ; nonce : int } -> data t
-    | VLazy : symbol -> neither t (* lazily evaluated thing, so state must manage this *)
+    | VLazy : symbol -> data t (* lazily evaluated thing, so state must manage this *)
     (* wrapped values *)
     | VWrapped : { data : data t ; tau : (typeval t, fun_cod) Funtype.t }  -> data t
     (* type values only *)
@@ -66,13 +66,21 @@ module Make (Atom_cell : Utils.Comparable.P1) = struct
   and fun_cod =
     | CodValue of typeval t (* regular function codomain *)
     | CodDependent of Ident.t * Ast.t closure (* dependent function codomain *)
+
+  and any = Any : 'a t -> any [@@unboxed]
   
-  and lazy_v =
+  (*
+    See above that lazy values are data values. This is possibly a bad choice
+    because when forced, they can become type values. But this is not significantly
+    different than how an arbitrary expression evaluates to either a type value or
+    data value; we're unsure until we try to evaluate it. Similarly with a lazy
+    value. However, there are a few places (like lazily generated lists) where it
+    is nicer to store them as data values.
+  *)
+  type lazy_v =
     | LGenList of typeval t
     | LGenMu of { var : Ident.t ; closure : Ast.t closure }
     | LValue of any
-
-  and any = Any : 'a t -> any [@@unboxed]
 
   module Env = Env.Make (struct type t = any end)
 
@@ -100,6 +108,7 @@ module Make (Atom_cell : Utils.Comparable.P1) = struct
       | VListCons _
       | VGenFun _
       | VGenPoly _
+      | VLazy _
       | VWrapped _) as x -> data x
     | ( VType
       | VTypePoly _
@@ -117,7 +126,6 @@ module Make (Atom_cell : Utils.Comparable.P1) = struct
       | VTypeRefine _
       | VTypeTuple _
       | VTypeSingle _) as x -> typeval x
-    | VLazy _ -> failwith "Invariant failure: handling unforced lazy value as data or type"
 
   let[@inline always] handle_any (type a) (v : any) ~(data : data t -> a) ~(typeval : typeval t -> a) : a =
     map_any { f = handle ~data ~typeval } v

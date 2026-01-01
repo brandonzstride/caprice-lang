@@ -164,9 +164,7 @@ let eval
       | Any (VLazy symbol as tl) ->
         let* v_lazy = find_symbol symbol in
         begin match v_lazy with
-        | LGenList _ -> 
-          (* MAGIC: safe because lazy will evaluate to data eventually *)
-          cons_with_v1 (Obj.magic tl)
+        | LGenList _ -> cons_with_v1 tl
         | LValue Any (VEmptyList as tl)
         | LValue Any (VListCons _ as tl) -> cons_with_v1 tl
         | _ -> mismatch @@ cons_non_list v1 v2
@@ -553,7 +551,7 @@ let eval
       | Any VLazy s ->
         let* lazy_v = find_symbol s in
         begin match lazy_v with
-        | LValue v -> check v t
+        | LValue any_v -> check any_v t
         | LGenList _ -> refute (* TODO: make error message description; it will be cryptic like this *)
         | LGenMu { var = var' ; closure = { captured = captured' ; env = env' } } ->
           (* FIXME: these names (with the "prime") go the other direction as the spec *)
@@ -572,7 +570,7 @@ let eval
       | Any VLazy s ->
         let* lazy_v = find_symbol s in
         begin match lazy_v with
-        | LValue v -> check v t
+        | LValue any_v -> check any_v t
         | LGenMu _ -> refute (* see mu todo *)
         | LGenList t' ->
           if t' = t_body then confirm else
@@ -801,9 +799,10 @@ let eval
     | Right GenList ->
       let* () = push_tag Interp.Tag.With_alt.{ main = Right GenList ; alts = [ Left GenList ] } in
       let* hd = gen body in
-      let* Any tl = gen (VTypeList body) in
-      (* MAGIC: Safe because always returns data, even though lazily generated list is technically "neither" *)
-      return_any (VListCons (hd, Obj.magic tl))
+      let* Any v_tl = gen (VTypeList body) in
+      handle v_tl
+        ~data:(fun tl -> return_any @@ VListCons (hd, tl))
+        ~typeval:(fun _ -> raise @@ InvariantException "List generation makes a type value")
     | _ -> bad_input_env ()
 
   and force_gen_mu (var : Ident.t) (closure : Ast.t Cvalue.closure) : Cvalue.any m =
@@ -835,7 +834,9 @@ let eval
       | Any VListCons (v_hd, v_tl) ->
         let* w_hd = wrap v_hd t_body in
         let* Any w_tl = wrap (Any v_tl) t in
-        return_any (VListCons (w_hd, Obj.magic w_tl))
+        handle w_tl
+          ~data:(fun w_tl_data -> return_any (VListCons (w_hd, w_tl_data)))
+          ~typeval:(fun _ -> raise @@ InvariantException "Wrapped list is not data")
       | _ -> escape @@ Mismatch "Wrap non-list with list type"
       end
     | VTypeFun tfun ->
@@ -994,7 +995,7 @@ let eval
           let* genned = force_gen_list t in
           let* () = add_symbol symbol (LValue genned) in
           return genned
-        | LValue v -> return v
+        | LValue v_any -> return v_any
         end
       | _ -> return v
     else
