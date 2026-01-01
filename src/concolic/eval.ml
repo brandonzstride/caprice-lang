@@ -24,6 +24,14 @@ let eval
   ~(do_wrap : bool)
   : Answer.t * Logged_run.t list
   =
+  let read_and_log_bool () =
+    read_and_log_input_with_default make_bool input_env ~default:(default_bool ())
+  in
+
+  let read_and_log_int () =
+    read_and_log_input_with_default make_int input_env ~default:(default_int ())
+  in
+
   (*
     Reads a tag from the input environment. If the tag was planned,
     then run the left or right accordingly (pushing the tag to this
@@ -149,17 +157,18 @@ let eval
     | EListCons (e1, e2) ->
       let* v1 = eval e1 in
       let* v2 = eval e2 in (* don't force eval because want to allow cons to lazy list *)
+      let cons_with_v1 tl = return_any (VListCons (v1, tl)) in
       begin match v2 with
       | Any (VEmptyList as tl)
-      | Any (VListCons _ as tl) -> return_any (VListCons (v1, tl))
+      | Any (VListCons _ as tl) -> cons_with_v1 tl
       | Any (VLazy symbol as tl) ->
         let* v_lazy = find_symbol symbol in
         begin match v_lazy with
         | LGenList _ -> 
           (* MAGIC: safe because lazy will evaluate to data eventually *)
-          return_any (VListCons (v1, Obj.magic tl))
+          cons_with_v1 (Obj.magic tl)
         | LValue Any (VEmptyList as tl)
-        | LValue Any (VListCons _ as tl) -> return_any (VListCons (v1, tl))
+        | LValue Any (VListCons _ as tl) -> cons_with_v1 tl
         | _ -> mismatch @@ cons_non_list v1 v2
         end
       | _ -> mismatch @@ cons_non_list v1 v2
@@ -172,7 +181,7 @@ let eval
     (* symbolic values and branching *)
     | EPick_i ->
       let* step = step in
-      let* i = read_and_log_input_with_default make_int input_env ~default:0 in
+      let* i = read_and_log_int () in
       return_any (VInt (i, Stepkey.int_symbol step))
     | ENot e ->
       let* v = force_eval e in
@@ -691,11 +700,11 @@ let eval
     | VTypeUnit -> return_any VUnit
     | VTypeInt ->
       let* step = step in
-      let* i = read_and_log_input_with_default make_int input_env ~default:(default_int ()) in
+      let* i = read_and_log_int () in
       return_any (VInt (i, Stepkey.int_symbol step))
     | VTypeBool ->
       let* step = step in
-      let* b = read_and_log_input_with_default make_bool input_env ~default:(default_bool ()) in
+      let* b = read_and_log_bool () in
       return_any (VBool (b, Stepkey.bool_symbol step))
     | VTypeFun tfun ->
       return_any (VGenFun tfun)
