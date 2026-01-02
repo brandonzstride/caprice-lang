@@ -28,19 +28,34 @@ module Context = struct
     { target : Target.t } 
 end
 
-module Monad = Effects.Make (State) (Cvalue.Env) (Context) (Eval_result)
+module Monad = Effects.Make (State) (Context) (Eval_result)
 include Monad
 
-module Matches = Cvalue.Make_match (Monad)
+module Matches = Cvalue.Make_match (struct
+  type 'a m = ('a, Cvalue.Env.t) Monad.m
+  include (Monad : Utils.Types.MONAD with type 'a m := 'a m)
+end)
 
-let vanish : 'a m =
-  escape Vanish
+let[@inline always] fetch (id : Ident.t) : (Cvalue.any, Cvalue.Env.t) m =
+  { run = fun ~reject ~accept state step env _ ->
+      match Env.find id env with
+      | None -> let e, s = Eval_result.fail_on_fetch id state in reject e s step
+      | Some v -> accept v state step
+  }
 
-let mismatch (msg : string) : 'a m =
+(* For typing purposes (due to value restriction), we must inline the
+  definition of `escape`.
+    
+  The ideal implementation would simply be `escape Vanish`.
+*)
+let vanish : 'a 'env. ('a, 'env) m =
+  { run = fun ~reject ~accept:_ state step _ _ -> reject Vanish state step }
+
+let mismatch : 'a 'env. string -> ('a, 'env) m = fun msg ->
   escape (Mismatch msg)
 
 (* We will also want to log this tag in input env, but at what time? *)
-let push_tag (tag : Tag.With_alt.t) : unit m =
+let push_tag (tag : Tag.With_alt.t) : (unit, 'env) m =
   let* step = step in
   let* { target } = read_ctx in
   modify (fun s -> 
@@ -53,7 +68,7 @@ let push_tag (tag : Tag.With_alt.t) : unit m =
   )
 
 (* Pushes the tag to the path and logs it in input environment *)
-let push_and_log_tag (tag : Tag.t) : unit m =
+let push_and_log_tag (tag : Tag.t) : (unit, 'env) m =
   let* step = step in
   let* { target } = read_ctx in
   modify (fun s -> 
@@ -67,7 +82,7 @@ let push_and_log_tag (tag : Tag.t) : unit m =
     }
   )
 
-let push_formula ?(allow_flip : bool = true) (formula : (bool, Stepkey.t) Smt.Formula.t) : unit m =
+let push_formula ?(allow_flip : bool = true) (formula : (bool, Stepkey.t) Smt.Formula.t) : (unit, 'env) m =
   if Smt.Formula.is_const formula
   then return ()
   else
@@ -85,35 +100,36 @@ let push_formula ?(allow_flip : bool = true) (formula : (bool, Stepkey.t) Smt.Fo
       ; path_len = Path_length.plus_int s.path_len 1 }
     )
 
-let log_input (key : 'a Ienv.Key.t) (input : 'a) : unit m =
+let log_input (key : 'a Ienv.Key.t) (input : 'a) : (unit, 'env) m =
   modify (fun s -> { s with logged_inputs = Ienv.add key input s.logged_inputs })
 
-let read_input (make_key : Stepkey.t -> 'a Ienv.Key.t) (input_env : Ienv.t) : 'a option m =
+let read_input (make_key : Stepkey.t -> 'a Ienv.Key.t) (input_env : Ienv.t) : ('a option, 'env) m =
   let* step = step in
   let key = make_key (Stepkey step) in
   return (Ienv.find key input_env)
 
 let read_and_log_input_with_default (make_key : Stepkey.t -> 'a Ienv.Key.t) 
-  (input_env : Ienv.t) ~(default : 'a) : 'a m =
+  (input_env : Ienv.t) ~(default : 'a) : ('a, 'env) m =
   let* step = step in
   let key = make_key (Stepkey step) in
   match Ienv.find key input_env with
   | Some i -> let* () = log_input key i in return i
   | None -> let* () = log_input key default in return default
 
-let target_to_here : Target.t m =
-  let* { target } = read_ctx in
-  let* state = get in
-  (* Assertion fails when trying to fork the computation, but have not
-    surpassed the original target. *)
-  assert (Path_length.geq state.path_len (Target.path_length target));
-  return @@
-  Target.make Formula.trivial
-    (Formula.BSet.union target.all_formulas (Path.formulas state.rev_stem))
-    state.logged_inputs
-    ~path_length:state.path_len
+(*
+  Must inline definitions in order to skirt the value restriction.
+*)
+let target_to_here : 'env. (Target.t, 'env) m =
+  { run = fun ~reject:_ ~accept state step _ { target } ->
+    accept (
+      Target.make Formula.trivial
+        (Formula.BSet.union target.all_formulas (Path.formulas state.rev_stem))
+        state.logged_inputs
+        ~path_length:state.path_len
+    ) state step
+  }
 
-let fork (forked_m : Eval_result.t u) : unit m =
+let fork (forked_m : (Eval_result.t, 'env) u) : (unit, 'env) m =
   let* target = target_to_here in
   let* s = get in
   let* ctx = read_ctx in
@@ -148,23 +164,23 @@ let fork (forked_m : Eval_result.t u) : unit m =
       else return ())
 
 (* INVARIANT: the symbol must always exist *)
-let find_symbol (symbol : Cvalue.symbol) : Cvalue.lazy_v m =
+let find_symbol (symbol : Cvalue.symbol) : (Cvalue.lazy_v, 'env) m =
   let* { lazy_values ; _ } = get in
   return (Cvalue.SymbolMap.find symbol lazy_values)
 
-let add_symbol (symbol : Cvalue.symbol) (lazy_v : Cvalue.lazy_v) : unit m =
+let add_symbol (symbol : Cvalue.symbol) (lazy_v : Cvalue.lazy_v) : (unit, 'env) m =
   modify (fun s -> { s with lazy_values = Cvalue.SymbolMap.add symbol lazy_v s.lazy_values })
 
 (* Makes a new symbol for this lazy value. Assumes the lazy value is not a symbol itself *)
-let make_new_lazy_value (lazy_v : Cvalue.lazy_v) : Cvalue.any m =
+let make_new_lazy_value (lazy_v : Cvalue.lazy_v) : (Cvalue.any, 'env) m =
   let* Step id = step in (* use step as fresh identifier *)
   let* () = add_symbol { id } lazy_v in
   return (Cvalue.Any (VLazy { id }))
 
-let run' (x : 'a m) (target : Target.t) (s : State.t) (e : Cvalue.Env.t) : Eval_result.t * State.t =
+let run' (x : ('a, Cvalue.Env.t) m) (target : Target.t) (s : State.t) (e : Cvalue.Env.t) : Eval_result.t * State.t =
   match run x s e { target } with
   | Ok _, state, _ -> Done, state
   | Error e, state, _ -> e, state
 
-let run (x : 'a m) (target : Target.t) : Eval_result.t * State.t =
+let run (x : ('a, Cvalue.Env.t) m) (target : Target.t) : Eval_result.t * State.t =
   run' x target State.empty Env.empty

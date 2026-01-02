@@ -38,7 +38,7 @@ let eval
     path).
     Otherwise, fork on the left and continue on the right.
   *)
-  let fork_on_left (type a) ~(left : Eval_result.t failing) ~(right : a m) ~reason =
+  let fork_on_left (type a env) ~(left : (Eval_result.t, env) failing) ~(right : (a, env) m) ~reason =
     let* l_opt = read_input make_tag input_env in
     match l_opt with
     | Some Left reason' when reason = reason' -> 
@@ -62,8 +62,11 @@ let eval
     ----------------------------
     EVALUATE EXPRESSION TO VALUE 
     ----------------------------
+
+    Uses the environment, so the type parameter for the environment in
+    the monad is instantiated with Cvalue.Env.t.
   *)
-  let rec eval (expr : Ast.t) : Cvalue.any m =
+  let rec eval (expr : Ast.t) : (Cvalue.any, Cvalue.Env.t) m =
     let* () = incr_step ~max_step in
     match expr with
     (* concrete values *)
@@ -270,8 +273,10 @@ let eval
     ----------------------------------
     EVALUATE BINARY OPERATION TO VALUE
     ----------------------------------
+
+    Uses environment during evaluation.
   *)
-  and eval_binop (left : Ast.t) (op : Binop.t) (right : Ast.t) : Cvalue.any m =
+  and eval_binop (left : Ast.t) (op : Binop.t) (right : Ast.t) : (Cvalue.any, Cvalue.Env.t) m =
     let* vleft = force_eval left in
     let eval_short_circuit vleft =
       match vleft with
@@ -342,11 +347,16 @@ let eval
     ?self_fun is the optional value to put in the environment as
     the self for recursive functions, in case of wrapping.
     The default value is the actual fixed function.
+
+    This does not use a monadic environment, so the environment is
+    universally quantified.
   *)
-  and eval_appl (v_func : Cvalue.dval) ?(self_fun : Cvalue.dval = v_func) (v_arg : Cvalue.any) : Cvalue.any m =
+  and eval_appl 
+    : 'env. Cvalue.dval -> ?self_fun:Cvalue.dval -> Cvalue.any -> (Cvalue.any, 'env) m
+    = fun v_func ?(self_fun = v_func) v_arg ->
     match v_func with
     | VFunClosure { param ; closure = { captured ; env } } ->
-      local (fun _ -> Env.set param v_arg env) (eval captured)
+      local' (Env.set param v_arg env) (eval captured)
     | VFunFix { fvar ; param ; closure = { captured ; env } } ->
       if do_splay && is_any_symbolic v_arg then
         escape @@ Mismatch (
@@ -354,7 +364,7 @@ let eval
             (Cvalue.any_to_string v_arg)
           )
       else
-        local (fun _ -> 
+        local' (
           Env.set fvar (Any self_fun) env
           |> Env.set param v_arg
         ) (eval captured)
@@ -367,8 +377,10 @@ let eval
     ---------------------------------
     EVALUATE EXPRESSION TO TYPE VALUE
     ---------------------------------
+
+    Uses environment to evaluate.
   *)
-  and eval_type (expr : Ast.t) : Cvalue.tval m =
+  and eval_type (expr : Ast.t) : (Cvalue.tval, Cvalue.Env.t) m =
     let* v = force_eval expr in
     handle_any v
       ~data:(fun d -> mismatch @@ non_type_value d)
@@ -382,20 +394,28 @@ let eval
     Given a witness value of the domain type, evaluate the codomain
     (whether it is already a type value or it depends on the witness)
     to a type value.
+
+    Does not use environment.
   *)
-  and eval_codomain (cod : Cvalue.fun_cod) (dom_witness : Cvalue.any) : Cvalue.tval m =
+  and eval_codomain
+    : 'env. Cvalue.fun_cod -> Cvalue.any -> (Cvalue.tval, 'env) m
+    = fun cod dom_witness ->
     match cod with
     | CodValue cod_tval ->
       return cod_tval
     | CodDependent (id, { captured ; env }) ->
-      local (fun _ -> Env.set id dom_witness env) (eval_type captured)
+      local' (Env.set id dom_witness env) (eval_type captured)
 
   (*
     -------------------------
     CHECK FOR TYPE REFUTATION
     -------------------------
+
+    Does not use environment.
   *)
-  and check : 'a. Cvalue.any -> Cvalue.tval -> 'a m = fun v t ->
+  and check
+    : type a env. Cvalue.any -> Cvalue.tval -> (a, env) m
+    = fun v t ->
     let refute = escape (Refutation (v, t)) in
     let confirm = escape Confirmation in
     let* () = incr_step ~max_step in
@@ -557,12 +577,12 @@ let eval
           (* FIXME: these names (with the "prime") go the other direction as the spec *)
           if captured' = captured && env = env' then confirm else
           let* a = gen VType in (* fresh type to use as a stub *)
-          let* t_body = local (fun _ -> Env.set var a env) (eval_type captured) in
-          let* t_body' = local (fun _ -> Env.set var' a env') (eval_type captured') in
+          let* t_body = local' (Env.set var a env) (eval_type captured) in
+          let* t_body' = local' (Env.set var' a env') (eval_type captured') in
           t_body' <: t_body
         end
       | _ ->
-        let* t_body = local (fun _ -> Env.set var (Any t) env) (eval_type captured) in
+        let* t_body = local' (Env.set var (Any t) env) (eval_type captured) in
         check v t_body
       end
     | VTypeList t_body ->
@@ -589,7 +609,7 @@ let eval
       fork_on_left ~reason:CheckRefinementType
         ~left:{ run_failing = check v tau }
         ~right:(
-          let* p = local (fun _ -> Env.set var v env) (eval captured) in
+          let* p = local' (Env.set var v env) (eval captured) in
           match p with
           | Any VBool (b, s) ->
             if b then 
@@ -631,7 +651,7 @@ let eval
                 )
               ) (fun _ -> raise @@ InvariantException "Label not found in module type") env captured
             in
-            let* t = local (fun _ -> new_env) (eval_type tau) in
+            let* t = local' new_env (eval_type tau) in
             check (Labels.Record.Map.find label module_v) t
           in
           let* l_opt = read_input make_tag input_env in
@@ -678,9 +698,12 @@ let eval
     [t1 <: t2] can be a refutation if t1 is not
       a subtype of t2. It is a confirmation on failure to
       find such refutation.
+
+    Does not use the environment.
   *)
-  and (<:) : 'a. Cvalue.tval -> Cvalue.tval -> 'a m =
-    fun t1 t2 ->
+  and (<:)
+    : 'a 'env. Cvalue.tval -> Cvalue.tval -> ('a, 'env) m
+    = fun t1 t2 ->
       if t1 = t2 then
         escape Confirmation
       else
@@ -691,8 +714,12 @@ let eval
     -------------------------
     GENERATE MEMBER OF A TYPE
     -------------------------
+
+    Does not use the environment.
   *)
-  and gen (t : Cvalue.tval) : Cvalue.any m =
+  and gen 
+    : 'env. Cvalue.tval -> (Cvalue.any, 'env) m
+    = fun t ->
     let* () = incr_step ~max_step in
     match t with
     | VTypeUnit -> return_any VUnit
@@ -751,7 +778,7 @@ let eval
         force_gen_list t
     | VTypeRefine { var ; tau ; predicate = { captured ; env } } ->
       let* v = gen tau in
-      let* p = local (fun _ -> Env.set var v env) (eval captured) in
+      let* p = local' (Env.set var v env) (eval captured) in
       begin match p with
       | Any VBool (true, s) ->
         let* () = push_formula ~allow_flip:false s in
@@ -782,7 +809,7 @@ let eval
           )
       in
       let* genned_body =
-        local (fun _ -> env) (
+        local' env (
           fold_labels (return Labels.Record.Map.empty) captured
         )
       in
@@ -790,7 +817,14 @@ let eval
     | VTypeSingle tval ->
       return_any tval
 
-  and force_gen_list (body : Cvalue.tval) : Cvalue.any m =
+  (*
+    Generate a list. Makes an actual list instead of a symbol for a lazy one.
+
+    Does not use the environment.
+  *)
+  and force_gen_list 
+    : 'env. Cvalue.tval -> (Cvalue.any, 'env) m
+    = fun body ->
     let* l = read_and_log_input_with_default make_tag input_env ~default:(Left GenList) in
     match l with
     | Left GenList ->
@@ -805,14 +839,30 @@ let eval
         ~typeval:(fun _ -> raise @@ InvariantException "List generation makes a type value")
     | _ -> bad_input_env ()
 
-  and force_gen_mu (var : Ident.t) (closure : Ast.t Cvalue.closure) : Cvalue.any m =
+  (*
+    Generate a member of a recursive type. Does not make a symbol for a lazy member.
+
+    Does not use the environment.
+  *)
+  and force_gen_mu 
+    : 'env. Ident.t -> Ast.t Cvalue.closure -> (Cvalue.any, 'env) m
+    = fun var closure ->
     let* t_body = 
-      local (fun _ -> Env.set var (Any (VTypeMu { var ; closure })) closure.env) 
+      local' (Env.set var (Any (VTypeMu { var ; closure })) closure.env) 
         (eval_type closure.captured)
     in
     gen t_body
 
-  and wrap (v : Cvalue.any) (t : Cvalue.tval) : Cvalue.any m =
+  (*
+    ----
+    WRAP
+    ----
+
+    Does not use the environment.
+  *)
+  and wrap 
+    : 'env. Cvalue.any -> Cvalue.tval -> (Cvalue.any, 'env) m
+    = fun v t ->
     if not do_wrap then return v else
     match t with
     | VType
@@ -825,7 +875,7 @@ let eval
     | VTypeBottom -> escape @@ Mismatch "Cannot wrap with bottom"
     | VTypeMu { var ; closure = { captured ; env } } ->
       (* TODO: handle splaying *)
-      let* tval = local (fun _ -> Env.set var (Any t) env) (eval_type captured) in
+      let* tval = local' (Env.set var (Any t) env) (eval_type captured) in
       wrap v tval
     | VTypeList t_body ->
       (* TODO: handle splaying *)
@@ -882,7 +932,7 @@ let eval
             end
         in
         let* wrapped_body =
-          local (fun _ -> env) (
+          local' env (
             fold_labels (return Labels.Record.Map.empty) t_ls
           )
         in
@@ -916,8 +966,10 @@ let eval
     ---------------------------------------
     EVALUATE LIST OF STATEMENTS TO A MODULE
     ---------------------------------------
+
+    Uses the environment when evaluating.
   *)
-  and eval_statement_list (statements : Ast.statement list) : Cvalue.any m =
+  and eval_statement_list (statements : Ast.statement list) : (Cvalue.any, Cvalue.Env.t) m =
     let rec fold_stmts acc_m = function
       | [] -> acc_m
       | stmt :: tl ->
@@ -936,8 +988,10 @@ let eval
     -------------------------------
     EVALUATE STATEMENT TO A BINDING
     -------------------------------
+
+    Uses the environment when evaluating.
   *)
-  and eval_statement (stmt : Ast.statement) : (Ident.t * Cvalue.any) m =
+  and eval_statement (stmt : Ast.statement) : (Ident.t * Cvalue.any, Cvalue.Env.t) m =
     match stmt with
     | SLet { var = VarUntyped { name } ; defn } ->
       let* v = eval defn in
@@ -976,12 +1030,23 @@ let eval
     -------------------------------
     EVALUATE SYMBOLS TO WHNF VALUES
     -------------------------------
+
+    Uses the environment when evaluating.
   *)
-  and force_eval (expr : Ast.t) : Cvalue.any m =
+  and force_eval (expr : Ast.t) : (Cvalue.any, Cvalue.Env.t) m =
     let* v = eval expr in
     force_value v
   
-  and force_value (v : Cvalue.any) : Cvalue.any m =
+  (*
+    --------------------
+    FORCE VALUES TO WHNF
+    --------------------
+
+    Does not use the environment.
+  *)
+  and force_value 
+    : 'env. Cvalue.any -> (Cvalue.any, 'env) m
+    = fun v ->
     if do_splay then
       match v with 
       | Any VLazy symbol ->
