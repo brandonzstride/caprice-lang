@@ -1,4 +1,22 @@
 
+open Grammar
+
+(*
+  Make a monad that has
+    - CPS
+    - State
+    - Environment
+    - Context (environment that changes less often)
+    - Step count (stateful)
+    - Error ("good" and "bad" continuations)
+
+  Just a few interpreter-specific functions are implemented
+  (e.g. increment step count and fail on max step).
+
+  The error continuation may be used simply to escape the
+  typical continuation, but not always to convey some breaking
+  failure case, so it is called with `escape`.
+*)
 module Make (State : Utils.Types.T) (Ctx : Utils.Types.T) (Err : sig
   type t
   val fail_on_max_step : Step.t -> State.t -> t * State.t
@@ -6,8 +24,8 @@ end) = struct
 
   (*
     The error and environment are type parameters. This way, they can be
-    empty or universally quantified to convey that a certain monadic value
-    does not error or does not use the environment.
+    empty or env universally quantified to convey that a certain monadic
+    value does not error or does not use the environment.
   *)
   type ('a, 'err, 'env) t = {
     run : 'r.

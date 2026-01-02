@@ -1,25 +1,24 @@
 
 open Lang
-open Interp
-open Common
+open Grammar
 
 exception InvariantException of string
 
 module State = struct
   type t = 
     { rev_stem : Path.t (* we will cons to the path instead of union a log *)
-    ; logged_inputs : Ienv.t 
+    ; logged_inputs : Input_env.t 
     ; path_len : Path_length.t (* total length of the path to this point (up to and including the stem) *)
     ; runs : Logged_run.t Utils.Diff_list.t
-    ; lazy_values : Cvalue.lazy_v Cvalue.SymbolMap.t
+    ; lazy_values : Val.lazy_v Val.SymbolMap.t
     }
 
   let empty : t =
     { rev_stem = Path.empty
-    ; logged_inputs = Ienv.empty
+    ; logged_inputs = Input_env.empty
     ; path_len = Path_length.zero
     ; runs = Utils.Diff_list.empty
-    ; lazy_values = Cvalue.SymbolMap.empty
+    ; lazy_values = Val.SymbolMap.empty
     }
 end
 
@@ -28,15 +27,21 @@ module Context = struct
     { target : Target.t } 
 end
 
-module Monad = Effects.Make (State) (Context) (Eval_result)
-include Monad
+(*
+  Make a monad out of the state and context and evaluation result.
+  - Has stateful State as well as step count
+  - Has a target as a context, and also a type parameter for the environment
+  - The error type is from Eval_result
+*)
+module M = Monad.Make (State) (Context) (Eval_result)
+include M
 
-module Matches = Cvalue.Make_match (struct
-  type 'a m = ('a, Cvalue.Env.t) Monad.m
-  include (Monad : Utils.Types.MONAD with type 'a m := 'a m)
+module Matches = Val.Make_match (struct
+  type 'a m = ('a, Val.Env.t) M.m
+  include (M : Utils.Types.MONAD with type 'a m := 'a m)
 end)
 
-let[@inline always] fetch (id : Ident.t) : (Cvalue.any, Cvalue.Env.t) m =
+let[@inline always] fetch (id : Ident.t) : (Val.any, Val.Env.t) m =
   { run = fun ~reject ~accept state step env _ ->
       match Env.find id env with
       | None -> let e, s = Eval_result.fail_on_fetch id state in reject e s step
@@ -44,7 +49,7 @@ let[@inline always] fetch (id : Ident.t) : (Cvalue.any, Cvalue.Env.t) m =
   }
 
 (* For typing purposes (due to value restriction), we must inline the
-  definition of `escape`.
+  definition of `M.escape`.
     
   The ideal implementation would simply be `escape Vanish`.
 *)
@@ -78,7 +83,7 @@ let push_and_log_tag (tag : Tag.t) : (unit, 'env) m =
       else
         s.rev_stem
     ; path_len = Path_length.plus_int s.path_len (Tag.priority tag)
-    ; logged_inputs = Ienv.add (KTag (Stepkey step)) tag s.logged_inputs
+    ; logged_inputs = Input_env.add (KTag (Stepkey step)) tag s.logged_inputs
     }
   )
 
@@ -100,19 +105,19 @@ let push_formula ?(allow_flip : bool = true) (formula : (bool, Stepkey.t) Smt.Fo
       ; path_len = Path_length.plus_int s.path_len 1 }
     )
 
-let log_input (key : 'a Ienv.Key.t) (input : 'a) : (unit, 'env) m =
-  modify (fun s -> { s with logged_inputs = Ienv.add key input s.logged_inputs })
+let log_input (key : 'a Input_env.Key.t) (input : 'a) : (unit, 'env) m =
+  modify (fun s -> { s with logged_inputs = Input_env.add key input s.logged_inputs })
 
-let read_input (make_key : Stepkey.t -> 'a Ienv.Key.t) (input_env : Ienv.t) : ('a option, 'env) m =
+let read_input (make_key : Stepkey.t -> 'a Input_env.Key.t) (input_env : Input_env.t) : ('a option, 'env) m =
   let* step = step in
   let key = make_key (Stepkey step) in
-  return (Ienv.find key input_env)
+  return (Input_env.find key input_env)
 
-let read_and_log_input_with_default (make_key : Stepkey.t -> 'a Ienv.Key.t) 
-  (input_env : Ienv.t) ~(default : 'a) : ('a, 'env) m =
+let read_and_log_input_with_default (make_key : Stepkey.t -> 'a Input_env.Key.t) 
+  (input_env : Input_env.t) ~(default : 'a) : ('a, 'env) m =
   let* step = step in
   let key = make_key (Stepkey step) in
-  match Ienv.find key input_env with
+  match Input_env.find key input_env with
   | Some i -> let* () = log_input key i in return i
   | None -> let* () = log_input key default in return default
 
@@ -164,23 +169,23 @@ let fork (forked_m : (Eval_result.t, 'env) u) : (unit, 'env) m =
       else return ())
 
 (* INVARIANT: the symbol must always exist *)
-let find_symbol (symbol : Cvalue.symbol) : (Cvalue.lazy_v, 'env) m =
+let find_symbol (symbol : Val.symbol) : (Val.lazy_v, 'env) m =
   let* { lazy_values ; _ } = get in
-  return (Cvalue.SymbolMap.find symbol lazy_values)
+  return (Val.SymbolMap.find symbol lazy_values)
 
-let add_symbol (symbol : Cvalue.symbol) (lazy_v : Cvalue.lazy_v) : (unit, 'env) m =
-  modify (fun s -> { s with lazy_values = Cvalue.SymbolMap.add symbol lazy_v s.lazy_values })
+let add_symbol (symbol : Val.symbol) (lazy_v : Val.lazy_v) : (unit, 'env) m =
+  modify (fun s -> { s with lazy_values = Val.SymbolMap.add symbol lazy_v s.lazy_values })
 
 (* Makes a new symbol for this lazy value. Assumes the lazy value is not a symbol itself *)
-let make_new_lazy_value (lazy_v : Cvalue.lazy_v) : (Cvalue.any, 'env) m =
+let make_new_lazy_value (lazy_v : Val.lazy_v) : (Val.any, 'env) m =
   let* Step id = step in (* use step as fresh identifier *)
   let* () = add_symbol { id } lazy_v in
-  return (Cvalue.Any (VLazy { id }))
+  return (Val.Any (VLazy { id }))
 
-let run' (x : ('a, Cvalue.Env.t) m) (target : Target.t) (s : State.t) (e : Cvalue.Env.t) : Eval_result.t * State.t =
+let run' (x : ('a, Val.Env.t) m) (target : Target.t) (s : State.t) (e : Val.Env.t) : Eval_result.t * State.t =
   match run x s e { target } with
   | Ok _, state, _ -> Done, state
   | Error e, state, _ -> e, state
 
-let run (x : ('a, Cvalue.Env.t) m) (target : Target.t) : Eval_result.t * State.t =
+let run (x : ('a, Val.Env.t) m) (target : Target.t) : Eval_result.t * State.t =
   run' x target State.empty Env.empty

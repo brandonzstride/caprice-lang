@@ -1,4 +1,3 @@
-(include_subdirs qualified)
 
 (library
  (name concolic)
@@ -8,11 +7,10 @@
   lang
   smt
   overlays
-  interp
+  grammar
   ; external
   lwt
   lwt.unix
-  psq
  )
  (synopsis "Concolic evaluator for Caprice")
  (instrumentation (backend landmarks --auto)) ; use `dune build --instrument-with landmarks` to get instrumentation

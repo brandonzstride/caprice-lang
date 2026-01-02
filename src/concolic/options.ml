@@ -1,7 +1,7 @@
 
 type t =
   { max_tree_depth : int
-  ; max_step       : Interp.Step.t
+  ; max_step       : Grammar.Step.t
   ; global_timeout : Mtime.Span.t
   ; do_splay       : bool
   ; do_wrap        : bool
@@ -24,7 +24,7 @@ let of_argv =
     value & opt int default.max_tree_depth
     & info ["d"; "depth"] ~docv:"DEPTH" ~doc:"Maximum tree depth"
   and+ max_step =
-    value & opt Interp.Step.argv_step_conv default.max_step
+    value & opt Grammar.Step.argv_step_conv default.max_step
     & info ["m"; "max-step"] ~docv:"MAX_STEP" ~doc:"Maximum step count per evaluation"
   and+ global_timeout =
     value & opt Utils.Time.argv_span_conv default.global_timeout

@@ -1,8 +1,8 @@
 
-open Common
+open Grammar
 
 let make_targets ~(max_tree_depth : int) (target : Target.t)
-  (stem : Path.t) (ienv : Ienv.t) : Target.t list * bool =
+  (stem : Path.t) (ienv : Input_env.t) : Target.t list * bool =
   Utils.List_utils.fold_left_until (fun (acc_set, len, formulas) pathunit ->
     if Path_length.to_int len > max_tree_depth then
       `Stop (acc_set, true)
@@ -12,21 +12,21 @@ let make_targets ~(max_tree_depth : int) (target : Target.t)
       | Path.Nonflipping formula ->
         `Continue (acc_set, path_length, Formula.BSet.add formula formulas)
       | Formula (formula, key) ->
-        let new_ienv = Ienv.remove_greater key ienv in
+        let new_ienv = Input_env.remove_greater key ienv in
         let new_target =
           Target.make (Formula.not_ formula) formulas new_ienv 
             ~path_length
         in
         `Continue (new_target :: acc_set, path_length, Formula.BSet.add formula formulas)
       | Tag { key ; tag = { main = _ ; alts } } ->
-        let new_ienv = Ienv.remove_greater key ienv in
+        let new_ienv = Input_env.remove_greater key ienv in
         `Continue (
           List.fold_left (fun acc alt_tag ->
             Target.make 
               Formula.trivial
               formulas
-              (Ienv.add (KTag key) alt_tag new_ienv)
-              ~path_length:(Path_length.plus_int len (Interp.Tag.priority alt_tag))
+              (Input_env.add (KTag key) alt_tag new_ienv)
+              ~path_length:(Path_length.plus_int len (Tag.priority alt_tag))
             :: acc
           ) acc_set alts
           , path_length, formulas
@@ -82,7 +82,7 @@ let loop ~(options : Options.t) (solve : Stepkey.t Smt.Formula.solver)
 
   and loop_on_model target tq model =
     let run_num = Utils.Counter.next c in
-    let ienv = Ienv.extend target.i_env (Ienv.of_model model) in
+    let ienv = Input_env.extend target.i_env (Input_env.of_model model) in
     let answer, runs =
       eval ienv target
         ~default_int:(make_int_feeder ~run_num)

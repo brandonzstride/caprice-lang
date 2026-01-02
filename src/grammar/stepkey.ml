@@ -1,6 +1,4 @@
 
-open Interp
-
 module T = struct
   type t = Stepkey of Step.t [@@unboxed]
     [@@deriving eq, ord]

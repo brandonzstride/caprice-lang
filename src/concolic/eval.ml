@@ -1,8 +1,8 @@
 
 open Lang
-open Common
 open Effects
-open Cvalue
+open Grammar
+open Grammar.Val
 
 (* `Any` is unboxed, so this is zero overhead *)
 let[@inline always] return_any v = return (Any v)
@@ -10,14 +10,14 @@ let[@inline always] return_any v = return (Any v)
 let bad_input_env : 'a. unit -> 'a = fun () ->
   raise @@ InvariantException "Input environment is ill-formed"
 
-open Cvalue.Error_messages
-open Ienv.Key
+open Grammar.Val.Error_messages
+open Input_env.Key
 
 let eval
   (pgm : Ast.statement list)
-  (input_env : Ienv.t)
+  (input_env : Input_env.t)
   (target : Target.t)
-  ~(max_step : Interp.Step.t)
+  ~(max_step : Grammar.Step.t)
   ~(default_int : unit -> int)
   ~(default_bool : unit -> bool)
   ~(do_splay : bool)
@@ -64,9 +64,9 @@ let eval
     ----------------------------
 
     Uses the environment, so the type parameter for the environment in
-    the monad is instantiated with Cvalue.Env.t.
+    the monad is instantiated with Val.Env.t.
   *)
-  let rec eval (expr : Ast.t) : (Cvalue.any, Cvalue.Env.t) m =
+  let rec eval (expr : Ast.t) : (Val.any, Val.Env.t) m =
     let* () = incr_step ~max_step in
     match expr with
     (* concrete values *)
@@ -276,7 +276,7 @@ let eval
 
     Uses environment during evaluation.
   *)
-  and eval_binop (left : Ast.t) (op : Binop.t) (right : Ast.t) : (Cvalue.any, Cvalue.Env.t) m =
+  and eval_binop (left : Ast.t) (op : Binop.t) (right : Ast.t) : (Val.any, Val.Env.t) m =
     let* vleft = force_eval left in
     let eval_short_circuit vleft =
       match vleft with
@@ -352,7 +352,7 @@ let eval
     universally quantified.
   *)
   and eval_appl 
-    : 'env. Cvalue.dval -> ?self_fun:Cvalue.dval -> Cvalue.any -> (Cvalue.any, 'env) m
+    : 'env. Val.dval -> ?self_fun:Val.dval -> Val.any -> (Val.any, 'env) m
     = fun v_func ?(self_fun = v_func) v_arg ->
     match v_func with
     | VFunClosure { param ; closure = { captured ; env } } ->
@@ -361,7 +361,7 @@ let eval
       if do_splay && is_any_symbolic v_arg then
         escape @@ Mismatch (
           Format.sprintf "Called rec fun with symbolic value %s while splaying"
-            (Cvalue.any_to_string v_arg)
+            (Val.any_to_string v_arg)
           )
       else
         local' (
@@ -380,7 +380,7 @@ let eval
 
     Uses environment to evaluate.
   *)
-  and eval_type (expr : Ast.t) : (Cvalue.tval, Cvalue.Env.t) m =
+  and eval_type (expr : Ast.t) : (Val.tval, Val.Env.t) m =
     let* v = force_eval expr in
     handle_any v
       ~data:(fun d -> mismatch @@ non_type_value d)
@@ -398,7 +398,7 @@ let eval
     Does not use environment.
   *)
   and eval_codomain
-    : 'env. Cvalue.fun_cod -> Cvalue.any -> (Cvalue.tval, 'env) m
+    : 'env. Val.fun_cod -> Val.any -> (Val.tval, 'env) m
     = fun cod dom_witness ->
     match cod with
     | CodValue cod_tval ->
@@ -414,7 +414,7 @@ let eval
     Does not use environment.
   *)
   and check
-    : type a env. Cvalue.any -> Cvalue.tval -> (a, env) m
+    : type a env. Val.any -> Val.tval -> (a, env) m
     = fun v t ->
     let refute = escape (Refutation (v, t)) in
     let confirm = escape Confirmation in
@@ -536,7 +536,7 @@ let eval
         then
           let push_and_check label =
             (* alternatives do not matter when we are running every label right now *)
-            let* () = push_and_log_tag (Interp.Tag.of_record_label label) in
+            let* () = push_and_log_tag (Grammar.Tag.of_record_label label) in
             check
               (Labels.Record.Map.find label record_v)
               (Labels.Record.Map.find label record_t)
@@ -640,7 +640,7 @@ let eval
         then
           let push_and_check label =
             (* alternatives do not matter when we are running every label right now *)
-            let* () = push_and_log_tag (Interp.Tag.of_record_label label) in
+            let* () = push_and_log_tag (Grammar.Tag.of_record_label label) in
             let new_env, tau = 
               (* TODO: share this computation because it is redone on every fork *)
               Utils.List_utils.fold_left_until (fun env { Ast.item = label' ; tau } ->
@@ -702,7 +702,7 @@ let eval
     Does not use the environment.
   *)
   and (<:)
-    : 'a 'env. Cvalue.tval -> Cvalue.tval -> ('a, 'env) m
+    : 'a 'env. Val.tval -> Val.tval -> ('a, 'env) m
     = fun t1 t2 ->
       if t1 = t2 then
         escape Confirmation
@@ -718,7 +718,7 @@ let eval
     Does not use the environment.
   *)
   and gen 
-    : 'env. Cvalue.tval -> (Cvalue.any, 'env) m
+    : 'env. Val.tval -> (Val.any, 'env) m
     = fun t ->
     let* () = incr_step ~max_step in
     match t with
@@ -754,17 +754,17 @@ let eval
       let t_labels = Labels.Variant.B.domain variant_t in
       let* l =
         read_and_log_input_with_default make_tag input_env
-          ~default:(default_constructor variant_t |> Interp.Tag.of_variant_label)
+          ~default:(default_constructor variant_t |> Grammar.Tag.of_variant_label)
       in
       begin match l with
       | Label id ->
         let to_gen = Labels.Variant.of_ident id in
         let t = Labels.Variant.Map.find to_gen variant_t in
         let* () =
-          push_tag Interp.Tag.With_alt.{ main = l ; alts =
+          push_tag Grammar.Tag.With_alt.{ main = l ; alts =
             Labels.Variant.Set.remove to_gen t_labels
             |> Labels.Variant.Set.to_list
-            |> List.map Interp.Tag.of_variant_label
+            |> List.map Grammar.Tag.of_variant_label
           }
         in
         let* payload = gen t in
@@ -823,15 +823,15 @@ let eval
     Does not use the environment.
   *)
   and force_gen_list 
-    : 'env. Cvalue.tval -> (Cvalue.any, 'env) m
+    : 'env. Val.tval -> (Val.any, 'env) m
     = fun body ->
     let* l = read_and_log_input_with_default make_tag input_env ~default:(Left GenList) in
     match l with
     | Left GenList ->
-      let* () = push_tag Interp.Tag.With_alt.{ main = Left GenList ; alts = [ Right GenList ] } in
+      let* () = push_tag Grammar.Tag.With_alt.{ main = Left GenList ; alts = [ Right GenList ] } in
       return_any VEmptyList
     | Right GenList ->
-      let* () = push_tag Interp.Tag.With_alt.{ main = Right GenList ; alts = [ Left GenList ] } in
+      let* () = push_tag Grammar.Tag.With_alt.{ main = Right GenList ; alts = [ Left GenList ] } in
       let* hd = gen body in
       let* Any v_tl = gen (VTypeList body) in
       handle v_tl
@@ -845,7 +845,7 @@ let eval
     Does not use the environment.
   *)
   and force_gen_mu 
-    : 'env. Ident.t -> Ast.t Cvalue.closure -> (Cvalue.any, 'env) m
+    : 'env. Ident.t -> Ast.t Val.closure -> (Val.any, 'env) m
     = fun var closure ->
     let* t_body = 
       local' (Env.set var (Any (VTypeMu { var ; closure })) closure.env) 
@@ -861,7 +861,7 @@ let eval
     Does not use the environment.
   *)
   and wrap 
-    : 'env. Cvalue.any -> Cvalue.tval -> (Cvalue.any, 'env) m
+    : 'env. Val.any -> Val.tval -> (Val.any, 'env) m
     = fun v t ->
     if not do_wrap then return v else
     match t with
@@ -969,7 +969,7 @@ let eval
 
     Uses the environment when evaluating.
   *)
-  and eval_statement_list (statements : Ast.statement list) : (Cvalue.any, Cvalue.Env.t) m =
+  and eval_statement_list (statements : Ast.statement list) : (Val.any, Val.Env.t) m =
     let rec fold_stmts acc_m = function
       | [] -> acc_m
       | stmt :: tl ->
@@ -991,7 +991,7 @@ let eval
 
     Uses the environment when evaluating.
   *)
-  and eval_statement (stmt : Ast.statement) : (Ident.t * Cvalue.any, Cvalue.Env.t) m =
+  and eval_statement (stmt : Ast.statement) : (Ident.t * Val.any, Val.Env.t) m =
     match stmt with
     | SLet { var = VarUntyped { name } ; defn } ->
       let* v = eval defn in
@@ -1033,7 +1033,7 @@ let eval
 
     Uses the environment when evaluating.
   *)
-  and force_eval (expr : Ast.t) : (Cvalue.any, Cvalue.Env.t) m =
+  and force_eval (expr : Ast.t) : (Val.any, Val.Env.t) m =
     let* v = eval expr in
     force_value v
   
@@ -1045,7 +1045,7 @@ let eval
     Does not use the environment.
   *)
   and force_value 
-    : 'env. Cvalue.any -> (Cvalue.any, 'env) m
+    : 'env. Val.any -> (Val.any, 'env) m
     = fun v ->
     if do_splay then
       match v with 

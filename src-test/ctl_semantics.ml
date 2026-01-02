@@ -41,10 +41,10 @@ let get_var env var default =
   Ident.Map.find_opt var env
   |> Option.value ~default
 
-let options_of_env (env : Environment.t) : Concolic.Common.Options.t =
+let options_of_env (env : Environment.t) : Concolic.Options.t =
   let flags_str = get_var env flags "" in
   let argv = String.split_on_char ' ' flags_str |> Array.of_list in
-  let cmd = Cmdliner.Cmd.v (Cmdliner.Cmd.info "parseflags") Concolic.Common.Options.of_argv in
+  let cmd = Cmdliner.Cmd.v (Cmdliner.Cmd.info "parseflags") Concolic.Options.of_argv in
   match Cmdliner.Cmd.eval_value ~argv cmd with
   | Ok (`Ok options) -> options
   | Ok `Version -> failwith "version requested"
@@ -57,7 +57,7 @@ let compute_typecheck_test filename env =
   let pgm = Lang.Parser.parse_file filename in
   let answer = Concolic.Loop.begin_ceval pgm ~options in
   match expect, answer with
-  | Ill_typed, Concolic.Common.Answer.Found_error _
+  | Ill_typed, Grammar.Answer.Found_error _
   | Exhausted, Exhausted
   | No_error, (Unknown | Exhausted_pruned | Timeout _) -> true
   | _ -> false

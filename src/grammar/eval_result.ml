@@ -1,9 +1,8 @@
 
 open Lang
-open Interp
 
 type t = 
-  | Refutation of Cvalue.any * Cvalue.tval
+  | Refutation of Val.any * Val.tval
   | Confirmation
   | Mismatch of string
   | Assert_false
@@ -20,7 +19,7 @@ let fail_on_max_step (n : Step.t) (s : 'a) : t * 'a =
   Reach_max_step n, s
 
 let to_answer = function
-  | Refutation (v, t) -> Answer.Found_error (Cvalue.Error_messages.refutation v t)
+  | Refutation (v, t) -> Answer.Found_error (Val.Error_messages.refutation v t)
   | Confirmation -> Exhausted
   | Mismatch msg -> Found_error msg
   | Assert_false -> Found_error "Failed assertion"

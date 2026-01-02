@@ -68,3 +68,5 @@ module Make (K : Smt.Symbol.KEY) = struct
       Utils.Uid.Map.add uid v acc
     ) empty model.domain  
 end
+
+include Make (Stepkey)
