@@ -1,0 +1,117 @@
+(* TEST
+  include splayable;
+*)
+
+(*
+  This program is taken from
+  
+    Learn Programming with OCaml
+    
+  by Sylvain Conchon and Jean-Christophe Filliâtre.
+
+  (Section 9.2)
+
+  The program has been augmented with several refinement types
+  to remove invalid cases.
+*)
+
+let tree a = mu t.
+  | `Empty of unit
+  | `Node of t * a * t
+
+let node a = { t : tree a |
+  match t with
+  | `Empty _ -> false
+  | _ -> true
+  end
+}
+
+let path a = mu t.
+  | `Top of unit
+  | `Left of t * a * tree a
+  | `Right of tree a * a * t
+
+let nontop a = { p : path a |
+  match p with
+  | `Top _ -> false
+  | _ -> true
+  end
+}
+
+let zipper a =
+  { path : path a ; tree : tree a }
+
+(* zipper where the tree is refined to a node *)
+let nonterminal a =
+  { path : path a ; tree : node a }
+
+(* the above is semantically identical to: *)
+(* let nonterminal a =
+  { z : zipper a |
+    match z.tree with
+    | `Empty _ -> false
+    | _ -> true
+    end
+  } *)
+
+(* zipper that is not at the top *)
+let nonroot a =
+  { path : nontop a ; tree : tree a }
+
+let of_tree (type a) (t : tree a) : zipper a =
+  { path = `Top () ; tree = t }
+
+let down_left (type a) (z : nonterminal a) : zipper a =
+  match z.tree with
+  | `Node (l, x, r) ->
+    { path = `Left (z.path, x, r) ; tree = l }
+  end
+
+let down_right (type a) (z : nonterminal a) : zipper a =
+  match z.tree with
+  | `Node (l, x, r) ->
+    { path = `Right (l, x, z.path) ; tree = r }
+  end
+
+let up (type a) (z : nonroot a) : zipper a =
+  match z.path with
+  | `Left (p, x, r) ->
+    { path = p ; tree = `Node (z.tree, x, r) }
+  | `Right (l, x, p) ->
+    { path = p ; tree = `Node (l, x, z.tree) }
+  end
+
+let rec to_tree (type a) (z : zipper a) : tree a =
+  match z.path with
+  | `Top _ -> z.tree
+  | _ -> to_tree a (up a z)
+  end
+
+let left_path a = mu t.
+  | `Top of unit
+  | `Left of t * a * tree a
+
+(*
+  The definition in the book calls that path "z", but that is deceiving.
+  This is basically a curried function on a zipper, returning a path.
+  And specifically, that path is strictly going to the left, never the right.
+*)
+let rec leftmost (type a) (p : left_path a) (t : tree a) : left_path a =
+  match t with
+  | `Empty _ -> p
+  | `Node (l, x, r) -> leftmost a (`Left (p, x, r)) l
+  end
+
+let rec compare (type a) (cmp : a -> a -> int) (z1 : left_path a) (z2 : left_path a) : int =
+  match z1, z2 with
+  | `Top _, `Top _ -> 0
+  | `Left (z1, x1, r1), `Left (z2, x2, r2) ->
+    let c = cmp x1 x2 in
+    if c <> 0 then c
+    else compare a cmp (leftmost a z1 r1) (leftmost a z2 r2)
+  | `Top _, `Left _ -> -1
+  | `Left _, `Top _ -> 1
+  end
+
+let compare_tree (type a) (cmp : a -> a -> int) (t1 : tree a) (t2 : tree a) : int =
+  compare a cmp (leftmost a (`Top ()) t1) (leftmost a (`Top ()) t2)
