@@ -89,10 +89,6 @@ module Make (Atom_cell : Utils.Comparable.P1) = struct
 
   let[@inline always] to_any : type a. a t -> any = fun v -> Any v
 
-  type 'b f = { f : 'a. 'a t -> 'b } [@@unboxed]
-
-  let[@inline always] map_any : 'a f -> any -> 'a = fun f (Any v) -> f.f v
-
   let[@inline always] handle (type a b) (v : a t) ~(data : data t -> b) ~(typeval : typeval t -> b) : b =
     match v with
     | ( VUnit
@@ -127,8 +123,8 @@ module Make (Atom_cell : Utils.Comparable.P1) = struct
       | VTypeTuple _
       | VTypeSingle _) as x -> typeval x
 
-  let[@inline always] handle_any (type a) (v : any) ~(data : data t -> a) ~(typeval : typeval t -> a) : a =
-    map_any { f = handle ~data ~typeval } v
+  let[@inline always] handle_any (type a) (Any v : any) ~(data : data t -> a) ~(typeval : typeval t -> a) : a =
+    handle v ~data ~typeval
 
   (* 
     True if the value has any mu type in its representation.
@@ -308,7 +304,7 @@ module Make (Atom_cell : Utils.Comparable.P1) = struct
     | VTypeSingle t ->
       Format.sprintf "(singletype %s)" (to_string t)
 
-  and any_to_string any = map_any { f = to_string } any
+  and any_to_string (Any any) = to_string any
 
   module Error_messages = struct
     let refutation (v : any) (t : tval) : string =
@@ -455,11 +451,8 @@ module Make (Atom_cell : Utils.Comparable.P1) = struct
       in
       matches pat v
 
-    let match_any (pat : Pattern.t) (a : any) ~(resolve_symbol : symbol -> any m) : Match_result.t m =
-      let f (type a) (v : a t) : Match_result.t m =
-        matches pat v ~resolve_symbol
-      in
-      map_any { f } a
+    let match_any (pat : Pattern.t) (Any v : any) ~(resolve_symbol : symbol -> any m) : Match_result.t m =
+      matches pat v ~resolve_symbol
   end
 end
 
