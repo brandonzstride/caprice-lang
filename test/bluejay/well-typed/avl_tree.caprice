@@ -18,13 +18,13 @@ let max a b =
 
 let rec height x =
   match x with
-  | `Leaf _ -> 0
+  | `Leaf () -> 0
   | `Node node -> max (height node.left) (height node.right) + 1
   end
 
 let is_leaf x =
   match x with
-  | `Leaf _ -> true
+  | `Leaf () -> true
   | _ -> false
   end
 
@@ -45,7 +45,7 @@ let right_exn x =
 
 let balance_factor x =
   match x with
-  | `Leaf _ -> 0
+  | `Leaf () -> 0
   | `Node node -> height node.left - height node.right
   end
 
@@ -57,14 +57,14 @@ let abs a =
 let bind x f = 
   match x with
   | `Some y -> f y
-  | `None _ -> x
+  | `None () -> x
   end
 
 (* Checks balancedness in linear time by computing height and balance at same time and level *)
 let is_balanced x =
   let rec get_height x =
     match x with
-    | `Leaf _ -> `Some 0
+    | `Leaf () -> `Some 0
     | `Node node ->
        bind (get_height node.left) (fun left_height ->
         bind (get_height node.right) (fun right_height ->
@@ -77,14 +77,14 @@ let is_balanced x =
   in
   match get_height x with
   | `Some _ -> true
-  | `None _ -> false
+  | `None () -> false
   end
 
 let is_bst x = 
   let rec to_list x acc =
     match x with
     | `Node node -> to_list node.left (node.item :: (to_list node.right acc))
-    | `Leaf _ -> acc
+    | `Leaf () -> acc
     end
   in
   let rec is_increasing_strictly ls =
@@ -146,7 +146,7 @@ let rec insert (tree : avl_tree) (i : int) : avl_tree =
         node
   in
   match tree with
-  | `Leaf _ -> create_node i empty empty
+  | `Leaf () -> create_node i empty empty
   | `Node node ->
     let new_node =
       if i < node.item 

@@ -26,8 +26,8 @@ let is_ordered (type a) (tree : t a) (compare : a -> a -> int) : bool =
       | `Ordered_with_min of a
     ) (fun acc a -> 
       match acc with
-      | `Not_ordered _ -> `Not_ordered ()
-      | `Empty _ -> `Ordered_with_min a
+      | `Not_ordered () -> `Not_ordered ()
+      | `Empty () -> `Ordered_with_min a
       | `Ordered_with_min m ->
           if compare a m > 0
           then `Ordered_with_min a
@@ -36,6 +36,6 @@ let is_ordered (type a) (tree : t a) (compare : a -> a -> int) : bool =
     ) (`Empty ()) tree
   in
   match res with
-  | `Empty _ | `Ordered_with_min _ -> true
-  | `Not_ordered _ -> false
+  | `Empty () | `Ordered_with_min _ -> true
+  | `Not_ordered () -> false
   end

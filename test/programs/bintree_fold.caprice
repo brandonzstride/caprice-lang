@@ -12,7 +12,7 @@ let t a = mu t.
 
 let rec fold_left (type a acc) (f : acc -> a -> acc) (init : acc) (tree : t a) : acc =
   match tree with
-  | `Leaf _ -> init
+  | `Leaf () -> init
   | `Branch b ->
     fold_left a acc f (f (fold_left a acc f init b.left) b.item) b.right 
   end

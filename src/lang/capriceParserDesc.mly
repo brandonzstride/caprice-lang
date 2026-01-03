@@ -442,6 +442,8 @@ pattern:
     { PVariant { Variant.label = $1 ; payload = $2 } }
   | pattern COMMA pattern
     { PTuple ($1, $3)}
+  | OPEN_PAREN CLOSE_PAREN
+    { PUnit }
   | OPEN_BRACKET CLOSE_BRACKET 
     { PEmptyList }
   | UNDERSCORE

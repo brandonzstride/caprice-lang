@@ -21,7 +21,7 @@ let tree a = mu t.
 
 let node a = { t : tree a |
   match t with
-  | `Empty _ -> false
+  | `Empty () -> false
   | _ -> true
   end
 }
@@ -33,7 +33,7 @@ let path a = mu t.
 
 let nontop a = { p : path a |
   match p with
-  | `Top _ -> false
+  | `Top () -> false
   | _ -> true
   end
 }
@@ -49,7 +49,7 @@ let nonterminal a =
 (* let nonterminal a =
   { z : zipper a |
     match z.tree with
-    | `Empty _ -> false
+    | `Empty () -> false
     | _ -> true
     end
   } *)
@@ -83,7 +83,7 @@ let up (type a) (z : nonroot a) : zipper a =
 
 let rec to_tree (type a) (z : zipper a) : tree a =
   match z.path with
-  | `Top _ -> z.tree
+  | `Top () -> z.tree
   | _ -> to_tree a (up a z)
   end
 
@@ -98,19 +98,19 @@ let left_path a = mu t.
 *)
 let rec leftmost (type a) (p : left_path a) (t : tree a) : left_path a =
   match t with
-  | `Empty _ -> p
+  | `Empty () -> p
   | `Node (l, x, r) -> leftmost a (`Left (p, x, r)) l
   end
 
 let rec compare (type a) (cmp : a -> a -> int) (z1 : left_path a) (z2 : left_path a) : int =
   match z1, z2 with
-  | `Top _, `Top _ -> 0
+  | `Top (), `Top () -> 0
   | `Left (z1, x1, r1), `Left (z2, x2, r2) ->
     let c = cmp x1 x2 in
     if c <> 0 then c
     else compare a cmp (leftmost a z1 r1) (leftmost a z2 r2)
-  | `Top _, `Left _ -> -1
-  | `Left _, `Top _ -> 1
+  | `Top (), `Left _ -> -1
+  | `Left _, `Top () -> 1
   end
 
 let compare_tree (type a) (cmp : a -> a -> int) (t1 : tree a) (t2 : tree a) : int =

@@ -11,13 +11,13 @@ let t a = mu t.
 
 let rec size n = 
   match n with
-  | `Leaf _ -> 0
+  | `Leaf () -> 0
   | `Node node -> 1 + size node.l + size node.r
   end
 
 let rec is_braun_tree x = 
   match x with
-  | `Leaf _ -> true
+  | `Leaf () -> true
   | `Node node ->
     is_braun_tree node.l
     && is_braun_tree node.r
@@ -28,7 +28,7 @@ let bt a = { tree : t a | is_braun_tree tree }
 
 let rec insert (type a_) (tree : bt a_) (x : a_) : bt a_ =
   match tree with
-  | `Leaf _ -> `Node { v = x ; l = `Leaf () ; r = `Leaf () }
+  | `Leaf () -> `Node { v = x ; l = `Leaf () ; r = `Leaf () }
   | `Node node ->
     if size node.l > size node.r
     then `Node { l = node.l ; r = insert a_ node.r x ; v = node.v }

@@ -13,6 +13,6 @@ let max x y =
 
 let rec depth (tree : t) : { i : int | i >= 0 } =
   match tree with
-  | `Leaf _ -> 0
+  | `Leaf () -> 0
   | `Node node -> 1 + max (depth node.left) (depth node.right)
   end

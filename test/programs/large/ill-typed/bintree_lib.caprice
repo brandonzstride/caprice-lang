@@ -1,5 +1,7 @@
 (* TEST
-  include splayable;
+  typing = ill-typed;
+  flags = " -s"; # the goal is to test that splaying finds errors
+  speed = fast;
 *)
 
 let t a = mu t.
@@ -71,6 +73,6 @@ let is_ordered (type a) (tree : t a) (compare : a -> a -> int) : bool =
     ) (`Empty ()) tree
   in
   match res with
-  | `Empty () | `Ordered_with_min _ -> true
-  | `Not_ordered () -> false
+  | `Empty () | `Ordered_with_min () -> true (* ERROR: `Ordered_with_min does not have unit payload *)
+  | `Not_ordered _ -> false
   end

@@ -424,6 +424,8 @@ module Make (Atom_cell : Utils.Comparable.P1) = struct
             else return No_match
         | PTuple (p1, p2), VTuple (Any v1, Any v2) ->
           match_two (p1, v1) (p2, v2)
+        | PUnit, VUnit ->
+          return Match
         | PEmptyList, VEmptyList -> 
           return Match
         | PDestructList (p1, p2), VListCons (Any v1, v2) ->
