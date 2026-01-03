@@ -1,11 +1,8 @@
 (* TEST
-  typing = no-error;
-  flags += " -t 2.0";
-  speed = slow;
-  typecheck;
+  include splayable;
 *)
 
-let rec mult (n : int) (m : int) : { i : int | i >= 0 } =
+let rec mult (dep n : int | n > 0) (dep m : int | m >= 0) : { i : int | i == n * m } =
   if n <= 0 || m <= 0
   then 0
   else n + mult n (m - 1)

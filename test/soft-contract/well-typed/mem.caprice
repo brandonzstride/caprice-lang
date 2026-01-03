@@ -1,16 +1,17 @@
 (* TEST
-  typing = no-error;
-  flags += " -t 2.0";
-  speed = slow;
-  typecheck;
+  include splayable;
 *)
 
-let rec mem x xs =
+let rec mem (x : int) (xs : list int) : bool =
   match xs with
   | [] -> false
   | hd :: tl -> hd == x || mem x tl
   end
 
+(*
+  Since the splayed `mem` always finds the `x` on the first go,
+  this refinement is deterministic and thus passes.
+*)
 let rec mk_list (dependent x : int) (n : int) : { l : list int |
     match l with
     | [] -> true

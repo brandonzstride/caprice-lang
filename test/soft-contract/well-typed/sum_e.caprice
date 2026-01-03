@@ -1,11 +1,8 @@
 (* TEST
-  typing = no-error;
-  flags += " -t 2.0";
-  speed = slow;
-  typecheck;
+  include splayable;
 *)
 
-let rec sum x =
+let rec sum (dep x : int | x >= 0) : { y : int | y == x * (x + 1) / 2 } =
   if x <= 0
   then 0
   else x + sum (x - 1)

@@ -1,11 +1,8 @@
 (* TEST
-  typing = no-error;
-  flags += " -t 2.0";
-  speed = slow;
-  typecheck;
+  include splayable;
 *)
 
-let rec mult x y =
+let rec mult (dep x : int | x > 0) (dep y : int | y >= 0) : { z : int | z == x * y } =
   if x <= 0 || y <= 0
   then 0
   else x + mult x (y - 1)
