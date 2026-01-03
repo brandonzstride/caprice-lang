@@ -440,8 +440,12 @@ let eval
       | Any VUnit -> confirm
       | _ -> refute
       end
-    | VTypeTop -> failwith "Unimplemented check top"
-    | VTypeBottom -> refute
+    | VTypeTop ->
+      (* Everything is in top *)
+      confirm
+    | VTypeBottom ->
+      (* Nothing is in bottom *)
+      refute
     | VTypePoly { id } ->
       let* v = force_value v in
       begin match v with
@@ -739,7 +743,12 @@ let eval
     | VTypePoly { id } ->
       let* Step nonce = step in (* will use step for a fresh nonce *)
       return_any (VGenPoly { id ; nonce })
-    | VTypeTop -> failwith "Unimplemented top gen"
+    | VTypeTop ->
+      (* parametric polymorphism is enough here *)
+      let* newtype = gen VType in
+      handle_any newtype
+        ~data:(fun _ -> raise @@ InvariantException "`type` generated data value")
+        ~typeval:(fun typ -> gen typ)
     | VTypeBottom -> escape Vanish
     | VTypeRecord record_t ->
       let* genned_body =

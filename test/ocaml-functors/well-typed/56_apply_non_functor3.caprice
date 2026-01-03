@@ -1,7 +1,6 @@
 (* TEST
   include splayable;
   flags += " -w";
-  skip; # needs wrap to maintain meaning -- these ocaml functor tests are very "wrappy"
 *)
 
 (*
