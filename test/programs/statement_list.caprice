@@ -45,35 +45,35 @@ let rec map (type a b) (ls : list a) (f : a -> b) : list b =
   end
 
 (* (* 7 *) *)
-let rec map (type a b) (ls : list a) (f : a -> b) : list b =
+let rec map (type a b) : list a -> (a -> b) -> list b = fun ls -> fun f ->
   match ls with
   | [] -> []
   | hd :: tl -> f hd :: map a b tl f
   end
 
 (* (* 8 *) *)
-let rec map (type a b) (ls : list a) (f : a -> b) : list b =
+let rec map (type a) : (type b) -> list a -> (a -> b) -> list b = fun b ls f ->
   match ls with
   | [] -> []
   | hd :: tl -> f hd :: map a b tl f
   end
 
 (* (* 9 *) *)
-let rec map (type a b) (ls : list a) (f : a -> b) : list b =
+let rec map : (type a b) -> list a -> (a -> b) -> list b = fun a b ls f ->
   match ls with
   | [] -> []
   | hd :: tl -> f hd :: map a b tl f
   end
 
 (* (* 10 *) *)
-let rec map (type a b) (ls : list a) (f : a -> b) : list b =
+let rec map (type a b) : list a -> (a -> b) -> list b = fun ls f ->
   match ls with
   | [] -> []
   | hd :: tl -> f hd :: map a b tl f
   end
 
 (* (* 11 *) *)
-let rec map (type a b) (ls : list a) (f : a -> b) : list b =
+let rec map : (a : type) -> (type b) -> list a -> (a -> b) -> list b = fun a b ls f ->
   match ls with
   | [] -> []
   | hd :: tl -> f hd :: map a b tl f

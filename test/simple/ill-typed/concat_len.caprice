@@ -3,7 +3,7 @@
 *)
 
 
-let rec length x acc = 
+let rec length = fun x acc ->
   match x with
   | [] -> acc
   | _ :: tl -> length tl (acc + 1)

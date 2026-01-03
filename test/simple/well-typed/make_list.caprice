@@ -3,7 +3,7 @@
 *)
 
 
-let rec makelist (n : int) : list int = 
+let rec makelist : int -> list int = fun n ->
   if n == 0 then []
   else n :: makelist (n-1)
 

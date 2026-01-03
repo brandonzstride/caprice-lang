@@ -153,8 +153,13 @@ statement:
           EFunction { param ; body = acc }
         ) (List.tl $4) $8
       } }
-  // TODO: allow this form
-  // | LET REC typed_binding EQUALS FUNCTION nonempty_list(l_ident) ARROW expr
+  | LET REC typed_binding EQUALS FUNCTION nonempty_list(l_ident) ARROW expr
+  | LET REC untyped_binding EQUALS FUNCTION nonempty_list(l_ident) ARROW expr
+    { SLetRec { var = $3 ; param = List.hd $6 ; defn =
+      List.fold_right (fun param acc ->
+        EFunction { param ; body = acc }
+      ) (List.tl $6) $8
+    } }
   ;
 
 %inline typed_binding:
@@ -230,6 +235,7 @@ expr:
     { ETypeFun { domain = PReg { tau = $1 } ; codomain = $3 } }
   | dependent_function_type
     { $1 }
+  ;
 
 %inline dependent_function_type:
   (* standard *)
@@ -380,6 +386,7 @@ record_type_body:
       { Record.Parsing.singleton $1 }
   | record_type_item SEMICOLON record_type_body
       { Record.Parsing.add_entry $1 $3 }
+  ;
 
 %inline record_label:
   | ident
@@ -432,6 +439,7 @@ match_expr_list:
     { ($1, $3) :: $5 }
   | pattern ARROW expr
     { [ $1, $3 ] }
+  ;
 
 pattern:
   | pattern AS ident
@@ -457,3 +465,4 @@ pattern:
     { Pattern.PVariable $1 } (* not l_ident because we handle underscore immediately above *)
   | OPEN_PAREN pattern CLOSE_PAREN
     { $2 }
+  ;
