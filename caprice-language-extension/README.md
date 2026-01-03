@@ -57,7 +57,7 @@ or whatever version(s) you have installed.
 
 ## Disclaimers
 
-The icon is freehanded in MS Paint. There is no license for the icon; assume it is free to use.
+The icon is based on an original hand-drawn sketch and is free to use. It has been refined using OpenAI image generation.
 
 The icon has been set as a fallback to whatever icon theme you're using. As long
 as your theme does not define an icon for `.caprice` files, the provided icon is used.

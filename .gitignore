@@ -37,6 +37,7 @@ _opam/
 
 # VS Code files
 *.vscode/*
+*/.vscode/*
 
 # Language extension files
 *.vsix
