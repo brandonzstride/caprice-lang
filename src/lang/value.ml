@@ -356,6 +356,40 @@ module Make (Atom_cell : Utils.Comparable.P1) = struct
     let non_bool_predicate (v : any) : string =
       Format.sprintf "Bad predicate: the refinement predicate %s is expected to be a boolean"
         (any_to_string v)
+
+    let bad_wrap s v t =
+      Format.sprintf "Bad wrap: %s is not %s; tried to wrap with type %s"
+        s (any_to_string v) (to_string t)
+
+    let wrap_bottom (v : any) : string =
+      Format.sprintf "Bad wrap: tried to wrap %s with type bottom"
+        (any_to_string v)
+      
+    let wrap_non_list (v : any) (tlist : tval) : string =
+      bad_wrap "a list" v tlist
+
+    let wrap_typeval_fun (t : tval) (tfun : tval) : string =
+      bad_wrap "a function" (Any t) tfun
+
+    let wrap_missing_label (v : any) (label : Labels.Record.t) : string =
+      Format.sprintf "Bad wrap: Missing label: %s does not have label %s"
+        (any_to_string v) (Labels.Record.to_string label)
+
+    let wrap_non_record (v : any) (t : tval) : string =
+      bad_wrap "a record" v t
+
+    let wrap_non_module (v : any) (t : tval) : string =
+      bad_wrap "a module" v t
+
+    let wrap_missing_constructor (v : any) (t : tval) : string =
+      Format.sprintf "Bad wrap: Missing constructor: %s is not a constructor in type %s"
+        (any_to_string v) (to_string t)
+
+    let wrap_non_variant (v : any) (t : tval) : string =
+      bad_wrap "a variant" v t
+
+    let wrap_non_tuple (v : any) (t : tval) : string =
+      bad_wrap "a tuple" v t
   end
 
   module Match_result = struct

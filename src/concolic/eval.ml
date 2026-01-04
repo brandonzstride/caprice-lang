@@ -357,7 +357,7 @@ let eval
       local' (Env.set param v_arg env) (eval captured)
     | VFunFix { fvar ; param ; closure = { captured ; env } } ->
       if do_splay && is_any_symbolic v_arg then
-        escape @@ Mismatch (
+        mismatch (
           Format.sprintf "Called rec fun with symbolic value %s while splaying"
             (Val.any_to_string v_arg)
           )
@@ -893,7 +893,7 @@ let eval
     | VTypeInt
     | VTypeBool
     | VTypeSingle _ -> return v
-    | VTypeBottom -> escape @@ Mismatch "Cannot wrap with bottom"
+    | VTypeBottom -> mismatch @@ wrap_bottom v
     | VTypeMu { var ; closure = { captured ; env } } ->
       let* tval = local' (Env.set var (Any t) env) (eval_type captured) in
       begin match v with
@@ -923,7 +923,7 @@ let eval
         handle w_tl
           ~data:(fun w_tl_data -> return_any (VListCons (w_hd, w_tl_data)))
           ~typeval:(fun _ -> raise @@ InvariantException "Wrapped list is not data")
-      | _ -> escape @@ Mismatch "Wrap non-list with list type"
+      | _ -> mismatch @@ wrap_non_list v t
       end
     | VTypeFun tfun ->
       begin match v with
@@ -931,7 +931,7 @@ let eval
       | Any v' ->
         handle v'
           ~data:(fun data -> return_any (VWrapped { data ; tau = tfun }))
-          ~typeval:(fun _ -> escape @@ Mismatch "Wrap non-data with function type")
+          ~typeval:(fun t' -> mismatch @@ wrap_typeval_fun t' t)
       end
     | VTypeRecord t_body ->
       begin match v with
@@ -943,11 +943,11 @@ let eval
             | Some v' -> 
               let* w = wrap v' t in
               return (Labels.Record.Map.add k w acc)
-            | None -> escape @@ Mismatch "Wrap missing record label"
+            | None -> mismatch @@ wrap_missing_label v k
           ) t_body (return Labels.Record.Map.empty)
         in
         return_any (VRecord w_body)
-      | _ -> escape @@ Mismatch "Wrap non-record"
+      | _ -> mismatch @@ wrap_non_record v t
       end
     | VTypeModule { captured = t_ls ; env } ->
       begin match v with
@@ -964,7 +964,7 @@ let eval
                 fold_labels (return @@ Labels.Record.Map.add item v acc) tl
               )
             | None ->
-              escape @@ Mismatch "Wrap missing module label"
+              mismatch @@ wrap_missing_label v item
             end
         in
         let* wrapped_body =
@@ -973,7 +973,7 @@ let eval
           )
         in
         return_any (VModule wrapped_body)
-      | _ -> escape @@ Mismatch "Wrap non-module"
+      | _ -> mismatch @@ wrap_non_module v t
       end
     | VTypeVariant t_body ->
       begin match v with
@@ -986,9 +986,9 @@ let eval
           else
             return_any (VVariant { label ; payload = w })
         | None -> 
-          escape @@ Mismatch "Wrap missing variant label"
+          mismatch @@ wrap_missing_constructor v t
         end
-      | _ -> escape @@ Mismatch "Wrap non-variant"
+      | _ -> mismatch @@ wrap_non_variant v t
       end
     | VTypeTuple (t1, t2) ->
       begin match v with
@@ -999,7 +999,7 @@ let eval
           return v (* return value unchanged because wrapping did nothing *)
         else
           return_any (VTuple (w1, w2))
-      | _ -> escape @@ Mismatch "Wrap non-tuple"
+      | _ -> mismatch @@ wrap_non_tuple v t
       end
     | VTypeRefine { var = _ ; tau ; predicate = _ } ->
       wrap v tau
