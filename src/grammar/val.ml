@@ -59,3 +59,37 @@ let rec is_symbolic : type a. a t -> bool = fun v ->
   | VWrapped { data = _ ; tau = { domain = _ ; codomain = CodDependent _ } } -> true
 
 let is_any_symbolic (Any v) = is_symbolic v
+
+(**
+  [does_wrap_matter t] is true if wrapping some value [v] (which
+    has type [t] already) with the type [t] could possibly change
+    the usage behavior of the wrapped value.
+
+  For example, [does_wrap_matter VTypeInt] is [false] because the
+    int wrapper is a no-op.
+  Another example: [does_wrap_matter (VTypeRecord _)] is [true] because
+    the record wrapper can hide labels in the value.
+
+  This function is used to avoid adding lazy wrappers to lazily-generated
+  values.
+*)
+let rec does_wrap_matter : typeval t -> bool = function
+  | VType
+  | VTypePoly _
+  | VTypeUnit
+  | VTypeTop
+  | VTypeBottom
+  | VTypeInt
+  | VTypeBool
+  | VTypeSingle _ -> false
+  (* propagate *)
+  | VTypeVariant variant_t ->
+    Labels.Variant.Map.exists (fun _ -> does_wrap_matter) variant_t
+  | VTypeList t
+  | VTypeRefine { tau = t ; _ } -> does_wrap_matter t
+  | VTypeTuple (t1, t2) -> does_wrap_matter t1 || does_wrap_matter t2
+  (* closures (mu), functions, and records/modules need wrap *)
+  | VTypeMu _ (* we overapproximate and assume the recursive type wrap can matter *)
+  | VTypeFun _ (* function wrapper adds usage checks *)
+  | VTypeRecord _ (* record and module wrappers can hide labels *)
+  | VTypeModule _ -> true

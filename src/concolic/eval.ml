@@ -467,7 +467,7 @@ let eval
         fork_on_left ~reason:CheckGenFun
           ~left:{ run_failing = domain <: domain' }
           ~right:(
-            if codomain = codomain' then confirm else
+            if codomain == codomain' then confirm else
             let* cod_tval, cod_tval' =
               match codomain, codomain' with
               | CodValue cod_tval, CodValue cod_tval' -> 
@@ -580,7 +580,7 @@ let eval
         | LLazy LGenMu { var = var' ; closure = { captured = captured' ; env = env' } } ->
           (* TODO: these names (with the "prime") go the other direction as the spec *)
           (* FIXME: consider wrapping_types, and also make curated tests for it. *)
-          if captured' = captured && env = env' then confirm else
+          if captured' == captured && env == env' then confirm else
           let* a = gen VType in (* fresh type to use as a stub *)
           let* t_body = local' (Env.set var a env) (eval_type captured) in
           let* t_body' = local' (Env.set var' a env') (eval_type captured') in
@@ -901,13 +901,20 @@ let eval
         (* Always lazily wrap, even if the value is forced already. *)
         (* It is safe to put this off because any error when wrapping would be an
           error when checking, which is already done eagerly. *)
-        return_any (VLazy { vlazy with wrapping_types = tval :: vlazy.wrapping_types })
-      | _ -> wrap v tval
+        if does_wrap_matter tval then
+          return_any (VLazy { vlazy with wrapping_types = tval :: vlazy.wrapping_types })
+        else
+          return v
+      | _ -> 
+        wrap v tval
       end
     | VTypeList t_body ->
       begin match v with
       | Any VLazy vlazy ->
-        return_any (VLazy { vlazy with wrapping_types = t :: vlazy.wrapping_types })
+        if does_wrap_matter t then
+          return_any (VLazy { vlazy with wrapping_types = t :: vlazy.wrapping_types })
+        else
+          return v
       | Any VEmptyList ->
         return v
       | Any VListCons (v_hd, v_tl) ->
@@ -974,7 +981,10 @@ let eval
         begin match Labels.Variant.Map.find_opt label t_body with
         | Some t ->
           let* w = wrap payload t in
-          return_any (VVariant { label ; payload = w })
+          if w == payload then
+            return v (* return value unchanged because wrapping did nothing *)
+          else
+            return_any (VVariant { label ; payload = w })
         | None -> 
           escape @@ Mismatch "Wrap missing variant label"
         end
@@ -985,7 +995,10 @@ let eval
       | Any VTuple (v1, v2) ->
         let* w1 = wrap v1 t1 in
         let* w2 = wrap v2 t2 in
-        return_any (VTuple (w1, w2))
+        if w1 == v1 && w2 == v2 then
+          return v (* return value unchanged because wrapping did nothing *)
+        else
+          return_any (VTuple (w1, w2))
       | _ -> escape @@ Mismatch "Wrap non-tuple"
       end
     | VTypeRefine { var = _ ; tau ; predicate = _ } ->
