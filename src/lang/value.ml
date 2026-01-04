@@ -38,7 +38,7 @@ module Make (Atom_cell : Utils.Comparable.P1) = struct
     (* generated values *)
     | VGenFun : (typeval t, fun_cod) Funtype.t -> data t
     | VGenPoly : { id : int ; nonce : int } -> data t
-    | VLazy : symbol -> data t (* lazily evaluated thing, so state must manage this *)
+    | VLazy : vlazy -> data t (* lazily evaluated thing, so state must manage this *)
     (* wrapped values *)
     | VWrapped : { data : data t ; tau : (typeval t, fun_cod) Funtype.t }  -> data t
     (* type values only *)
@@ -68,19 +68,14 @@ module Make (Atom_cell : Utils.Comparable.P1) = struct
     | CodDependent of Ident.t * Ast.t closure (* dependent function codomain *)
 
   and any = Any : 'a t -> any [@@unboxed]
-  
+
   (*
-    See above that lazy values are data values. This is possibly a bad choice
-    because when forced, they can become type values. But this is not significantly
-    different than how an arbitrary expression evaluates to either a type value or
-    data value; we're unsure until we try to evaluate it. Similarly with a lazy
-    value. However, there are a few places (like lazily generated lists) where it
-    is nicer to store them as data values.
+    Represents lazy values. The wrapping types are a queue of types
+    with which to wrap the value after it is forced to weak head normal form.
+
+    The lazy state itself is not updated because wrapping is flow sensitive.
   *)
-  type lazy_v =
-    | LGenList of typeval t
-    | LGenMu of { var : Ident.t ; closure : Ast.t closure }
-    | LValue of any
+  and vlazy = { symbol : symbol ; wrapping_types : typeval t list }
 
   module Env = Env.Make (struct type t = any end)
 
@@ -256,8 +251,10 @@ module Make (Atom_cell : Utils.Comparable.P1) = struct
       Format.sprintf "G(poly id : %d, nonce : %d)" id nonce
     | VWrapped { data ; tau } ->
       Format.sprintf "W(%s, %s)" (to_string data) (to_string (VTypeFun tau))
-    | VLazy { id } ->
-      Format.sprintf "Lazy(id : %d)" id
+    | VLazy { symbol = { id } ; wrapping_types } ->
+      List.fold_right (fun t acc ->
+        Format.sprintf "W(%s, %s)" acc (to_string t)
+      ) wrapping_types (Format.sprintf "Lazy(id : %d)" id)
     | VType ->
       "type"
     | VTypePoly { id } ->
@@ -377,7 +374,7 @@ module Make (Atom_cell : Utils.Comparable.P1) = struct
       It's expected that this computation is monadic, so we must pass in
       the monad via a functor.
     *)
-    let matches (type a) (pat : Pattern.t) (v : a t) ~(resolve_symbol : symbol -> any m) : Match_result.t m =
+    let matches (type a) (pat : Pattern.t) (v : a t) ~(resolve_lazy : vlazy -> any m) : Match_result.t m =
       let rec matches 
         : type a. Pattern.t -> a t -> Match_result.t m 
         = fun p v ->
@@ -404,8 +401,8 @@ module Make (Atom_cell : Utils.Comparable.P1) = struct
               | _ -> return acc
             )
           ) (return No_match) p_ls
-        | _, VLazy symbol ->
-          bind (resolve_symbol symbol) (fun (Any v) ->
+        | _, VLazy vlazy ->
+          bind (resolve_lazy vlazy) (fun (Any v) ->
             matches p v
           )
         | p, VGenPoly _ -> 
@@ -451,8 +448,8 @@ module Make (Atom_cell : Utils.Comparable.P1) = struct
       in
       matches pat v
 
-    let match_any (pat : Pattern.t) (Any v : any) ~(resolve_symbol : symbol -> any m) : Match_result.t m =
-      matches pat v ~resolve_symbol
+    let match_any (pat : Pattern.t) (Any v : any) ~(resolve_lazy : vlazy -> any m) : Match_result.t m =
+      matches pat v ~resolve_lazy
   end
 end
 

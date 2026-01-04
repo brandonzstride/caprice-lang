@@ -1,6 +1,5 @@
 (* TEST
   include refutable;
-  flags += " -d 100";
 *)
 
 (*

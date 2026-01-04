@@ -2,6 +2,10 @@
   include splayable;
 *)
 
+(*
+  TODO: find the wrap error in this test (Bluejay and Caprice both find it,
+    even without splaying.
+*)
 
 let t a =
   { run : (type r) -> (a -> r) -> r }
@@ -28,21 +32,20 @@ let run (type a r) (x : t a) (k : a -> r) : r =
     return int (sum + n)
   ) *)
 
+(* let closed_sum n = n * (n + 1) / 2
+
+let closed_sum_t n = { i : int | i == closed_sum n }
+
+(* Better is to write this: *)
+let rec summate (dep n : int | n >= 0) : t (closed_sum_t n) =
+  if n <= 0 then return int 0 else
+  bind int (closed_sum_t n) (summate (n - 1)) (fun sum ->
+    return int (sum + n)
+  ) *)
+
 (* Better is to write this: *)
 let rec summate (dep n : int | n >= 0) : t { i : int | i == n * (n + 1) / 2 } =
   if n <= 0 then return int 0 else
   bind int int (summate (n - 1)) (fun sum ->
     return int (sum + n)
   )
-
-(* let summate n =
-  let rec aux n =
-    if n <= 0 then return int 0 else
-    bind int int (aux (n - 1)) (fun sum ->
-      return int (sum + n)
-    )
-  in
-  run int int (aux n) (fun i -> i)
-
-let _ : { i : int | i == 10 } = summate 4 *)
-    

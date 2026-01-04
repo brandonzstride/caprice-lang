@@ -1,6 +1,6 @@
 (* TEST
   include refutable;
-  flags += " -d 100";
+  flags += " -w";
   speed = slow; # about a second sometimes
 *)
 

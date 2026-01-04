@@ -1,6 +1,6 @@
 (* TEST
   typing = no-error;
-  flags = " -t 3.0";
+  flags = " -t 3.0 -w";
   speed = slow;
   typecheck;
 *)

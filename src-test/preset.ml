@@ -12,7 +12,7 @@ let s (Ident.Ident id) = id
 let splayable : Ctl_ast.t =
   [ Env_stmt (Assign (speed, s fast))
   ; Env_stmt (Assign (typing, s exhausted))
-  ; Env_stmt (Append (flags, " -s -r")) (* TODO: add wrap here *)
+  ; Env_stmt (Append (flags, " -s -r -w"))
   ; Test Typecheck
   ]
 

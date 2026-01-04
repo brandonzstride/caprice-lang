@@ -1,6 +1,5 @@
 (* TEST
   include splayable;
-  flags += " -w";
 *)
 
 (*

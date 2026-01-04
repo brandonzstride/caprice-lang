@@ -125,10 +125,7 @@ let eval
       let rec find_match = function
         | [] -> mismatch @@ missing_pattern v (List.map fst patterns)
         | (pat, body) :: tl ->
-          let resolve_symbol symbol =
-            force_value (Any (VLazy symbol))
-          in
-          let* res = Matches.match_any pat v ~resolve_symbol in
+          let* res = Matches.match_any pat v ~resolve_lazy in
           begin match res with
           | Match -> eval body
           | Match_bindings e -> local (fun env -> Env.extend env e) (eval body)
@@ -164,10 +161,11 @@ let eval
       begin match v2 with
       | Any (VEmptyList as tl)
       | Any (VListCons _ as tl) -> cons_with_v1 tl
-      | Any (VLazy symbol as tl) ->
+      | Any (VLazy { symbol ; _ } as tl) ->
         let* v_lazy = find_symbol symbol in
         begin match v_lazy with
-        | LGenList _ -> cons_with_v1 tl
+        | LLazy LGenList _ -> cons_with_v1 tl
+        (* TODO: remaining cases need to wrap *)
         | LValue Any (VEmptyList as tl)
         | LValue Any (VListCons _ as tl) -> cons_with_v1 tl
         | _ -> mismatch @@ cons_non_list v1 v2
@@ -572,13 +570,16 @@ let eval
       end
     | VTypeMu { var ; closure = { captured ; env } } ->
       begin match v with
-      | Any VLazy s ->
-        let* lazy_v = find_symbol s in
+      | Any VLazy { symbol ; wrapping_types = _ } ->
+        let* lazy_v = find_symbol symbol in
         begin match lazy_v with
-        | LValue any_v -> check any_v t
-        | LGenList _ -> refute (* TODO: make error message description; it will be cryptic like this *)
-        | LGenMu { var = var' ; closure = { captured = captured' ; env = env' } } ->
-          (* FIXME: these names (with the "prime") go the other direction as the spec *)
+        | LValue any_v ->
+          check any_v t
+        | LLazy LGenList _ ->
+          refute (* TODO: make error message description; it will be cryptic like this *)
+        | LLazy LGenMu { var = var' ; closure = { captured = captured' ; env = env' } } ->
+          (* TODO: these names (with the "prime") go the other direction as the spec *)
+          (* FIXME: consider wrapping_types, and also make curated tests for it. *)
           if captured' = captured && env = env' then confirm else
           let* a = gen VType in (* fresh type to use as a stub *)
           let* t_body = local' (Env.set var a env) (eval_type captured) in
@@ -591,15 +592,26 @@ let eval
       end
     | VTypeList t_body ->
       begin match v with
-      | Any VLazy s ->
-        let* lazy_v = find_symbol s in
+      | Any VLazy { symbol ; wrapping_types } ->
+        let* lazy_v = find_symbol symbol in
         begin match lazy_v with
-        | LValue any_v -> check any_v t
-        | LGenMu _ -> refute (* see mu todo *)
-        | LGenList t' ->
-          if t' = t_body then confirm else
+        | LValue any_v ->
+          (* TODO: wrap with wrapping types *)
+          check any_v t
+        | LLazy LGenMu _ ->
+          refute (* see todo on mu check about error messages *)
+        | LLazy LGenList t' ->
+          if wrapping_types = [] && t' = t_body then confirm else
           let* genned = gen t' in
-          check genned t_body
+          let* wrapped =
+            List.fold_right (fun twrap acc_m ->
+              let* acc = acc_m in
+              match twrap with
+              | VTypeList tval -> wrap acc tval
+              | _ -> mismatch "Wrap list with non-list type"
+            ) wrapping_types (return genned)
+          in
+          check wrapped t_body
         end
       | Any VEmptyList -> confirm
       | Any VListCons (v_hd, v_tl) ->
@@ -883,13 +895,21 @@ let eval
     | VTypeSingle _ -> return v
     | VTypeBottom -> escape @@ Mismatch "Cannot wrap with bottom"
     | VTypeMu { var ; closure = { captured ; env } } ->
-      (* TODO: handle splaying *)
       let* tval = local' (Env.set var (Any t) env) (eval_type captured) in
-      wrap v tval
-    | VTypeList t_body ->
-      (* TODO: handle splaying *)
       begin match v with
-      | Any VEmptyList -> return v
+      | Any VLazy vlazy ->
+        (* Always lazily wrap, even if the value is forced already. *)
+        (* It is safe to put this off because any error when wrapping would be an
+          error when checking, which is already done eagerly. *)
+        return_any (VLazy { vlazy with wrapping_types = tval :: vlazy.wrapping_types })
+      | _ -> wrap v tval
+      end
+    | VTypeList t_body ->
+      begin match v with
+      | Any VLazy vlazy ->
+        return_any (VLazy { vlazy with wrapping_types = t :: vlazy.wrapping_types })
+      | Any VEmptyList ->
+        return v
       | Any VListCons (v_hd, v_tl) ->
         let* w_hd = wrap v_hd t_body in
         let* Any w_tl = wrap (Any v_tl) t in
@@ -1058,23 +1078,39 @@ let eval
     = fun v ->
     if do_splay then
       match v with 
-      | Any VLazy symbol ->
-        let* lazy_v = find_symbol symbol in
-        begin match lazy_v with
-        | LGenMu { var ; closure } ->
-          let* genned = force_gen_mu var closure in
-          let* () = add_symbol symbol (LValue genned) in
-          return genned
-        | LGenList t ->
-          let* genned = force_gen_list t in
-          let* () = add_symbol symbol (LValue genned) in
-          return genned
-        | LValue v_any -> return v_any
-        end
+      | Any VLazy vlazy -> resolve_lazy vlazy
       | _ -> return v
     else
       (* without splaying, nothing is ever delayed because it would be incomplete *)
       return v
+
+  (*
+    Forces the value to weak head normal form and wraps
+    with any lazily-done wrappings.
+  *)
+  and resolve_lazy
+    : 'env. Val.vlazy -> (Val.any, 'env) m
+    = fun { symbol ; wrapping_types } ->
+    assert do_splay;
+    let* lazy_v = find_symbol symbol in
+    let force_gen = function
+      | Lazy_val.LGen.LGenMu { var ; closure } -> force_gen_mu var closure
+      | LGenList t -> force_gen_list t
+    in
+    List.fold_right (fun twrap acc_m ->
+      let* acc = acc_m in
+      wrap acc twrap
+    ) wrapping_types (
+      match lazy_v with
+      | LLazy lv ->
+        let* genned = force_gen lv in
+        let* () = add_symbol symbol (LValue genned) in
+        return genned
+      | LValue v_any ->
+        return v_any
+    )
+      
+
   in
 
   let result, state = run (eval_statement_list pgm) target in

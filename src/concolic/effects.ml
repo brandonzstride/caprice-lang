@@ -10,7 +10,7 @@ module State = struct
     ; logged_inputs : Input_env.t 
     ; path_len : Path_length.t (* total length of the path to this point (up to and including the stem) *)
     ; runs : Logged_run.t Utils.Diff_list.t
-    ; lazy_values : Val.lazy_v Val.SymbolMap.t
+    ; lazy_values : Lazy_val.t Val.SymbolMap.t
     }
 
   let empty : t =
@@ -169,18 +169,18 @@ let fork (forked_m : (Eval_result.t, 'env) u) : (unit, 'env) m =
       else return ())
 
 (* INVARIANT: the symbol must always exist *)
-let find_symbol (symbol : Val.symbol) : (Val.lazy_v, 'env) m =
+let find_symbol (symbol : Val.symbol) : (Lazy_val.t, 'env) m =
   let* { lazy_values ; _ } = get in
   return (Val.SymbolMap.find symbol lazy_values)
 
-let add_symbol (symbol : Val.symbol) (lazy_v : Val.lazy_v) : (unit, 'env) m =
+let add_symbol (symbol : Val.symbol) (lazy_v : Lazy_val.t) : (unit, 'env) m =
   modify (fun s -> { s with lazy_values = Val.SymbolMap.add symbol lazy_v s.lazy_values })
 
 (* Makes a new symbol for this lazy value. Assumes the lazy value is not a symbol itself *)
-let make_new_lazy_value (lazy_v : Val.lazy_v) : (Val.any, 'env) m =
+let make_new_lazy_value (lgen : Lazy_val.LGen.t) : (Val.any, 'env) m =
   let* Step id = step in (* use step as fresh identifier *)
-  let* () = add_symbol { id } lazy_v in
-  return (Val.Any (VLazy { id }))
+  let* () = add_symbol { id } (LLazy lgen) in
+  return (Val.Any (VLazy { symbol = { id } ; wrapping_types = [] }))
 
 let run' (x : ('a, Val.Env.t) m) (target : Target.t) (s : State.t) (e : Val.Env.t) : Eval_result.t * State.t =
   match run x s e { target } with
