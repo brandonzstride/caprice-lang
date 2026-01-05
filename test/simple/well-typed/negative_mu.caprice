@@ -1,0 +1,25 @@
+(* TEST
+  include splayable;
+*)
+
+let t = mu t.
+  | `A of t -> int
+  | `B of unit
+
+let _ : t =
+  `A (fun t ->
+    match t with
+    | `A f -> f (`B ())
+    | `B () -> 0
+    end
+  )
+
+let _ : t = `B ()
+
+let rec f (_ : unit) : t =
+  `A (fun t ->
+    match t with
+    | `A g -> g (f ()) + 1
+    | `B () -> 0
+    end
+  )

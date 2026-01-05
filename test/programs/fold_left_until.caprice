@@ -1,0 +1,22 @@
+(* TEST
+  include splayable;
+*)
+
+let t acc stop =
+  | `Continue of acc
+  | `Stop of stop
+
+let rec fold_left_until (type a acc stop)
+  (f : acc -> a -> t acc stop)
+  (finish : acc -> stop)
+  (init : acc)
+  (ls : list a) 
+  : stop =
+  match ls with
+  | [] -> finish init
+  | hd :: tl ->
+    match f init hd with
+    | `Stop x -> x
+    | `Continue x -> fold_left_until a acc stop f finish x tl
+    end
+  end
