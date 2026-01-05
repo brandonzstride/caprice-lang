@@ -2,11 +2,6 @@
   include splayable;
 *)
 
-(*
-  TODO: find the wrap error in this test (Bluejay and Caprice both find it,
-    even without splaying.
-*)
-
 let t a =
   { run : (type r) -> (a -> r) -> r }
 
@@ -32,20 +27,16 @@ let run (type a r) (x : t a) (k : a -> r) : r =
     return int (sum + n)
   ) *)
 
-(* let closed_sum n = n * (n + 1) / 2
+let closed_sum n = n * (n + 1) / 2
 
 let closed_sum_t n = { i : int | i == closed_sum n }
 
-(* Better is to write this: *)
+(*
+  This doesn't explode, but it requires a lot of hand-holding for typing.
+  See `cps_monad_ho_sub.caprice` test for why it needs so much explicit typing.
+*)
 let rec summate (dep n : int | n >= 0) : t (closed_sum_t n) =
-  if n <= 0 then return int 0 else
-  bind int (closed_sum_t n) (summate (n - 1)) (fun sum ->
-    return int (sum + n)
-  ) *)
-
-(* Better is to write this: *)
-let rec summate (dep n : int | n >= 0) : t { i : int | i == n * (n + 1) / 2 } =
-  if n <= 0 then return int 0 else
-  bind int int (summate (n - 1)) (fun sum ->
-    return int (sum + n)
+  if n <= 0 then return (closed_sum_t 0) 0 else
+  bind (closed_sum_t (n - 1)) (closed_sum_t n) (summate (n - 1)) (fun sum ->
+    return (closed_sum_t n) (sum + n)
   )

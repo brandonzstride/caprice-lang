@@ -1,0 +1,6 @@
+(* TEST
+  include refutable;
+*)
+
+let f (g : (int -> unit) -> unit) : ({ m : int | m == 10 } -> unit) -> unit =
+  g (* ERROR: int is not a subtype of { m : int | m == 10 } *)

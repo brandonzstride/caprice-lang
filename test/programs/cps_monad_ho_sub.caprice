@@ -1,0 +1,58 @@
+(* TEST
+  include refutable; # is a usage error caught by wrap.
+*)
+
+(*
+  This test demonstrates subtyping of higher order functions,
+  checked at usages by wrapping.
+
+  The behavior is not intuitive at first, but it is correct.
+*)
+
+let t a =
+  { run : (type r) -> (a -> r) -> r }
+
+let bind (type a b) (x : t a) (f : a -> t b) : t b =
+  { run = fun r k ->
+    x.run r (fun a ->
+      (f a).run r k
+    )
+  }
+
+let return (type a) (a : a) : t a =
+  { run = fun r k -> k a }
+
+let run (type a r) (x : t a) (k : a -> r) : r =
+  x.run r k
+
+(*
+  The errors are in summate. Take `return int 0`, for example.
+
+  Note that
+    return int 0
+  is wrapped with type
+    'r. (int -> 'r) -> 'r
+
+  Since this is returned in the case that n is 0, it is returned
+  for a value that will be checked against type
+
+    'r. ({ i : int | i == 0 } -> 'r) -> 'r
+
+  So do we have this subtyping?
+
+    'r. (int -> 'r) -> 'r <: 'r. ({i:int | i==0} -> 'r) -> 'r
+          'r. (int -> 'r) :> 'r. ({i:int | i==0} -> 'r)
+                      int <: {i:int | i==0}
+
+  No, we do not. This error is only found because `return int 0` is a
+  function that checks that its argument has type (int -> 'r), where
+  its argument will be a generated function ({i:int | i==0} -> 'r).
+  
+  Without wrapping, `return int 0` is an untyped function, which does
+  act like the expected type.
+*)
+let rec summate (dep n : int | n >= 0) : t { i : int | i == n * (n + 1) / 2 } =
+  if n <= 0 then return int 0 else
+  bind int int (summate (n - 1)) (fun sum ->
+    return int (sum + n)
+  )
