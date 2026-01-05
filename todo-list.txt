@@ -1,6 +1,5 @@
 
-- add wrap
-  (added, but need to specially check wrapped things and also wrap lazily generate things)
+- wrap lazyily generated mu members when doing final stubbed check
 - add deterministic functions
 - mutually recursive functions
 - mu type parameters (must be careful about divergence from eager evaluation of the type)
