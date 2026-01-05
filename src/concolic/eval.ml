@@ -164,10 +164,9 @@ let eval
       | Any (VLazy { symbol ; _ } as tl) ->
         let* v_lazy = find_symbol symbol in
         begin match v_lazy with
-        | LLazy LGenList _ -> cons_with_v1 tl
-        (* TODO: remaining cases need to wrap *)
-        | LValue Any (VEmptyList as tl)
-        | LValue Any (VListCons _ as tl) -> cons_with_v1 tl
+        | LLazy LGenList _
+        | LValue Any VEmptyList
+        | LValue Any VListCons _ -> cons_with_v1 tl
         | _ -> mismatch @@ cons_non_list v1 v2
         end
       | _ -> mismatch @@ cons_non_list v1 v2
@@ -579,11 +578,13 @@ let eval
           refute (* TODO: make error message description; it will be cryptic like this *)
         | LLazy LGenMu { var = var' ; closure = { captured = captured' ; env = env' } } ->
           (* TODO: these names (with the "prime") go the other direction as the spec *)
-          (* FIXME: consider wrapping_types, and also make curated tests for it. *)
+          (* FIXME: consider wrapping_types. *)
           if captured' == captured && env == env' then confirm else
           let* a = gen VType in (* fresh type to use as a stub *)
           let* t_body = local' (Env.set var a env) (eval_type captured) in
           let* t_body' = local' (Env.set var' a env') (eval_type captured') in
+          (* we would need to address the fixme by wrapping the generated
+            member inside the call to (<:) *)
           t_body' <: t_body
         end
       | _ ->
@@ -603,14 +604,17 @@ let eval
         | LLazy LGenList t' ->
           if wrapping_types = [] && t' = t_body then confirm else
           let* genned = gen t' in
-          let* wrapped =
+          (* genned is only a single element of the list, so wrap it
+            by extracting the type bodies out of the list type *)
+          let* wrapping_bodies =
             List.fold_right (fun twrap acc_m ->
               let* acc = acc_m in
               match twrap with
-              | VTypeList tval -> wrap acc tval
+              | VTypeList tval -> return (tval :: acc)
               | _ -> mismatch "Wrap list with non-list type"
-            ) wrapping_types (return genned)
+            ) wrapping_types (return [])
           in
+          let* wrapped = wrap_multi wrapping_bodies genned in
           check wrapped t_body
         end
       | Any VEmptyList -> confirm
@@ -1005,6 +1009,18 @@ let eval
       wrap v tau
 
   (*
+    Wrap with FIFO queue of types, represented as a list.
+    That is, the last type in the list wraps first.
+  *)
+  and wrap_multi
+    : 'env. Val.tval list -> Val.any -> (Val.any, 'env) m
+    = fun queue v ->
+    List.fold_right (fun twrap acc_m ->
+      let* acc = acc_m in
+      wrap acc twrap
+    ) queue (return v)
+
+  (*
     ---------------------------------------
     EVALUATE LIST OF STATEMENTS TO A MODULE
     ---------------------------------------
@@ -1105,24 +1121,21 @@ let eval
     : 'env. Val.vlazy -> (Val.any, 'env) m
     = fun { symbol ; wrapping_types } ->
     assert do_splay;
-    let* lazy_v = find_symbol symbol in
-    let force_gen = function
-      | Lazy_val.LGen.LGenMu { var ; closure } -> force_gen_mu var closure
-      | LGenList t -> force_gen_list t
-    in
-    List.fold_right (fun twrap acc_m ->
-      let* acc = acc_m in
-      wrap acc twrap
-    ) wrapping_types (
+    let* v_any =
+      let* lazy_v = find_symbol symbol in
       match lazy_v with
       | LLazy lv ->
-        let* genned = force_gen lv in
+        let* genned =
+          match lv with
+          | LGenMu { var ; closure } -> force_gen_mu var closure
+          | LGenList t -> force_gen_list t
+        in
         let* () = add_symbol symbol (LValue genned) in
         return genned
       | LValue v_any ->
         return v_any
-    )
-      
+    in
+    wrap_multi wrapping_types v_any
 
   in
 

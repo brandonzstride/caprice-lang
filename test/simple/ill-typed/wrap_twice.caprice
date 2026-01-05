@@ -1,0 +1,9 @@
+(* TEST
+  include refutable;
+*)
+
+let f (ls : list (int -> int)) : unit =
+  let ls2 : list ({ i : int | i > 0 } -> int) = ls in
+  (* ERROR: the next wrapping is a subtype of the previous *)
+  let ls3 : list ({ i : int | i >= 0 } -> int) = ls2 in
+  ()

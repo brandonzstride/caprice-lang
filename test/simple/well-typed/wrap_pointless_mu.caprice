@@ -1,0 +1,13 @@
+(* TEST
+  include splayable;
+*)
+
+(* mu is not used *)
+let t = mu t. { i : int | i >= 0 } -> int
+
+let f (g : int -> { j : int | j < 0 }) : { i : int | i > 0 } -> { j : int | j <= 0 } =
+  let h : t = g in
+  h
+
+let f (g : t) : { i : int | i >= 0 } -> int =
+  g

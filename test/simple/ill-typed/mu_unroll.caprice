@@ -1,0 +1,53 @@
+(* TEST
+  typing = ill-typed;
+  flags = " -s -w";
+  typecheck;
+*)
+
+(*
+  ERROR: the recursive types don't line up when splaying
+    so this is ill-typed due to incompleteness
+    
+  OCaml can type check this program though:
+
+    type t1 = 
+      [ `A | `B of t1 ]
+
+    type t2 =
+      [ `A | `B of [ `A | `B of t2 ] ]
+
+    let to_ (x : t1) : t2 = x
+
+    let fro (x : t2) : t1 = x
+*)
+
+(*
+  Splays to
+    | `A of unit
+    | `B of alpha
+*)
+let t1 = mu t1.
+  | `A of unit
+  | `B of t1
+
+(*
+  Splays to
+    | `A of unit
+    | `B of
+      | `A of unit
+      | `B of alpha
+
+  This alpha doesn't line up with the alpha in t1
+*)
+let t2 = mu t2.
+  | `A of unit
+  | `B of
+    | `A of unit
+    | `B of t2
+
+let to (x : t1) : t2 =
+  x
+
+let fro (x : t2) : t1 =
+  x
+

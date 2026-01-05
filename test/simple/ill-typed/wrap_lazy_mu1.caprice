@@ -1,0 +1,21 @@
+(* TEST
+  typing = ill-typed;
+  flags = " -s -w";
+  typecheck;
+*)
+
+(* homemade list *)
+let lst a = mu t.
+  | `Empty of unit
+  | `Cons of a * t
+
+let f (ls : lst (int -> int)) : unit =
+  let w : lst ({ i : int | i > 0 } -> int) = ls in
+  let ls2 = `Cons ((fun i -> i), w) in
+  (* The match will finally pull on the wrapped tail and evaluate it *)
+  match ls2 with
+  | `Cons (_, `Empty ()) -> ()
+  | `Cons (_, `Cons (f, _)) ->
+    let _ = f 0 in (* ERROR: application error *)
+    ()
+  end

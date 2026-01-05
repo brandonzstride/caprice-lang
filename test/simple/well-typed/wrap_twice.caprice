@@ -1,0 +1,8 @@
+(* TEST
+  include splayable;
+*)
+
+let f (ls : list (int -> int)) : unit =
+  let ls2 : list ({ i : int | i >= 0 } -> int) = ls in
+  let ls3 : list ({ i : int | i > 0 } -> int) = ls2 in
+  ()

@@ -1,0 +1,26 @@
+(* TEST
+  typing = ill-typed;
+  flags = " -s -w";
+  typecheck;
+*)
+
+(* homemade list *)
+let lst a = mu t.
+  | `Empty of unit
+  | `Cons of a * t
+
+let f (ls : lst (int -> int)) : unit =
+  let w : lst ({ i : int | i > 0 } -> int) = ls in
+  let _ = (* pull on list *)
+    match w with
+    | `Empty () | `Cons (_, _) -> ()
+    end
+  in
+  (* w still references the symbol and has to look up the value when matching *)
+  let ls2 = `Cons ((fun i -> i), w) in
+  match ls2 with
+  | `Cons (_, `Empty ()) -> ()
+  | `Cons (_, `Cons (f, _)) ->
+    let _ = f 0 in (* ERROR: application error *)
+    ()
+  end
