@@ -483,6 +483,14 @@ let eval
         fork_on_left ~reason:CheckWrappedFun
           ~left:{ run_failing = domain <: domain' }
           ~right:(
+            (*
+              The left has already checked the domain, so we can assume the 
+              domain side is well-typed.
+
+              We can skip the work on the right if the codomains are equal
+                because the wrapper means its been checked.
+            *)
+            if codomain = codomain' then confirm else
             (* TODO: remove this duplication with all the above cases
               (this is almost just the "right" side of checking functions but
               with wrapping the result in the wrapping codomain'). *)

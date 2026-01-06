@@ -1,0 +1,23 @@
+
+
+let zipper a = { left : list a ; right : list a }
+
+let empty_zipper = { left = [] ; right = [] }
+
+let make_zipper (type a) (left : list a) (right : list a) : zipper a =
+  (* do something to use the lists, even if pointless *)
+  match left, right with
+  | [], [] -> empty_zipper
+  | (a, b) -> { left = a ; right = b }
+  end
+
+let f1 : (type a) -> list a -> list a -> zipper a = make_zipper
+let f2 : (type a) -> list a -> list a -> zipper a = f1
+let f3 : (type a) -> list a -> list a -> zipper a = f2
+let f4 : (type a) -> list a -> list a -> zipper a = f3
+let f5 : (type a) -> list a -> list a -> zipper a = f4
+let f6 : (type a) -> list a -> list a -> zipper a = f5
+let f7 : (type a) -> list a -> list a -> zipper a = f6
+let f8 : (type a) -> list a -> list a -> zipper a = f7
+let f9 : (type a) -> list a -> list a -> zipper a = f8
+let _  : (type a) -> list a -> list a -> zipper a = f9
