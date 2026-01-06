@@ -109,7 +109,8 @@ let loop ~(options : Options.t) (solve : Stepkey.t Smt.Formula.solver)
 module Default_Z3 = Overlays.Typed_z3.Default
 module Default_solver = Smt.Formula.Make_solver (Default_Z3)
 
-let begin_ceval ~(options : Options.t) (pgm : Lang.Ast.program) : Answer.t =
+let begin_ceval ?(print_outcome : bool = true) ~(options : Options.t)
+  (pgm : Lang.Ast.program) : Answer.t =
   let go () =
     try
       let time_sec = Utils.Time.convert_span options.global_timeout ~to_:Mtime.Span.s in
@@ -120,8 +121,9 @@ let begin_ceval ~(options : Options.t) (pgm : Lang.Ast.program) : Answer.t =
     | Lwt_unix.Timeout -> Answer.Timeout options.global_timeout
   in
   Utils.Counter.reset c;
-  if options.is_random then Random.self_init ();
+  if options.is_random then Random.self_init () else Random.init 999;
   let span, answer = Utils.Time.time go () in
+  if print_outcome then
   Format.printf "Finished type checking in %0.3f ms and %d runs:\n    %s\n"
     (Utils.Time.span_to_ms span) !(c.cell) (Answer.to_string answer);
   answer

@@ -1,11 +1,12 @@
 (executables
- (names typecheck)
+ (names typecheck bench)
  (libraries
   ; internal
   lang
   concolic
   ; external
   cmdliner
+  benchmark
  )
  (promote
   (until-clean)
