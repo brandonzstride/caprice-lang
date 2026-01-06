@@ -854,6 +854,7 @@ let eval
     match l with
     | Left GenList ->
       let* () = push_tag Grammar.Tag.With_alt.{ main = Left GenList ; alts = [ Right GenList ] } in
+      let* () = incr_step ~max_step in (* doesn't call gen, so need to increment step manually *)
       return_any VEmptyList
     | Right GenList ->
       let* () = push_tag Grammar.Tag.With_alt.{ main = Right GenList ; alts = [ Left GenList ] } in

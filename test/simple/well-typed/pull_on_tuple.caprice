@@ -1,0 +1,20 @@
+(* TEST
+  include splayable;
+*)
+
+(*
+  When splaying, the arguments are generated lazily. When they are matched
+  on, they get pulled on.
+
+  This test makes sure that they are pulled on in order and dependently.
+  It does this by allowing the right side of the tuple skip evaluation
+  depending on how the left evaluates. The final check is against a tuple,
+  which forks evaluation to check each side, and that fork will go wrong
+  if there is some targets that don't line up (which would happen in the
+  case the matching logic is incorrect).
+*)
+let f (left : list unit) (right : list unit) : unit * unit =
+  match left, right with
+  | [], [] -> (), ()
+  | _ -> (), ()
+  end
