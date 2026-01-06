@@ -3,7 +3,6 @@
 - add deterministic functions
 - mutually recursive functions
 - mu type parameters (must be careful about divergence from eager evaluation of the type)
-- benchmarking setup
 - language docs
 - typechecking pipeline from splaying to non-splaying
   (and optional skip of splaying mode to check pure refutation performance)
