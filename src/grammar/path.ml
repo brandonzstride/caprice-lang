@@ -3,14 +3,14 @@
 type punit =
   | Formula of bool Formula.t * Stepkey.t
   | Nonflipping of bool Formula.t
-  | Tag of Stepkey.t Keyed_tag.With_alt.t
+  | Tag of Tag.With_alt.t * Stepkey.t
 
 type t = punit list
 
 let empty : t = []
 
-let cons_tag (l : Stepkey.t Keyed_tag.With_alt.t) (t : t) : t =
-  Tag l :: t
+let cons_tag (l : Tag.With_alt.t) (k : Stepkey.t) (t : t) : t =
+  Tag (l, k) :: t
 
 let cons_formula (e : bool Formula.t) (k : Stepkey.t) (t : t) : t =
   Formula (e, k) :: t
@@ -44,4 +44,4 @@ let formulas (t : t) : Formula.BSet.t =
 let priority_of_punit (u : punit) : int =
   match u with
   | Formula _ | Nonflipping _ -> 1
-  | Tag { tag = { main ; _ } ; _ } -> Tag.priority main
+  | Tag ({ main ; _ }, _) -> Tag.priority main

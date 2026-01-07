@@ -66,7 +66,7 @@ let push_tag (tag : Tag.With_alt.t) : (unit, 'env) m =
   modify (fun s -> 
     { s with rev_stem = 
       if Path_length.geq s.path_len (Target.path_length target) then
-        Path.cons_tag { key = Stepkey step ; tag } s.rev_stem 
+        Path.cons_tag tag (Stepkey step) s.rev_stem 
       else
         s.rev_stem
     ; path_len = Path_length.plus_int s.path_len (Tag.priority tag.main) }
@@ -79,7 +79,7 @@ let push_and_log_tag (tag : Tag.t) : (unit, 'env) m =
   modify (fun s -> 
     { s with rev_stem =
       if Path_length.geq s.path_len (Target.path_length target) then
-        Path.cons_tag { key = Stepkey step ; tag = { main = tag ; alts = [] } } s.rev_stem 
+        Path.cons_tag { main = tag ; alts = [] } (Stepkey step) s.rev_stem 
       else
         s.rev_stem
     ; path_len = Path_length.plus_int s.path_len (Tag.priority tag)

@@ -541,38 +541,44 @@ let eval
       | Any VRecord record_v ->
         let t_labels = Record.label_set record_t in
         let v_labels = Record.label_set record_v in
-        if Labels.Record.Set.subset t_labels v_labels
-        then
           let push_and_check label =
+            { run_failing =
+              (* alternatives do not matter when we are running every label right now *)
+              let* () = push_and_log_tag (Grammar.Tag.of_record_label label) in
+              check
+                (Labels.Record.Map.find label record_v)
+                (Labels.Record.Map.find label record_t)
+            }
+          in
+          check_struct push_and_check ~refute ~t_labels ~v_labels
+      | _ -> refute
+      end
+    | VTypeModule { captured ; env } ->
+      let* v = force_value v in
+      begin match v with
+      | Any VModule module_v ->
+        let t_labels_ls = List.map (fun { Ast.item ; _ } -> item) captured in
+        let t_labels = Labels.Record.Set.of_list t_labels_ls in
+        let v_labels = Record.label_set module_v in
+        let push_and_check label =
+          { run_failing =
             (* alternatives do not matter when we are running every label right now *)
             let* () = push_and_log_tag (Grammar.Tag.of_record_label label) in
-            check
-              (Labels.Record.Map.find label record_v)
-              (Labels.Record.Map.find label record_t)
-          in
-          let* l_opt = read_input make_tag input_env in
-          match l_opt with
-          | Some Label id -> push_and_check (Labels.Record.RecordLabel id)
-          | Some _ -> bad_input_env ()
-          | None ->
-            (* is in exploration mode, so we want to check them all *)
-            begin match Labels.Record.Set.random_elt_opt t_labels with
-            | Some main_label ->
-              let* () =
-                let rec go = function
-                  | [] -> return ()
-                  | label :: tl ->
-                    let* () = fork (push_and_check label) in
-                    go tl
-                in
-                Labels.Record.Set.remove main_label t_labels
-                |> Labels.Record.Set.to_list
-                |> go
-              in
-              push_and_check main_label
-            | None -> confirm
-            end
-        else refute
+            let new_env, tau = 
+              (* think about sharing this computation because rn it is redone on every fork *)
+              Utils.List_utils.fold_left_until (fun env { Ast.item = label' ; tau } ->
+                if Labels.Record.equal label' label
+                then `Stop (env, tau)
+                else `Continue (
+                  Env.set (Labels.Record.to_ident label') (Labels.Record.Map.find label' module_v) env
+                )
+              ) (fun _ -> raise @@ InvariantException "Label not found in module type") env captured
+            in
+            let* t = local' new_env (eval_type tau) in
+            check (Labels.Record.Map.find label module_v) t
+          }
+        in
+        check_struct push_and_check ~refute ~t_labels ~v_labels
       | _ -> refute
       end
     | VTypeMu { var ; closure = { captured ; env } } ->
@@ -657,56 +663,6 @@ let eval
           ~right:(check v2 t2)
       | _ -> refute
       end
-    | VTypeModule { captured ; env } ->
-      let* v = force_value v in
-      begin match v with
-      | Any VModule module_v ->
-        let t_labels_ls = List.map (fun { Ast.item ; _ } -> item) captured in
-        let t_labels = Labels.Record.Set.of_list t_labels_ls in
-        let v_labels = Record.label_set module_v in
-        if Labels.Record.Set.subset t_labels v_labels
-        then
-          let push_and_check label =
-            (* alternatives do not matter when we are running every label right now *)
-            let* () = push_and_log_tag (Grammar.Tag.of_record_label label) in
-            let new_env, tau = 
-              (* TODO: share this computation because it is redone on every fork *)
-              Utils.List_utils.fold_left_until (fun env { Ast.item = label' ; tau } ->
-                if Labels.Record.equal label' label
-                then `Stop (env, tau)
-                else `Continue (
-                  Env.set (Labels.Record.to_ident label') (Labels.Record.Map.find label' module_v) env
-                )
-              ) (fun _ -> raise @@ InvariantException "Label not found in module type") env captured
-            in
-            let* t = local' new_env (eval_type tau) in
-            check (Labels.Record.Map.find label module_v) t
-          in
-          let* l_opt = read_input make_tag input_env in
-          match l_opt with
-          | Some Label id -> push_and_check (Labels.Record.RecordLabel id)
-          | Some _ -> bad_input_env ()
-          | None ->
-            (* is in exploration mode, so we want to check them all *)
-            begin match t_labels_ls with
-            | [] -> confirm
-            | main_label :: _ ->
-              let* () =
-                let rec go = function
-                  | [] -> return ()
-                  | label :: tl ->
-                    let* () = fork (push_and_check label) in
-                    go tl
-                in
-                Labels.Record.Set.remove main_label t_labels
-                |> Labels.Record.Set.to_list
-                |> go
-              in
-              push_and_check main_label
-            end
-        else refute
-      | _ -> refute
-      end
     | VTypeSingle tval ->
       let* v = force_value v in
       handle_any v
@@ -717,6 +673,31 @@ let eval
             ~left:{ run_failing = tval' <: tval }
             ~right:(tval <: tval')
         )
+
+  (*
+    Check modules and records given a way to check each label and a default
+    label
+  *)
+  and check_struct
+    : type a env. (Labels.Record.t -> (Eval_result.t, env) failing) -> refute:(a, env) m ->
+      t_labels:Labels.Record.Set.t -> v_labels:Labels.Record.Set.t -> (a, env) m
+    = fun check_label ~refute ~t_labels ~v_labels ->
+      if Labels.Record.Set.subset t_labels v_labels then
+        let* l_opt = read_input make_tag input_env in
+        match l_opt with
+        | Some Label id -> (check_label (Labels.Record.RecordLabel id)).run_failing
+        | Some _ -> bad_input_env ()
+        | None ->
+          (* is in exploration mode, so we want to check every label *)
+          let rec go = function
+            | [] -> escape Confirmation
+            | label :: tl ->
+              let* () = fork (check_label label).run_failing in
+              go tl
+          in
+          go (Labels.Record.Set.to_list t_labels)
+      else
+        refute
 
   (*
     -------------

@@ -18,7 +18,7 @@ let make_targets ~(max_tree_depth : int) (target : Target.t)
             ~path_length
         in
         `Continue (new_target :: acc_set, path_length, Formula.BSet.add formula formulas)
-      | Tag { key ; tag = { main = _ ; alts } } ->
+      | Tag ({ main = _ ; alts }, key) ->
         let new_ienv = Input_env.remove_greater key ienv in
         `Continue (
           List.fold_left (fun acc alt_tag ->
