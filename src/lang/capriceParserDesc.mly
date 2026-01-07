@@ -92,7 +92,11 @@
 %right ARROW /*LONG_ARROW*/   /* -> for type declaration, and --> for deterministic */
 %left ASTERISK SLASH PERCENT  /* * / % */
 
-/* Give TYPE less precedence than IDENTIFIER so that (type a) does not parse as an application */
+(* HACK: Precedence declarations to resolve (type a) -> t parsing.
+   When parsing "(type" followed by identifier, we want to shift the identifier
+   to eventually parse the type parameter sugar (type a) -> t, rather than 
+   reduce TYPE to expr early (which would parse as function application).
+   The higher precedence on IDENTIFIER causes Menhir to prefer shifting. *)
 %nonassoc TYPE
 %nonassoc IDENTIFIER
 
