@@ -89,6 +89,7 @@
 %right DOUBLE_COLON           /* :: */
 %right prec_variant_pattern   /* variant destruction pattern */
 %left PLUS MINUS              /* + - */
+%right ARROW /*LONG_ARROW*/   /* -> for type declaration, and --> for deterministic */
 %left ASTERISK SLASH PERCENT  /* * / % */
 
 /* Give TYPE less precedence than IDENTIFIER so that (type a) does not parse as an application */
