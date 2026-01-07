@@ -90,7 +90,10 @@
 %right prec_variant_pattern   /* variant destruction pattern */
 %left PLUS MINUS              /* + - */
 %left ASTERISK SLASH PERCENT  /* * / % */
-%right ARROW /*LONG_ARROW*/       /* -> for type declaration, and --> for deterministic */
+
+/* Give TYPE less precedence than IDENTIFIER so that (type a) does not parse as an application */
+%nonassoc TYPE
+%nonassoc IDENTIFIER
 
 %start <statement list> prog
 %start <statement list option> delim_expr
