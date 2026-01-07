@@ -10,10 +10,33 @@ let _ =
     assert (a == 1 && b == 2)
   end
 
-let f (x : `A of unit | `B of unit) : int =
+let f (x : `A of unit | `B of unit | `C of unit | `D of unit | `E of unit) : int =
+  match x with
+  | `A _
+  | `B _
+  | `C _ -> 0
+  | (`A _ | `B _ | `C _ | `D _ | `E _ as v) ->
+    match v with
+    (* This is the same as the pattern above *)
+    | (`A _ | `B _ | `C _ | `D _ | `E _) as u ->
+      match u with
+      | `D _ | `E _ -> 1
+      end
+    end
+  end
+
+let f (x : `A of unit | `B of unit | `C of unit | `D of unit | `E of unit) : int =
   match x with
   | `A _
   | `B _ -> 0
+  | (`A _ | `B _ | `C _ | `D _ | `E _ as v) ->
+    match v with
+    (* This is the same as the pattern above *)
+    | (`A _ | `B _ | `C _ | `D _ | `E _) as u ->
+      match u with
+      | `C _ | `D _ | `E _ -> 1
+      end
+    end
   end
 
 let g (ls : list int) : int =
@@ -31,4 +54,17 @@ let h (x : `A of unit | `B of (`A of unit | `B of `A of unit)) : bool =
   match x with
   | `A _ | `B `A _ -> true
   | `B `B `A _ -> false
+  end
+
+let k (x : list int) : int =
+  match x with
+  | _ :: _ ->
+    match x with
+    | _ :: _ as y ->
+      (* y is bound to the entire x, not the tail *)
+      match y with
+      | hd :: _ -> hd
+      end
+    end
+  | [] -> 0
   end

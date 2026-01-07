@@ -12,6 +12,12 @@ let f (x : t) : int =
   | `A `C _ -> 0
   end
 
+let f (x : t) : int =
+  match x with
+  | `A (`B i) -> i
+  | `A (`C _) -> 0
+  end
+
 let t = mu t.
   | `A of t
   | `B of unit

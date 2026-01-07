@@ -78,8 +78,8 @@
 %nonassoc prec_if             /* Conditionals */
 %nonassoc prec_mu             /* mu types */
 %nonassoc OF                  /* variant type declarations */
-%left PIPE                    /* multiple patterns */
 %nonassoc AS                  /* pattern as ident */
+%right PIPE                   /* multiple patterns, variant type separator */
 %left COMMA                   /* tuples */
 %right DOUBLE_PIPE            /* || for boolean or */
 %right DOUBLE_AMPERSAND       /* && for boolean and */
@@ -225,10 +225,10 @@ expr:
   ;
 
 %inline type_expr:
-  | PIPE separated_nonempty_list(PIPE, single_variant_type) (* pipe optional before first variant *)
-      { ETypeVariant $2 }
-  | separated_nonempty_list(PIPE, single_variant_type)
-      { ETypeVariant $1 }
+  | PIPE variant_type_body (* pipe optional before first variant *)
+    { ETypeVariant $2 }
+  | variant_type_body
+    { ETypeVariant $1 }
   | MU l_ident DOT expr %prec prec_mu
     { ETypeMu { var = $2 ; body = $4 } }
   | expr ARROW expr
@@ -251,10 +251,11 @@ expr:
       ) $3 $6 }
   ;
 
-single_variant_type:
+variant_type_body:
   | variant_label OF expr
-    { { label = $1 ; payload = $3 } }
-  ;
+    { [ { label = $1 ; payload = $3 } ] }
+  | variant_label OF expr PIPE variant_type_body
+    { { Variant.label = $1 ; payload = $3 } :: $5 }
 
 appl_expr:
   | appl_expr primary_expr
@@ -293,11 +294,11 @@ primary_expr:
   | BOTTOM_KEYWORD
     { ETypeBottom }
   | LIST
-    { EFunction { param = Ident "x" ; body = ETypeList (EVar (Ident "x")) } } (* HACK HACK HACK *)
+    { EFunction { param = Ident "~list" ; body = ETypeList (EVar (Ident "~list")) } } (* HACK HACK HACK *)
   | ABSTRACT
     { EAbstractType }
   | SINGLETYPE_KEYWORD
-    { EFunction { param = Ident "x" ; body = ETypeSingle (EVar (Ident "x")) } } (* HACK HACK HACK *)
+    { EFunction { param = Ident "~singletype" ; body = ETypeSingle (EVar (Ident "~singletype")) } } (* HACK HACK HACK *)
   | OPEN_PAREN CLOSE_PAREN
     { EUnit }
   | OPEN_BRACE COLON CLOSE_BRACE
@@ -457,7 +458,7 @@ pattern:
   | UNDERSCORE
     { PAny }
   | pattern PIPE pattern
-    { match $3 with
+    { match $3 with (* since pipe is right assoc, the left is not an "or" pattern *)
       | Pattern.PPatternOr p_ls -> PPatternOr ($1 :: p_ls)
       | p -> PPatternOr [ $1 ; p ]
     }
