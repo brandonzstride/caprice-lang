@@ -437,10 +437,10 @@ let eval
       | Any VUnit -> confirm
       | _ -> refute
       end
-    | VTypeTop ->
+    | VTypeTop -> (* don't force v *)
       (* Everything is in top *)
       confirm
-    | VTypeBottom ->
+    | VTypeBottom -> (* don't force v *)
       (* Nothing is in bottom *)
       refute
     | VTypePoly { id } ->
@@ -581,7 +581,7 @@ let eval
         check_struct push_and_check ~refute ~t_labels ~v_labels
       | _ -> refute
       end
-    | VTypeMu { var ; closure = { captured ; env } } ->
+    | VTypeMu { var ; closure = { captured ; env } } -> (* don't force v *)
       begin match v with
       | Any VLazy { symbol ; wrapping_types = _ } ->
         let* lazy_v = find_symbol symbol in
@@ -605,7 +605,7 @@ let eval
         let* t_body = local' (Env.set var (Any t) env) (eval_type captured) in
         check v t_body
       end
-    | VTypeList t_body ->
+    | VTypeList t_body -> (* don't force v *)
       begin match v with
       | Any VLazy { symbol ; wrapping_types } ->
         let* lazy_v = find_symbol symbol in
@@ -639,7 +639,7 @@ let eval
       | _ -> refute
       end
     | VTypeRefine { var ; tau ; predicate = { captured ; env } } ->
-      (* Value is not directly used here, so we don't force it *)
+      (* Value is not directly used here, so we don't force it quite yet *)
       fork_on_left ~reason:CheckRefinementType
         ~left:{ run_failing = check v tau }
         ~right:(
