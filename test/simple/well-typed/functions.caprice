@@ -2,6 +2,40 @@
   include finite-well-typed;
 *)
 
+(* simple id fun *)
+
+let id : int -> int = fun x -> x
+
+(* higher order function applications *)
+
+let f (g : int -> int) (x : (int -> int) -> bool) : bool = 
+  x g
+
+
+(* simple dependent functions *)
+
+let test (type a b) (f : a -> b) (type c) : list c =
+  []
+
+let test (type a) : a = assume false
+
+let _ = (type a) -> list a
+
+let B x = 
+  if x > 0 then int else bool
+
+let f (dependent a : int) (b : B a) : int =
+  if a > 0 then b else 
+    if b then 3 else 2
+
+(* This is a dependent function type with a refined parameter *)
+let _ = (x : int | x > 0) -> if x > 10 then int else bool
+
+(* This is just a function type with a refined parameter *)
+let _ = { x : int | x > 0 } -> int
+
+
+(* generated functions *)
 
 (* Generated function should pass *)
 let f (type a b) (g : a -> list b) : a -> list b =

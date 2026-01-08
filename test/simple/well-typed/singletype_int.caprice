@@ -1,6 +1,0 @@
-(* TEST
-  include finite-well-typed;
-*)
-
-
-let t : singletype int = int

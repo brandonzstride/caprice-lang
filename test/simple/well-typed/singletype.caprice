@@ -1,0 +1,35 @@
+(* TEST
+  include finite-well-typed;
+*)
+
+(* simplest possible *)
+
+let t : singletype int = int
+
+(* variants *)
+
+let t : singletype (`A of int | `B of bool) =
+  `A of int | `B of bool
+
+(* polymorphism *)
+
+let f (type a b) (dependent t : singletype a) (x : t) : a =
+  x
+
+(* inside modules *)
+
+let M : sig 
+  val t : singletype int
+  val f : t -> t
+end = struct
+  let t = int 
+  let f = fun x -> x
+end
+
+let M : sig 
+  val t = int (* sugar for the above *)
+  val f : t -> t
+end = struct
+  let t = int 
+  let f = fun x -> x
+end

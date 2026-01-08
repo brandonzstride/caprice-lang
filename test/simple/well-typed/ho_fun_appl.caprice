@@ -1,7 +1,0 @@
-(* TEST
-  include finite-well-typed;
-*)
-
-
-let f (g : int -> int) (x : (int -> int) -> bool) : bool = 
-  x g

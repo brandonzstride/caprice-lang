@@ -1,0 +1,55 @@
+(* TEST
+  include finite-well-typed;
+*)
+
+(* standard tuple *)
+
+let x : int * bool = 0, true
+
+(* function on tuples *)
+
+let tf = int * int -> bool * bool
+
+let f (g : tf) : bool =
+  match g (1, 2) with
+  | b1, b2 -> b1 && b2
+  end
+
+(* associativity of tuples *)
+
+let f (x : int * int * bool) : bool =
+  match x with
+  | _, _, b -> b
+  end
+
+let f (x : (int * int) * bool) : bool =
+  match x with
+  | _, _, b -> b
+  end
+
+let t = int * bool
+
+let f (x : t * int) : bool =
+  match x with
+  | _, b, _ -> b
+  end
+
+(* nested tuple checking *)
+
+let x : int * (bool * int) = 0, (true, 1)
+
+let x : int * bool * int = (0, false), 0
+
+let x : (int * bool) * int = (0, false), 0
+
+(* refined tuples *)
+
+let is_positive_pair p = 
+  match p with
+  | (x, y) -> x > 0 && y > 0
+  end
+
+let multiply (p : (int * int) | is_positive_pair p) :  { i : int | i > 0 } = 
+  match p with
+  | a, b -> a * b
+  end

@@ -1,6 +1,0 @@
-(* TEST
-  include finite-well-typed;
-*)
-
-
-let x : int * bool = 0, true

@@ -1,0 +1,42 @@
+(* TEST
+  include splayable;
+*)
+
+(* length two *)
+
+let has_length_two xs =
+  match xs with
+  | _ :: _ :: [] -> true
+  | _ -> false
+  end
+
+let get_both (xs : list int | has_length_two xs) : int * int =
+  match xs with
+  | a :: b :: [] -> (a, b)
+  end
+
+(* poly map *)
+
+let rec map (type a b) (f : a -> b) (ls : list a) : list b =
+  match ls with
+  | [] -> []
+  | hd :: tl -> f hd :: map a b f tl
+  end
+
+(* make lists *)
+
+let rec makelist : int -> list int = fun n ->
+  if n == 0 then []
+  else n :: makelist (n-1)
+
+let getHead l = 
+  match l with
+  | hd :: _ -> hd
+  end
+
+let main (n : int | n > 0) : { a : int | a > 0 } =
+  let l = makelist n in
+  if n > 0
+  then getHead l
+  else 0
+

@@ -1,0 +1,58 @@
+(* TEST
+  include finite-well-typed;
+*)
+
+(* as simple as can be *)
+
+let r : { a : int ; b : bool } = { a = 0 ; b = true }
+
+(* nested records *)
+
+let _ 
+  : { r : { a : int ; b : bool } ; s : { x : { y : int ; z : unit } } }
+  = { r = { a = 0   ; b = true } ; s = { x = { y = 0   ; z = ()   } } }
+
+(* refinements *)
+
+let notPos n = n <= 0
+
+let record_constraint re = 
+  (notPos re.b) &&
+  ((re.a + re.b) >= 0)
+
+let isTrue b = b
+
+let test (test_record : { a : int ; b : int } | record_constraint test_record) : { x : bool | isTrue x } =
+  test_record.a >= 0 
+
+
+(* subtyping *)
+
+let fun_sig = { a : int ; b : int } -> int
+
+let f (x : { a : int }) : int = x.a
+
+let _ : fun_sig = f
+
+(* function subtyping with records *)
+
+let t = ({ a : int ; b : int } -> int) -> int
+
+let f (h : { a : int ; b : int ; c : int } -> int) : int =
+  0
+
+let g : t =
+  f
+
+
+(* several paths to the same check *)
+
+let _ =
+  let x = input in
+  if x > 0
+  then
+    let _ : { a : int ; b : bool } = { a = x ; b = true } in
+    ()
+  else
+    let _ : { a : int ; b : bool } = { a = x ; b = true } in
+    ()

@@ -1,0 +1,45 @@
+(* TEST
+  include finite-well-typed;
+*)
+
+(* simple *)
+
+let id (type a) (x : a) : a =
+  x
+
+(* in structures *)
+
+let r (type a) (x : a) (type b) (y : b) : { a : list a ; y : b } =
+  { a = [ x ] ; y = y }
+
+(* multiple poly types *)
+
+let appl (type a b) (x : a) (f : a -> b) : b =
+  f x
+
+let fst (type a b) (xy : a * b) : a =
+  match xy with
+  | x, _ -> x
+  end
+
+let _ : int = appl bool int true (fun b -> if b then 0 else 1)
+
+(* higher order poly *)
+
+let f (g : (type a) -> a -> a) : int * bool =
+  g int 0, g bool true
+
+let g : (type a) -> a -> a = fun _ x -> x
+
+let _ = f g
+
+(*
+  The rest is taken from OCaml:
+    testsuite/tests/typing-poly/poly.ml
+*)
+
+let t = { id : (type a) -> a -> a }
+
+let id _ x = x
+
+let _ : t = id t { id = id }

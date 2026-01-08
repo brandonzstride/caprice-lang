@@ -1,9 +1,0 @@
-(* TEST
-  include finite-well-typed;
-*)
-
-
-let fst (type a b) (xy : a * b) : a =
-  match xy with
-  | x, _ -> x
-  end
