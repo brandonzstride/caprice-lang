@@ -43,7 +43,7 @@ let rec is_symbolic : type a. a t -> bool = fun v ->
   | VTypeSingle t ->
     is_symbolic t
   | VTypeFun { domain ; codomain = CodValue t }
-  | VGenFun { domain ; codomain = CodValue t } ->
+  | VGenFun { funtype = { domain ; codomain = CodValue t } ; nonce = _ } ->
     is_symbolic domain || is_symbolic t
   | VWrapped { data ; tau = { domain ; codomain = CodValue t } } ->
     is_symbolic data || is_symbolic domain || is_symbolic t
@@ -54,7 +54,7 @@ let rec is_symbolic : type a. a t -> bool = fun v ->
   | VLazy _
   | VTypeMu _
   | VTypeRefine _
-  | VGenFun { domain = _ ; codomain = CodDependent _ }
+  | VGenFun { funtype = { domain = _ ; codomain = CodDependent _ } ; nonce = _ }
   | VTypeFun { domain = _ ; codomain = CodDependent _ }
   | VWrapped { data = _ ; tau = { domain = _ ; codomain = CodDependent _ } } -> true
 
@@ -181,8 +181,8 @@ let rec intensional_equal (x : any) (y : any) : bool X.t =
   | Any VTuple (l1, r1), Any VTuple (l2, r2) ->
     let- () = intensional_equal l1 l2 in
     intensional_equal r1 r2
-  | Any VGenFun _, Any VGenFun _ ->
-    failwith "unimplemented" (* TODO: need a nonce to compare *)
+  | Any VGenFun { nonce = n1 ; funtype = _ }, Any VGenFun { nonce = n2 ; funtype = _ } ->
+    make (n1 = n2)
   | Any VTypeSingle t1, Any VTypeSingle t2
   | Any VTypeList t1, Any VTypeList t2 ->
     iequal t1 t2

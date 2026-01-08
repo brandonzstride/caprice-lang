@@ -104,7 +104,7 @@ let eval
       | Any (VFunFix _ as vfun) ->
         let* v_arg = eval arg in
         eval_appl vfun v_arg
-      | Any (VGenFun { domain ; _ } as vfun) ->
+      | Any (VGenFun { funtype = { domain ; _ } ; _ } as vfun) ->
         let* v_arg = eval arg in
         fork_on_left ~reason:ApplGenFun
           ~left:{ run_failing = check v_arg domain }
@@ -365,7 +365,7 @@ let eval
           Env.set fvar (Any self_fun) env
           |> Env.set param v_arg
         ) (eval captured)
-    | VGenFun { domain = _ ; codomain } ->
+    | VGenFun { funtype = { domain = _ ; codomain } ; _ } ->
       let* cod_tval = eval_codomain codomain v_arg in
       gen cod_tval
     | _ -> mismatch @@ apply_non_function (Any v_func)
@@ -462,7 +462,7 @@ let eval
         let* res = eval_appl vfun genned in
         let* cod_tval = eval_codomain codomain genned in
         check res cod_tval
-      | Any VGenFun { domain = domain' ; codomain = codomain' } ->
+      | Any VGenFun { funtype = { domain = domain' ; codomain = codomain' } ; _ } ->
         fork_on_left ~reason:CheckGenFun
           ~left:{ run_failing = domain <: domain' }
           ~right:(
@@ -504,7 +504,7 @@ let eval
               let* cod_tval' = eval_codomain codomain' w in
               let* w_res = wrap res cod_tval' in
               check w_res cod_tval
-            | VGenFun { domain = _ ; codomain = codomain'' } ->
+            | VGenFun { funtype = { domain = _ ; codomain = codomain'' } ; _ } ->
                 let* cod_tval, cod_tval', cod_tval'' =
                   match codomain, codomain', codomain'' with
                   | CodValue cod_tval, CodValue cod_tval', CodValue cod_tval'' -> 
@@ -731,7 +731,8 @@ let eval
     = fun t ->
     let* () = incr_step ~max_step in
     match t with
-    | VTypeUnit -> return_any VUnit
+    | VTypeUnit ->
+      return_any VUnit
     | VTypeInt ->
       let* step = step in
       let* i = read_and_log_int () in
@@ -740,8 +741,9 @@ let eval
       let* step = step in
       let* b = read_and_log_bool () in
       return_any (VBool (b, Stepkey.bool_symbol step))
-    | VTypeFun tfun ->
-      return_any (VGenFun tfun)
+    | VTypeFun funtype ->
+      let* Step nonce = step in
+      return_any (VGenFun { funtype ; nonce })
     | VType ->
       let* Step id = step in (* will use step for a fresh integer *)
       return_any (VTypePoly { id })

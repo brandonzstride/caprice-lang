@@ -36,7 +36,7 @@ module Make (Atom_cell : Utils.Comparable.P1) = struct
     | VEmptyList : data t
     | VListCons : any * data t -> data t
     (* generated values *)
-    | VGenFun : (typeval t, fun_cod) Funtype.t -> data t
+    | VGenFun : { funtype : (typeval t, fun_cod) Funtype.t ; nonce : int } -> data t
     | VGenPoly : { id : int ; nonce : int } -> data t
     | VLazy : vlazy -> data t (* lazily evaluated thing, so state must manage this *)
     (* wrapped values *)
@@ -53,7 +53,7 @@ module Make (Atom_cell : Utils.Comparable.P1) = struct
     | VTypeList : typeval t -> typeval t
     | VTypeFun : (typeval t, fun_cod) Funtype.t -> typeval t
     | VTypeRecord : typeval t Record.t -> typeval t
-    | VTypeModule : Labels.Record.t Ast.typed_item list closure -> typeval t (* not eagerly evaluting first label *)
+    | VTypeModule : Labels.Record.t Ast.typed_item list closure -> typeval t (* not eagerly evaluating first label *)
     | VTypeVariant : typeval t Labels.Variant.Map.t -> typeval t
     | VTypeRefine : (typeval t, Ast.t closure) Refinement.t -> typeval t
     | VTypeTuple : typeval t * typeval t -> typeval t
@@ -162,7 +162,7 @@ module Make (Atom_cell : Utils.Comparable.P1) = struct
     | VWrapped { data ; tau } ->
       contains_mu data || contains_mu (VTypeFun tau)
     | VTypeFun { domain ; codomain = CodValue t }
-    | VGenFun { domain ; codomain = CodValue t } ->
+    | VGenFun { funtype = { domain ; codomain = CodValue t } ; nonce = _ }->
       (* TODO: consider if the negative position makes a difference *)
       contains_mu domain || contains_mu t
     (* Closures cases: assume true, but may want to inspect closure *)
@@ -170,7 +170,7 @@ module Make (Atom_cell : Utils.Comparable.P1) = struct
     | VFunFix _
     | VTypeModule _
     | VLazy _
-    | VGenFun { domain = _ ; codomain = CodDependent _ }
+    | VGenFun { funtype = { domain = _ ; codomain = CodDependent _ } ; nonce = _ }
     | VTypeFun { domain = _ ; codomain = CodDependent _ } -> true
     (* Refinement types: closure does not escape, so just look at type *)
     | VTypeRefine { tau ; _ } -> contains_mu tau
@@ -216,8 +216,8 @@ module Make (Atom_cell : Utils.Comparable.P1) = struct
       "[]"
     | VListCons (hd, tl) ->
       Format.sprintf "(%s :: %s)" (any_to_string hd) (to_string tl)
-    | VGenFun funtype ->
-      Format.sprintf "G(%s)" (to_string (VTypeFun funtype))
+    | VGenFun { funtype ; nonce } ->
+      Format.sprintf "G(%s, %d)" (to_string (VTypeFun funtype)) nonce
     | VGenPoly { id ; nonce } ->
       Format.sprintf "G(poly id : %d, nonce : %d)" id nonce
     | VWrapped { data ; tau } ->
