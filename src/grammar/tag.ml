@@ -24,24 +24,30 @@ let reason_to_string = function
   | ApplGenFun          -> "Apply generated function"
   | ApplWrappedFun      -> "Apply wrapped function"
 
+type dir =
+  | Gen   (* the label is used to generate something *)
+  | Check (* the label is used to check something *)
+  [@@deriving eq, ord, show]
+
 module T = struct
   type t =
     | Left of reason
     | Right of reason
-    | Label of Lang.Ident.t
+    | Label of Lang.Ident.t * dir
     [@@deriving eq, ord]
 
-  let of_variant_label vlabel =
-    Label (Lang.Labels.Variant.to_ident vlabel)
+  let of_variant_label dir vlabel =
+    Label (Lang.Labels.Variant.to_ident vlabel, dir)
 
-  let of_record_label rlabel =
-    Label (Lang.Labels.Record.to_ident rlabel)
+  let of_record_label dir rlabel =
+    Label (Lang.Labels.Record.to_ident rlabel, dir)
 end
 
 include T
 
 let priority = function
-  | Label _ -> 1 (* TODO: we'd like to not count this when checking -- only generating *)
+  | Label (_, Gen) -> 1
+  | Label (_, Check) -> 0
   | (Left reason | Right reason) ->
     match reason with
     | GenList -> 1
@@ -50,7 +56,7 @@ let priority = function
 let to_string = function
   | Left reason -> Format.sprintf "Left (%s)" (reason_to_string reason)
   | Right reason -> Format.sprintf "Right (%s)" (reason_to_string reason)
-  | Label Ident s -> s
+  | Label (Ident s, dir) -> Format.sprintf "%s (%s)" s (show_dir dir)
 
 (* Tags with alternatives *)
 module With_alt = struct

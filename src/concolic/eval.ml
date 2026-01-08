@@ -544,7 +544,7 @@ let eval
           let push_and_check label =
             { run_failing =
               (* alternatives do not matter when we are running every label right now *)
-              let* () = push_and_log_tag (Grammar.Tag.of_record_label label) in
+              let* () = push_and_log_tag (Grammar.Tag.of_record_label Check label) in
               check
                 (Labels.Record.Map.find label record_v)
                 (Labels.Record.Map.find label record_t)
@@ -563,7 +563,7 @@ let eval
         let push_and_check label =
           { run_failing =
             (* alternatives do not matter when we are running every label right now *)
-            let* () = push_and_log_tag (Grammar.Tag.of_record_label label) in
+            let* () = push_and_log_tag (Grammar.Tag.of_record_label Check label) in
             let new_env, tau = 
               (* think about sharing this computation because rn it is redone on every fork *)
               Utils.List_utils.fold_left_until (fun env { Ast.item = label' ; tau } ->
@@ -685,7 +685,7 @@ let eval
       if Labels.Record.Set.subset t_labels v_labels then
         let* l_opt = read_input make_tag input_env in
         match l_opt with
-        | Some Label id -> (check_label (Labels.Record.RecordLabel id)).run_failing
+        | Some Label (id, Check) -> (check_label (Labels.Record.RecordLabel id)).run_failing
         | Some _ -> bad_input_env ()
         | None ->
           (* is in exploration mode, so we want to check every label *)
@@ -768,17 +768,17 @@ let eval
       let t_labels = Labels.Variant.B.domain variant_t in
       let* l =
         read_and_log_input_with_default make_tag input_env
-          ~default:(default_constructor variant_t |> Grammar.Tag.of_variant_label)
+          ~default:(default_constructor variant_t |> Grammar.Tag.of_variant_label Gen)
       in
       begin match l with
-      | Label id ->
+      | Label (id, Gen) ->
         let to_gen = Labels.Variant.of_ident id in
         let t = Labels.Variant.Map.find to_gen variant_t in
         let* () =
           push_tag Grammar.Tag.With_alt.{ main = l ; alts =
             Labels.Variant.Set.remove to_gen t_labels
             |> Labels.Variant.Set.to_list
-            |> List.map Grammar.Tag.of_variant_label
+            |> List.map (Grammar.Tag.of_variant_label Gen)
           }
         in
         let* payload = gen t in
