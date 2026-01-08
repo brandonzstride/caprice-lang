@@ -187,35 +187,6 @@ module Make (Atom_cell : Utils.Comparable.P1) = struct
     |> Option.get
     |> fst
 
-  (* Some setup to write intensional equality *)
-  (* let rec equal : type a. a t -> a t -> bool = fun a b ->
-    match a, b with
-    | VUnit, VUnit
-    | VInt, Vint
-    | VBool, VBool
-    | VFunClosure, VFunClosure
-    | VVariant, VVariant
-    | VRecord, VRecord
-    | VTuple, VTuple
-    | VFunFix, VFunFix
-    (* generated values *)
-    | VGenFun, VGenFun
-    | VGenPoly, VGenPoly
-    (* type values only *)
-    | VType, VType
-    | VTypePoly, VTypePoly
-    | VTypeUnit, VTypeUnit
-    | VTypeTop, VTypeTop
-    | VTypeBottom, VTypeBottom
-    | VTypeInt, VTypeInt
-    | VTypeBool, VTypeBool
-    | VTypeMu, VTypeMu
-    | VTypeFun, VTypeFun
-    | VTypeRecord, VTypeRecord
-    | VTypeVariant, VTypeVariant
-    | VTypeRefine, VTypeRefine
-    | VTypeTuple, VTypeTuple -> failwith "need to do" *)
-
   let rec to_string : type a. a t -> string = function
     | VUnit ->
       "()"
