@@ -292,7 +292,7 @@ module Make (Atom_cell : Utils.Comparable.P1) = struct
     | VTypeVariant map_body ->
       Labels.Variant.Map.to_list map_body
       |> List.map (fun (key, data) -> Format.sprintf "%s of %s" (Labels.Variant.to_string key) (to_string data))
-      |> String.concat "\n"
+      |> String.concat " | "
       |> Format.sprintf "(%s)"
     | VTypeRefine { var ; tau ; predicate = _closure } ->
       Format.sprintf "{ %s : %s | <closure> }" (Ident.to_string var) (to_string tau)
