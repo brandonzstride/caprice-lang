@@ -36,7 +36,7 @@ module Make (Atom_cell : Utils.Comparable.P1) = struct
     | VEmptyList : data t
     | VListCons : any * data t -> data t
     (* generated values *)
-    | VGenFun : { funtype : (typeval t, fun_cod) Funtype.t ; nonce : int } -> data t
+    | VGenFun : { funtype : (typeval t, fun_cod) Funtype.t ; nonce : int ; mutable mut_alist : (any * any) list } -> data t
     | VGenPoly : { id : int ; nonce : int } -> data t
     | VLazy : vlazy -> data t (* lazily evaluated thing, so state must manage this *)
     (* wrapped values *)
@@ -161,8 +161,8 @@ module Make (Atom_cell : Utils.Comparable.P1) = struct
       contains_mu t
     | VWrapped { data ; tau } ->
       contains_mu data || contains_mu (VTypeFun tau)
-    | VTypeFun { domain ; codomain = CodValue t }
-    | VGenFun { funtype = { domain ; codomain = CodValue t } ; nonce = _ }->
+    | VTypeFun { domain ; codomain = CodValue t ; sort = _ }
+    | VGenFun { funtype = { domain ; codomain = CodValue t ; sort = _  } ; nonce = _ ; mut_alist = _ }->
       (* TODO: consider if the negative position makes a difference *)
       contains_mu domain || contains_mu t
     (* Closures cases: assume true, but may want to inspect closure *)
@@ -170,8 +170,8 @@ module Make (Atom_cell : Utils.Comparable.P1) = struct
     | VFunFix _
     | VTypeModule _
     | VLazy _
-    | VGenFun { funtype = { domain = _ ; codomain = CodDependent _ } ; nonce = _ }
-    | VTypeFun { domain = _ ; codomain = CodDependent _ } -> true
+    | VGenFun { funtype = { domain = _ ; codomain = CodDependent _ ; sort = _ } ; nonce = _ ; mut_alist = _ }
+    | VTypeFun { domain = _ ; codomain = CodDependent _ ; sort = _ } -> true
     (* Refinement types: closure does not escape, so just look at type *)
     | VTypeRefine { tau ; _ } -> contains_mu tau
 
@@ -216,7 +216,7 @@ module Make (Atom_cell : Utils.Comparable.P1) = struct
       "[]"
     | VListCons (hd, tl) ->
       Format.sprintf "(%s :: %s)" (any_to_string hd) (to_string tl)
-    | VGenFun { funtype ; nonce } ->
+    | VGenFun { funtype ; nonce ; mut_alist = _ } ->
       Format.sprintf "G(%s, %d)" (to_string (VTypeFun funtype)) nonce
     | VGenPoly { id ; nonce } ->
       Format.sprintf "G(poly id : %d, nonce : %d)" id nonce
@@ -244,10 +244,11 @@ module Make (Atom_cell : Utils.Comparable.P1) = struct
       Format.sprintf "(mu %s. <closure>)" (Ident.to_string var)
     | VTypeList t ->
       Format.sprintf "(list %s)" (to_string t)
-    | VTypeFun { domain ; codomain } ->
+    | VTypeFun { domain ; codomain ; sort } ->
+      let s_arrow = match sort with Funtype.Nondet -> "-->" | Det -> "->" in
       begin match codomain with
-      | CodValue cod_tval -> Format.sprintf "%s -> %s" (to_string domain) (to_string cod_tval)
-      | CodDependent (id, _closure) -> Format.sprintf "(%s : %s) -> <closure>" (Ident.to_string id) (to_string domain)
+      | CodValue cod_tval -> Format.sprintf "%s %s %s" (to_string domain) s_arrow (to_string cod_tval)
+      | CodDependent (id, _closure) -> Format.sprintf "(%s : %s) %s <closure>" (Ident.to_string id) (to_string domain) s_arrow
       end
     | VTypeRecord map_body ->
       if Labels.Record.Map.is_empty map_body then "{:}" else

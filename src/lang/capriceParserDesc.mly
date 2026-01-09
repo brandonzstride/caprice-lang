@@ -1,6 +1,8 @@
 %{
   open Ast
   open Binop
+
+  let default_fun_sort = Funtype.Nondet
 %}
 
 %token <string> IDENTIFIER
@@ -45,7 +47,7 @@
 %token LESS_EQUAL
 %token GREATER
 %token GREATER_EQUAL
-// %token LONG_ARROW
+%token LONG_ARROW
 %token BOOL_KEYWORD
 %token BOTTOM_KEYWORD
 %token INPUT
@@ -89,7 +91,7 @@
 %right DOUBLE_COLON           /* :: */
 %right prec_variant_pattern   /* variant destruction pattern */
 %left PLUS MINUS              /* + - */
-%right ARROW /*LONG_ARROW*/   /* -> for type declaration, and --> for deterministic */
+%right ARROW LONG_ARROW       /* -> for type declaration, and --> for deterministic */
 %left ASTERISK SLASH PERCENT  /* * / % */
 
 (* HACK: Precedence declarations to resolve (type a) -> t parsing.
@@ -135,7 +137,7 @@ statement:
   | LET l_ident typed_params COLON expr EQUALS expr
     { SLet { var = VarTyped { item = $2 ; tau =
       List.fold_right (fun (_, domain) acc ->
-        ETypeFun { domain ; codomain = acc }
+        ETypeFun { domain ; codomain = acc ; sort = default_fun_sort }
       ) $3 $5
       }
       ; defn =
@@ -152,7 +154,7 @@ statement:
   | LET REC l_ident typed_params COLON expr EQUALS expr
     { SLetRec { var = VarTyped { item = $3 ; tau =
       List.fold_right (fun (_, domain) acc ->
-        ETypeFun { domain ; codomain = acc }
+        ETypeFun { domain ; codomain = acc ; sort = default_fun_sort }
       ) $4 $6
       }
       ; param = fst (List.hd $4)
@@ -239,25 +241,32 @@ expr:
     { ETypeVariant $1 }
   | MU l_ident DOT expr %prec prec_mu
     { ETypeMu { var = $2 ; body = $4 } }
-  | expr ARROW expr
-    { ETypeFun { domain = PReg { tau = $1 } ; codomain = $3 } }
-  | dependent_function_type
+  | function_type
     { $1 }
   ;
 
-%inline dependent_function_type:
-  (* standard *)
-  | OPEN_PAREN ident COLON expr CLOSE_PAREN ARROW expr
-    { ETypeFun { domain = PDep { item = $2 ; tau = $4 } ; codomain = $7 } }
-  (* various sugar *)
-  | OPEN_PAREN ident COLON expr PIPE expr CLOSE_PAREN ARROW expr
+%inline function_type:
+  (* regular function *)
+  | expr type_arrow expr
+    { ETypeFun { domain = PReg { tau = $1 } ; codomain = $3 ; sort = $2 } }
+  (* standard dependent function type *)
+  | OPEN_PAREN ident COLON expr CLOSE_PAREN type_arrow expr
+    { ETypeFun { domain = PDep { item = $2 ; tau = $4 } ; codomain = $7 ; sort = $6 } }
+  (* various sugar for dependent functions *)
+  | OPEN_PAREN ident COLON expr PIPE expr CLOSE_PAREN type_arrow expr
     { ETypeFun { domain = PDep { item = $2 ; tau = 
-      ETypeRefine { var = $2 ; tau = $4 ; predicate = $6} } ; codomain = $9 } }
-  | OPEN_PAREN TYPE nonempty_list(ident) CLOSE_PAREN ARROW expr
+      ETypeRefine { var = $2 ; tau = $4 ; predicate = $6} } ; codomain = $9 ; sort = $8 } }
+  | OPEN_PAREN TYPE nonempty_list(ident) CLOSE_PAREN type_arrow expr
     { List.fold_right (fun item acc ->
-      ETypeFun { domain = PDep { item ; tau = EType } ; codomain = acc }
+      ETypeFun { domain = PDep { item ; tau = EType } ; codomain = acc ; sort = $5 }
       ) $3 $6 }
   ;
+
+%inline type_arrow:
+  | ARROW
+    { Funtype.Nondet }  (* regular nondeterministic function arrow *)
+  | LONG_ARROW
+    { Funtype.Det } (* deterministic function arrow *)
 
 variant_type_body:
   | variant_label OF expr

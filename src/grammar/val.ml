@@ -42,10 +42,10 @@ let rec is_symbolic : type a. a t -> bool = fun v ->
     is_symbolic t1 || is_symbolic t2
   | VTypeSingle t ->
     is_symbolic t
-  | VTypeFun { domain ; codomain = CodValue t }
-  | VGenFun { funtype = { domain ; codomain = CodValue t } ; nonce = _ } ->
+  | VTypeFun { domain ; codomain = CodValue t ; sort = _ }
+  | VGenFun { funtype = { domain ; codomain = CodValue t ; sort = _ } ; nonce = _ ; mut_alist = _ } ->
     is_symbolic domain || is_symbolic t
-  | VWrapped { data ; tau = { domain ; codomain = CodValue t } } ->
+  | VWrapped { data ; tau = { domain ; codomain = CodValue t ; sort = _ } } ->
     is_symbolic data || is_symbolic domain || is_symbolic t
   (* Closures cases: assume true, but may want to inspect closure *)
   | VFunClosure _
@@ -54,9 +54,9 @@ let rec is_symbolic : type a. a t -> bool = fun v ->
   | VLazy _
   | VTypeMu _
   | VTypeRefine _
-  | VGenFun { funtype = { domain = _ ; codomain = CodDependent _ } ; nonce = _ }
-  | VTypeFun { domain = _ ; codomain = CodDependent _ }
-  | VWrapped { data = _ ; tau = { domain = _ ; codomain = CodDependent _ } } -> true
+  | VGenFun { funtype = { domain = _ ; codomain = CodDependent _ ; sort = _ } ; nonce = _ ; mut_alist = _ }
+  | VTypeFun { domain = _ ; codomain = CodDependent _ ; sort = _ }
+  | VWrapped { data = _ ; tau = { domain = _ ; codomain = CodDependent _ ; sort = _ } } -> true
 
 let is_any_symbolic (Any v) = is_symbolic v
 
@@ -181,7 +181,8 @@ let rec intensional_equal (x : any) (y : any) : bool X.t =
   | Any VTuple (l1, r1), Any VTuple (l2, r2) ->
     let- () = intensional_equal l1 l2 in
     intensional_equal r1 r2
-  | Any VGenFun { nonce = n1 ; funtype = _ }, Any VGenFun { nonce = n2 ; funtype = _ } ->
+  | Any VGenFun { nonce = n1 ; funtype = _ ; mut_alist = _ }
+  , Any VGenFun { nonce = n2 ; funtype = _ ; mut_alist = _ } ->
     make (n1 = n2)
   | Any VTypeSingle t1, Any VTypeSingle t2
   | Any VTypeList t1, Any VTypeList t2 ->
@@ -271,15 +272,21 @@ and iequal : type a. a t -> a t -> bool X.t = fun x y ->
 
 and iequal_ftype (tf1 : (typeval t, fun_cod) Funtype.t) (tf2 : (typeval t, fun_cod) Funtype.t) : bool X.t =
   let open X in
-  let- () = iequal tf1.domain tf2.domain in
-  match tf1.codomain, tf2.codomain with
-  | CodValue t1, CodValue t2 ->
-    intensional_equal (Any t1) (Any t2)
-  | CodDependent (id1, c1), CodDependent (id2, c2) ->
-    equal_closure [ id1, id2 ] c1 c2
-  | _ ->
-    (* Both are types, so not failure, but never equal because
-      a dependent function is not a non-dependent function. *)
+  if Funtype.equal_sort tf1.sort tf2.sort then
+    let- () = iequal tf1.domain tf2.domain in
+    match tf1.codomain, tf2.codomain with
+    | CodValue t1, CodValue t2 ->
+      intensional_equal (Any t1) (Any t2)
+    | CodDependent (id1, c1), CodDependent (id2, c2) ->
+      equal_closure [ id1, id2 ] c1 c2
+    | _ ->
+      (* Both are types, so not failure, but never equal because
+        a dependent function is not a non-dependent function. *)
+      make false
+  else
+    (* similar to dependent vs nondependent, a deterministic function type 
+      is not equal to a nondeterministic function type, but it is not a sort
+      mismatch (and this is an overloading of the word "sort") *)
     make false
 
 and equal_closure _bindings _closure1 _closure2 = failwith "unimplemented"

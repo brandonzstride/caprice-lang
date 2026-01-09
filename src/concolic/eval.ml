@@ -238,14 +238,14 @@ let eval
         ) (return Record.empty) t_record_body
       in
       return_any (VTypeRecord record_body)
-    | ETypeFun { domain = PReg { tau } ; codomain } ->
+    | ETypeFun { domain = PReg { tau } ; codomain ; sort } ->
       let* dom_t = eval_type tau in
       let* cod_t = eval_type codomain in
-      return_any (VTypeFun { domain = dom_t ; codomain = CodValue cod_t })
-    | ETypeFun { domain = PDep { item ; tau } ; codomain } ->
+      return_any (VTypeFun { domain = dom_t ; codomain = CodValue cod_t ; sort })
+    | ETypeFun { domain = PDep { item ; tau } ; codomain ; sort } ->
       let* dom_t = eval_type tau in
       let* env = read in
-      return_any (VTypeFun { domain = dom_t ; codomain = CodDependent (item, { captured = codomain ; env }) })
+      return_any (VTypeFun { domain = dom_t ; codomain = CodDependent (item, { captured = codomain ; env }) ; sort })
     | ETypeRefine { var ; tau ; predicate } ->
       let* tval = eval_type tau in
       let* env = read in
@@ -365,9 +365,29 @@ let eval
           Env.set fvar (Any self_fun) env
           |> Env.set param v_arg
         ) (eval captured)
-    | VGenFun { funtype = { domain = _ ; codomain } ; _ } ->
+    | VGenFun { funtype = { domain = _ ; codomain ; sort = Nondet } ; _ } ->
       let* cod_tval = eval_codomain codomain v_arg in
       gen cod_tval
+    | VGenFun ({ funtype = { domain = _ ; codomain ; sort = Det } ; mut_alist ; _ } as body) ->
+      let rec loop = function
+        | [] ->
+          let* cod_tval = eval_codomain codomain v_arg in
+          let* genned = gen cod_tval in
+          body.mut_alist <- (v_arg, genned) :: mut_alist;
+          return genned
+        | (input, output) :: tl ->
+          begin match Val.intensional_equal v_arg input with
+          | Value (true, s) ->
+            let* () = push_formula s in
+            return output
+          | Value (false, s) ->
+            let* () = push_formula ~allow_flip:false s in
+            loop tl
+          | SortMismatch ->
+            mismatch "Sort mismatch in intensional equality"
+          end
+      in
+      loop mut_alist
     | _ -> mismatch @@ apply_non_function (Any v_func)
     
   (*
@@ -453,33 +473,40 @@ let eval
       (* TODO: consider a wellformedness check *)
       let* v = force_value v in
       handle_any v ~data:(fun _ -> refute) ~typeval:(fun _ -> confirm)
-    | VTypeFun { domain ; codomain } ->
+    | VTypeFun { domain ; codomain ; sort } ->
       let* v = force_value v in
       begin match v with
       | Any (VFunClosure _ as vfun)
       | Any (VFunFix _ as vfun) ->
+        (* TODO: if sort is deterministic, check that this evaluates deterministically *)
         let* genned = gen domain in
         let* res = eval_appl vfun genned in
         let* cod_tval = eval_codomain codomain genned in
         check res cod_tval
-      | Any VGenFun { funtype = { domain = domain' ; codomain = codomain' } ; _ } ->
-        fork_on_left ~reason:CheckGenFun
-          ~left:{ run_failing = domain <: domain' }
-          ~right:(
-            if codomain == codomain' then confirm else
-            let* cod_tval, cod_tval' =
-              match codomain, codomain' with
-              | CodValue cod_tval, CodValue cod_tval' -> 
-                return (cod_tval, cod_tval')
-              | _ ->
-                let* genned = gen domain in
-                let* cod_tval = eval_codomain codomain genned in
-                let* cod_tval' = eval_codomain codomain' genned in
-                return (cod_tval, cod_tval')
-            in
-            cod_tval' <: cod_tval
-          )
-      | Any (VWrapped { data ; tau = { domain = domain' ; codomain = codomain' } } as self_fun) ->
+      | Any VGenFun { funtype = { domain = domain' ; codomain = codomain' ; sort = sort' } ; _ } ->
+        (* If codomain is singleton, then the sort is effectively deterministic, so
+            this refutation is overly cautions. TODO: fix this. *)
+        begin match sort, sort' with
+        | Det, Nondet -> refute
+        | _ ->
+          fork_on_left ~reason:CheckGenFun
+            ~left:{ run_failing = domain <: domain' }
+            ~right:(
+              if codomain == codomain' then confirm else
+              let* cod_tval, cod_tval' =
+                match codomain, codomain' with
+                | CodValue cod_tval, CodValue cod_tval' -> 
+                  return (cod_tval, cod_tval')
+                | _ ->
+                  let* genned = gen domain in
+                  let* cod_tval = eval_codomain codomain genned in
+                  let* cod_tval' = eval_codomain codomain' genned in
+                  return (cod_tval, cod_tval')
+              in
+              cod_tval' <: cod_tval
+            )
+        end
+      | Any (VWrapped { data ; tau = { domain = domain' ; codomain = codomain' ; sort = _ } } as self_fun) ->
         fork_on_left ~reason:CheckWrappedFun
           ~left:{ run_failing = domain <: domain' }
           ~right:(
@@ -504,7 +531,11 @@ let eval
               let* cod_tval' = eval_codomain codomain' w in
               let* w_res = wrap res cod_tval' in
               check w_res cod_tval
-            | VGenFun { funtype = { domain = _ ; codomain = codomain'' } ; _ } ->
+            | VGenFun { funtype = { domain = _ ; codomain = codomain'' ; sort = sort'' } ; _ } ->
+              begin match sort, sort'' with
+              | Det, Nondet -> refute
+              | _ ->
+                if not (Funtype.equal_sort sort sort'') then refute else
                 let* cod_tval, cod_tval', cod_tval'' =
                   match codomain, codomain', codomain'' with
                   | CodValue cod_tval, CodValue cod_tval', CodValue cod_tval'' -> 
@@ -521,6 +552,7 @@ let eval
                 let* genned = gen cod_tval'' in
                 let* w = wrap genned cod_tval' in
                 check w cod_tval
+              end
             | _ -> refute
           )
       | _ -> refute
@@ -611,8 +643,8 @@ let eval
         let* lazy_v = find_symbol symbol in
         begin match lazy_v with
         | LValue any_v ->
-          (* TODO: wrap with wrapping types *)
-          check any_v t
+          let* wrapped = wrap_multi wrapping_types any_v in
+          check wrapped t
         | LLazy LGenMu _ ->
           refute (* see todo on mu check about error messages *)
         | LLazy LGenList t' ->
@@ -743,7 +775,7 @@ let eval
       return_any (VBool (b, Stepkey.bool_symbol step))
     | VTypeFun funtype ->
       let* Step nonce = step in
-      return_any (VGenFun { funtype ; nonce })
+      return_any (VGenFun { funtype ; nonce ; mut_alist = [] })
     | VType ->
       let* Step id = step in (* will use step for a fresh integer *)
       return_any (VTypePoly { id })
@@ -1108,6 +1140,10 @@ let eval
   (*
     Forces the value to weak head normal form and wraps
     with any lazily-done wrappings.
+
+    Since this changes the order of when inputs happen, this
+    messes up the checking of deterministic functions.
+      TODO: fix this.
   *)
   and resolve_lazy
     : 'env. Val.vlazy -> (Val.any, 'env) m
