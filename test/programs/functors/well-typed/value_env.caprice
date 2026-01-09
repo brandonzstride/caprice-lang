@@ -1,0 +1,84 @@
+(* TST
+  include splayable;
+*)
+
+let Ident = struct
+  let t = `Ident of int
+end
+
+let T n = sig
+  val t :
+    let rec loop i =
+      if i <= 0
+      then type
+      else type --> loop (i - 1)
+    in
+    loop n
+end
+
+let option a = `Some of a | `None of unit
+
+let STORE = sig
+  val t : type --> type
+  val empty : (type a) -> t a
+  val add : (type a) -> Ident.t -> a -> t a -> t a
+  val fetch : (type a) -> Ident.t -> t a -> option a
+end
+
+let Make (dep Store : STORE) (Env_cell : T 1) (V : T 1) : sig
+  val T : sig
+    val t : type
+  end
+
+  val Env : sig
+    val t : type
+    val empty : t
+    val add : Ident.t -> T.t -> t -> t
+    val fetch : Ident.t -> t -> option T.t
+  end
+end = struct
+  let T = struct
+    let t = mu t.
+      let env = Store.t t in
+      let closure = { expr : unit ; env : Env_cell.t env } in
+      | `VInt of V.t int
+      | `VBool of V.t bool
+      | `VFunCLosure of { param : Ident.t ; body : closure }
+      | `VVariant of { label : Ident.t ; payload : t }
+      | `VList of list t
+      | `VAbort of unit
+  end
+
+  let Env = struct
+    let t = Store.t T.t
+    let empty = Store.empty T.t
+    let add = Store.add T.t
+    let fetch = Store.fetch T.t
+  end
+end
+
+let AList : STORE = struct
+  let t a = list (Ident.t * a)
+  let empty _ = []
+  let add _ id v ls =
+    (id, v) :: ls
+  let fetch a id env =
+    let id_ = match id with `Ident i -> i end in
+    (* This is where we need splaying *)
+    let rec loop (ls : t a) : option a =
+      match ls with
+      | [] -> `None ()
+      | (`Ident i, v) :: tl ->
+        if i == id_
+        then `Some v
+        else loop tl
+      end
+    in
+    loop env
+end
+
+let Wrap : T 1 = struct
+  let t a = `Wrapped of a
+end
+
+let Value = Make AList Wrap Wrap

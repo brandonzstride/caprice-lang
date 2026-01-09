@@ -248,8 +248,7 @@ let rec intensional_equal (x : any) (y : any) : bool X.t =
       fold_lists iequal s1.wrapping_types s2.wrapping_types
     else
       (* for now, say type mismatch if comparing lazy values *)
-      (* None *)
-      failwith "unimplemented"
+      SortMismatch
       (* TODO: eventually we want to handle these by asking for lazy environment *)
   | _, _ ->
     (*
@@ -274,19 +273,41 @@ and iequal_ftype (tf1 : (typeval t, fun_cod) Funtype.t) (tf2 : (typeval t, fun_c
   let open X in
   if Funtype.equal_sort tf1.sort tf2.sort then
     let- () = iequal tf1.domain tf2.domain in
-    match tf1.codomain, tf2.codomain with
-    | CodValue t1, CodValue t2 ->
-      intensional_equal (Any t1) (Any t2)
-    | CodDependent (id1, c1), CodDependent (id2, c2) ->
-      equal_closure [ id1, id2 ] c1 c2
-    | _ ->
-      (* Both are types, so not failure, but never equal because
-        a dependent function is not a non-dependent function. *)
-      make false
+    iequal_cod tf1.codomain tf2.codomain
   else
     (* similar to dependent vs nondependent, a deterministic function type 
       is not equal to a nondeterministic function type, but it is not a sort
       mismatch (and this is an overloading of the word "sort") *)
     make false
 
-and equal_closure _bindings _closure1 _closure2 = failwith "unimplemented"
+and iequal_cod cod1 cod2 =
+  if cod1 == cod2 then X.make true else
+  match cod1, cod2 with
+  | CodValue t1, CodValue t2 ->
+    intensional_equal (Any t1) (Any t2)
+  | CodDependent (id1, c1), CodDependent (id2, c2) ->
+    equal_closure [ id1, id2 ] c1 c2
+  | _ ->
+    (* Both are types, so not failure, but never equal because
+      a dependent function is not a non-dependent function. *)
+    X.make false
+
+and equal_closure _bindings closure1 closure2 =
+  if closure1 == closure2 then
+    X.make true
+  else 
+    SortMismatch
+
+(* This is slower than it could be, but I'm saving code *)
+let equal_any x y =
+  match intensional_equal x y with
+  | Value (b, _) -> b
+  | SortMismatch -> false
+
+let equal (type a) (x : a t) (y : a t) : bool =
+  equal_any (Any x) (Any y)
+
+let equal_fun_cod cod1 cod2 =
+  match iequal_cod cod1 cod2 with
+  | Value (b, _) -> b
+  | SortMismatch -> false

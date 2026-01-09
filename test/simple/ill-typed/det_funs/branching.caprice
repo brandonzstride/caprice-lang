@@ -1,0 +1,28 @@
+(* TEST
+  include refutable;
+*)
+
+(*
+  This test comes from
+    Sound and Complete Concolic Testing for Higher-order Functions
+  by
+    Shu-Hung You, Robert Bruce Findler, and Christos Dimoulas
+
+  It tests that we don't force the inputs for a deterministic function
+  to be distinct, and we actually sometimes want them to be equivalent.
+
+  We take the inefficient approach and solve to see what happens if they
+  are equivalent rather than relax the constraints as needed.
+*)
+let _ : (int --> int) -> int -> int =
+  fun f x ->
+    if f x <> 11 then
+      1
+    else if f 0 <> 121 then
+      7
+    else if f (x + 10) <> 121 then
+      2
+    else if x <> -10 then
+      9
+    else 
+      not x (* ERROR: this is reachable *)

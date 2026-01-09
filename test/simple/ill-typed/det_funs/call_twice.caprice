@@ -1,0 +1,27 @@
+(* TEST
+  include refutable;
+*)
+
+(*
+  This test comes from
+    Sound and Complete Concolic Testing for Higher-order Functions
+  by
+    Shu-Hung You, Robert Bruce Findler, and Christos Dimoulas
+
+  This is unhandled right now because we don't have closure comparison.
+
+  TODO: the error message in this test is due to forced incompleteness
+    right now, and this test is not testing what we think it is.
+*)
+
+let equals a b = a == b
+
+let call_twice (f : (int --> bool) --> int) : int =
+  if f (equals 2) <> 12 then
+    1
+  else if f (equals 30) <> 5 then
+    2
+  else if f (equals 7) <> -2 then
+    3
+  else
+    assert false (* ERROR: this is reachable *)

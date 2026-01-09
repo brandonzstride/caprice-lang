@@ -381,7 +381,7 @@ let eval
             let* () = push_formula s in
             return output
           | Value (false, s) ->
-            let* () = push_formula ~allow_flip:false s in
+            let* () = push_formula (Formula.not_ s) in
             loop tl
           | SortMismatch ->
             mismatch "Sort mismatch in intensional equality"
@@ -473,7 +473,7 @@ let eval
       (* TODO: consider a wellformedness check *)
       let* v = force_value v in
       handle_any v ~data:(fun _ -> refute) ~typeval:(fun _ -> confirm)
-    | VTypeFun { domain ; codomain ; sort } ->
+    | VTypeFun { domain ; codomain ; sort = _ } ->
       let* v = force_value v in
       begin match v with
       | Any (VFunClosure _ as vfun)
@@ -483,16 +483,13 @@ let eval
         let* res = eval_appl vfun genned in
         let* cod_tval = eval_codomain codomain genned in
         check res cod_tval
-      | Any VGenFun { funtype = { domain = domain' ; codomain = codomain' ; sort = sort' } ; _ } ->
-        (* If codomain is singleton, then the sort is effectively deterministic, so
-            this refutation is overly cautions. TODO: fix this. *)
-        begin match sort, sort' with
-        | Det, Nondet -> refute
-        | _ ->
-          fork_on_left ~reason:CheckGenFun
-            ~left:{ run_failing = domain <: domain' }
-            ~right:(
-              if codomain == codomain' then confirm else
+      | Any (VGenFun { funtype = { domain = domain' ; codomain = codomain' ; sort = sort' } ; _ } as v_candidate) ->
+        fork_on_left ~reason:CheckGenFun
+          ~left:{ run_failing = domain <: domain' }
+          ~right:(
+            if Val.equal_fun_cod codomain codomain' then confirm else
+            match sort' with
+            | Nondet ->
               let* cod_tval, cod_tval' =
                 match codomain, codomain' with
                 | CodValue cod_tval, CodValue cod_tval' -> 
@@ -504,8 +501,12 @@ let eval
                   return (cod_tval, cod_tval')
               in
               cod_tval' <: cod_tval
-            )
-        end
+            | Det ->
+              let* v_arg = gen domain in
+              let* res = eval_appl v_candidate v_arg in
+              let* cod_tval = eval_codomain codomain v_arg in
+              check res cod_tval
+          )
       | Any (VWrapped { data ; tau = { domain = domain' ; codomain = codomain' ; sort = _ } } as self_fun) ->
         fork_on_left ~reason:CheckWrappedFun
           ~left:{ run_failing = domain <: domain' }
@@ -516,7 +517,11 @@ let eval
 
               We can skip the work on the right if the codomains are equal
                 because the wrapper means its been checked.
+
+              For a cps test program we have, it is very, very important to do
+              some structural equality here, and I am not sure why.
             *)
+            (* if Val.equal_fun_cod codomain codomain' then confirm else *)
             if codomain = codomain' then confirm else
             (* TODO: remove this duplication with all the above cases
               (this is almost just the "right" side of checking functions but
@@ -531,28 +536,34 @@ let eval
               let* cod_tval' = eval_codomain codomain' w in
               let* w_res = wrap res cod_tval' in
               check w_res cod_tval
-            | VGenFun { funtype = { domain = _ ; codomain = codomain'' ; sort = sort'' } ; _ } ->
-              begin match sort, sort'' with
-              | Det, Nondet -> refute
-              | _ ->
-                if not (Funtype.equal_sort sort sort'') then refute else
-                let* cod_tval, cod_tval', cod_tval'' =
-                  match codomain, codomain', codomain'' with
-                  | CodValue cod_tval, CodValue cod_tval', CodValue cod_tval'' -> 
-                    return (cod_tval, cod_tval', cod_tval'')
-                  | _ ->
-                    let* genned = gen domain in
-                    let* cod_tval = eval_codomain codomain genned in
-                    let* w = wrap genned domain' in
-                    let* cod_tval' = eval_codomain codomain' w in
-                    let* cod_tval'' = eval_codomain codomain'' w in (* TODO: should this "w" be wrapped with domain''? *)
-                    return (cod_tval, cod_tval', cod_tval'')
-                in
-                if cod_tval = cod_tval'' then confirm else
-                let* genned = gen cod_tval'' in
-                let* w = wrap genned cod_tval' in
-                check w cod_tval
-              end
+            | VGenFun { funtype = { domain = _ ; codomain = codomain'' ; sort = Nondet } ; _ } ->
+              let* cod_tval, cod_tval', cod_tval'' =
+                match codomain, codomain', codomain'' with
+                | CodValue cod_tval, CodValue cod_tval', CodValue cod_tval'' -> 
+                  return (cod_tval, cod_tval', cod_tval'')
+                | _ ->
+                  let* genned = gen domain in
+                  let* cod_tval = eval_codomain codomain genned in
+                  let* w = wrap genned domain' in
+                  let* cod_tval' = eval_codomain codomain' w in
+                  let* cod_tval'' = eval_codomain codomain'' w in (* TODO: should this "w" be wrapped with domain''? *)
+                  return (cod_tval, cod_tval', cod_tval'')
+              in
+              if Val.equal cod_tval cod_tval'' then confirm else
+              let* genned = gen cod_tval'' in
+              let* w = wrap genned cod_tval' in
+              check w cod_tval
+            | VGenFun { funtype = { domain = domain'' ; codomain = _ ; sort = Det } ; _ } ->
+              fork_on_left ~reason:CheckGenFun
+                ~left:{ run_failing = domain <: domain'' }
+                ~right:(
+                  if Val.equal_fun_cod codomain codomain' then confirm else
+                  let* v_arg = gen domain in
+                  let* w_arg = wrap v_arg domain' in
+                  let* res = eval_appl data w_arg in
+                  let* cod_tval = eval_codomain codomain v_arg in
+                  check res cod_tval
+                )
             | _ -> refute
           )
       | _ -> refute
@@ -648,7 +659,7 @@ let eval
         | LLazy LGenMu _ ->
           refute (* see todo on mu check about error messages *)
         | LLazy LGenList t' ->
-          if wrapping_types = [] && t' = t_body then confirm else
+          if wrapping_types = [] && Val.equal t' t_body then confirm else
           let* genned = gen t' in
           (* genned is only a single element of the list, so wrap it
             by extracting the type bodies out of the list type *)
@@ -700,7 +711,7 @@ let eval
       handle_any v
         ~data:(fun _ -> refute)
         ~typeval:(fun tval' ->
-          if tval' = tval then confirm else
+          if Val.equal tval' tval then confirm else
           fork_on_left ~reason:CheckSingletype
             ~left:{ run_failing = tval' <: tval }
             ~right:(tval <: tval')
@@ -745,7 +756,7 @@ let eval
   and (<:)
     : 'a 'env. Val.tval -> Val.tval -> ('a, 'env) m
     = fun t1 t2 ->
-      if t1 = t2 then
+      if Val.equal t1 t2 then
         escape Confirmation
       else
         let* genned = gen t1 in

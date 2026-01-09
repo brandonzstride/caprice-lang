@@ -1,0 +1,65 @@
+(* TEST
+  include finite-well-typed;
+*)
+
+(*
+  OCaml:
+    module type ARROW = sig
+      type ('a, 'b) t
+      val arr : ('a -> 'b) -> ('a, 'b) t
+      val fst : ('a, 'b) t -> ('a * 'd, 'b * 'd) t
+      val compose : ('b, 'c) t -> ('a, 'b) t -> ('a, 'c) t
+    end
+
+    module Make_split (A : ARROW) = struct
+      include A
+
+      let swap (x, y) = (y, x)
+
+      (* spelled-out version *)
+      let split (type a b c d) (ab : (a, b) t) (cd : (c, d) t) =
+        let ac_bc : (a * c, b * c) t = (fst : (a, b) t -> (a * c, b * c) t) ab in
+        let ac_cb : (a * c, c * b) t = (compose : (b * c, c * b) t -> (a * c, b * c) t -> (a * c, c * b) t) (arr swap) ac_bc in
+        let cb_db : (c * b, d * b) t = (fst : (c, d) t -> (c * b, d * b) t) cd in
+        let ac_db : (a * c, d * b) t = (compose : (c * b, d * b) t -> (a * c, c * b) t -> (a * c, d * b) t) cb_db ac_cb in
+        let ac_bd : (a * c, b * d) t = (compose : (d * b, b * d) t -> (a * c, d * b) t -> (a * c, b * d) t) (arr swap) ac_db in
+        ac_bd
+
+      (* nice version *)
+      let split' ab cd = 
+        let (>>>) f g = compose g f in
+        fst ab >>> arr swap >>> fst cd >>> arr swap
+    end
+
+  We would like to be able to type this. If I haven't make any mistakes, the code below should be well-typed.
+*)
+
+let ARROW = sig
+  val t : type --> type --> type
+  val arr : (type a b) -> (a -> b) -> t a b
+  val fst : (type a b d) -> t a b -> t (a * d) (b * d)
+  val compose : (type a b c) -> t b c -> t a b -> t a c
+end
+
+let Make_split : (A : ARROW) ->
+  { split :
+    (type a b c d) ->
+      A.t a b -> A.t c d -> A.t (a * c) (b * d)
+  } = fun A ->
+    { split =
+        fun a b c d ->
+          fun ab cd ->
+            let swap r = 
+              match r with
+              | x, y -> y, x
+              end
+            in
+            let arr_swap : (x : type) -> (y : type) -> A.t (x * y) (y * x) =
+              fun x y -> A.arr (x * y) (y * x) swap in 
+            let ac_bc = A.fst a b c ab in
+            let ac_cb = A.compose (a * c) (b * c) (c * b) (arr_swap b c) ac_bc in
+            let cb_db = A.fst c d b cd in
+            let ac_db = A.compose (a * c) (c * b) (d * b) cb_db ac_cb in
+            let ac_bd = A.compose (a * c) (d * b) (b * d) (arr_swap d b) ac_db in
+            ac_bd
+    }

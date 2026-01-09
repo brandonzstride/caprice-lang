@@ -1,0 +1,53 @@
+(* TEST
+  include refutable;
+*)
+
+let F :
+  (S : sig
+    val t : type --> type
+    val empty : (type a) -> t a
+    val add : (type a) -> a -> t a -> t a
+    val map : (type a) -> (b : type) -> t a -> (a -> b) -> t b
+  end) -> sig
+    val t : type --> type (* notably, `val t = S.t` does not work here because S.t is a function, not a type *)
+    val empty : (type a) -> t a
+    val add : (type a) -> a -> t a -> t a
+    val map : (type a b) -> t a -> (a -> b) -> t b
+    val of_list : (type a) -> list a -> t a
+  end
+  =
+  fun S -> struct
+    let t = S.t
+    let empty = S.empty
+    let add = S.add
+    let map = S.map
+
+    let of_list a ls =
+      let rec loop acc ls =
+        match ls with
+        | [] -> acc
+        | hd :: tl -> loop (add hd acc) tl (* ERROR: forgot type parameter on `add` here *)
+        end
+      in
+      loop (empty a) ls
+  end
+
+let M = struct
+  let t = list
+  let empty _ = []
+  let add _ x xs = x :: xs
+  let rec map a b xs f =
+    match xs with
+    | [] -> []
+    | hd :: tl -> f hd :: map a b tl f
+    end
+end
+
+let MM = F M
+
+let x = MM.of_list int [ 1 ; 2 ; 3 ]
+
+let y = MM.map int bool x (fun i -> i % 2 == 0)
+
+let _ : MM.t bool = [ true ]
+

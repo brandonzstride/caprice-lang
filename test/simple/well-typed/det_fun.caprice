@@ -1,3 +1,6 @@
+(* TEST
+  include finite-well-typed;
+*)
 
 (*
   Any deterministic function can act nondeterministic
@@ -31,19 +34,14 @@ let _ : ((int -> int) --> int) -> (int -> int) -> int =
 (*
   Here is how we assert that X.t is the returned t
 *)
-(* let F : (X : sig val t : type --> type end) -> sig
-  val t : (a : type) -> singletype (X.t a) (* like an eta equivalence, right? *)
+let F : (X : sig val t : type --> type end) -> sig
+  val t : (a : type) -> singletype (X.t a)
 end = fun X -> struct
   let t = X.t
-end *)
+end
 
-(* type checker says this is well typed *)
 let f (dep tf : type --> type) (type a) : singletype (tf a) =
   tf a
-
-(* and this is ill-typed (wrongly, because we actually need to apply to deterministic functions to check them) *)
-let f (dep tf : type --> type) : (type a) -> singletype (tf a) =
-  tf
 
 let f (dep tf : type --> type) (type a) (x : tf a) (y : tf a) (b : bool) : tf a =
   if b then x else y
@@ -51,13 +49,13 @@ let f (dep tf : type --> type) (type a) (x : tf a) (y : tf a) (b : bool) : tf a 
 (*
   Even though singletype checks for equality, let's check one more time
 *)
-(* let _ =
+let _ =
   let X = struct let t a = { a : a } end in
   let M = F X in
   let f (type a) (x : X.t a) : M.t a =
     x
   in
-  f *)
+  f
 
 (*
   This is saying that Y.t = X.t, and we check that it is still type --> type.
@@ -88,8 +86,14 @@ let _ : (bool --> int) -> bool -> unit =
     else
       ()
 
-(* let _ : (singletype type --> int) -> singletype type -> singletype type -> int =
+let _ : (singletype type --> int) -> singletype type -> singletype type -> int =
   fun f a b ->
     if f a == f b
     then 0
-    else false *)
+    else false
+
+let _ : ((int -> int) --> int) -> (int -> int) -> (int -> int) -> int =
+  fun f g h ->
+    if f g == f g
+    then 0
+    else true

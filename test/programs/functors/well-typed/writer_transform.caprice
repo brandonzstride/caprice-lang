@@ -1,0 +1,68 @@
+(* TEST
+  include finite-well-typed;
+*)
+
+(*
+  This test is inspired by the Preface library.
+*)
+
+let MONOID = sig
+  val t : type
+  val neutral : t
+  val combine : t -> t -> t
+end
+
+let MONAD = sig
+  val m : type --> type
+  val return : (type a) -> a -> m a
+  val bind : (type a b) -> m a -> (a -> m b) -> m b
+end
+
+let Derive_map (dep M : MONAD) : sig
+  val map : (type a b) -> M.m a -> (a -> b) -> M.m b
+end = struct
+  let map a b x f = 
+    M.bind a b x (fun a -> M.return b (f a))
+end
+
+let Make : (Monad : MONAD) -> (Tape : MONOID) -> sig
+  val tape = Tape.t
+
+  val with_tape : (type a) -> singletype { a : a ; tape : tape }
+
+  (* Note this is inherently deterministic because singletype has one member *)
+  val monad : (type a) -> singletype (Monad.m a)
+
+  (* same here *)
+  val t : (type a) -> singletype (monad (with_tape a))
+
+  val run : (type a) -> t a -> monad (with_tape a)
+
+  val upper : (type a) -> monad a -> t a
+
+  val tell : tape -> t unit
+
+  val listen : (type a) -> t a -> t (with_tape a)
+end = fun Monad Tape -> struct
+  let map = (Derive_map Monad).map
+
+  let tape = Tape.t
+  let monad a = Monad.m a
+  let with_tape a = { a : a ; tape : tape }
+  let t a = Monad.m { a : a ; tape : tape }
+
+  let run a a_m =
+    a_m
+
+  let upper a a_m =
+    map a (with_tape a) a_m (fun a -> { a = a ; tape = Tape.neutral })
+
+  let tell tape = 
+    Monad.return (with_tape unit) { a = () ; tape = tape }
+
+  let listen a a_t =
+    map (with_tape a) (with_tape (with_tape a)) a_t (fun r ->
+      { a = { a = r.a ; tape = r.tape } ; tape = r.tape }      
+    )
+end
+

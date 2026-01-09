@@ -1,0 +1,35 @@
+(* TEST
+  include refutable;
+*)
+
+let BASIC = sig
+  val m : type --> type
+  val map  : (type a b) -> m a -> (a -> b) -> m b
+  val join : (type a) -> m (m a) -> m a
+  val return : (type a) -> a -> m a
+end
+
+(* this works well *)
+let Id_example : BASIC = struct
+  let m a = `Id of a
+
+  let map = fun a b x f ->
+    match x with
+    | `Id z -> `Id (f z)
+    end
+
+  let join = fun a x ->
+    match x with
+    | `Id m -> m
+    end
+
+  let return = fun a x -> `Id x
+end
+
+let Derive_bind (dep M : BASIC) : sig
+  val m : (type a) -> singletype (M.m a)
+  val bind : (type a b) -> m a -> (a -> m a) -> m a (* note: b unused *)
+end = struct
+  let m = M.m
+  let bind = fun a b x f -> M.join b (M.map a (M.m b) x f) (* ERROR: this is too general *)
+end
