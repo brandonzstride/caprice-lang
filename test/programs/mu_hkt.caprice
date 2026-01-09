@@ -1,0 +1,27 @@
+(* TEST
+  include splayable;
+*)
+
+(* freer monads already do hkt parameters with mu, but this simplifies it a bit *)
+
+(* the type `t f a` is passed to the type function `f` *)
+let tree f a = mu t.
+  | `Leaf of a
+  | `Node of f t
+
+(* the type function is `list`, which is a built-in type function *)
+let list_tree a = tree list a
+
+let rec concat (type a) (x : list a) (y : list a) : list a =
+  match x with
+  | [] -> y
+  | hd :: tl -> hd :: concat a tl y
+  end
+
+let rec flatten (type a) (t : list_tree a) : list a =
+  match t with
+  | `Leaf a -> [ a ]
+  | `Node [] -> []
+  | `Node (hd :: tl) ->
+    concat a (flatten a hd) (flatten a (`Node tl))
+  end
