@@ -1,0 +1,71 @@
+(* TEST
+  include splayable;
+*)
+
+let Option = struct
+  let t a = `Some of a | `None of unit
+  let return a = `Some a
+  let none = `None ()
+end
+
+let Id : sig
+  val t = `Id of int
+  val get : t -> int
+  val make : int -> t
+  val eq : t -> t -> bool
+end = struct
+  let t = `Id of int
+
+  let get x =
+    match x with
+    | `Id i -> i
+    end
+
+  let make i =
+    `Id i
+
+  let eq id1 id2 =
+    get id1 == get id2
+end
+
+let t =
+  list sig
+    val key  : Id.t
+    val a    : type
+    val data : a
+  end
+
+let packed = sig
+  val a : type
+  val data : a
+end
+
+let empty : t = []
+
+let rec set (map : t) (key : Id.t) (type a) (data : a) : t =
+  match map with
+  | [] -> [ struct
+      let key = key
+      let a = a
+      let data = data
+    end ]
+  | hd :: tl ->
+    if Id.eq key hd.key then
+      struct
+        let key = key
+        let a = a
+        let data = data
+      end :: tl
+    else
+      hd :: set tl key a data
+  end
+  
+let rec find (map : t) (key : Id.t) : Option.t packed =
+  match map with
+  | [] -> Option.none
+  | hd :: tl ->
+    if Id.eq key hd.key then
+      Option.return hd (* module subtyping allows this *)
+    else
+      find tl key 
+  end

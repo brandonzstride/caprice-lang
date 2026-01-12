@@ -1,0 +1,92 @@
+(* TEST
+  include splayable;
+*)
+
+(*
+  Much of this code is a direct port of OCaml's standard library.
+*)
+
+let rec length_aux (type a) (len : int) (ls : list a) : int =
+  match ls with
+  | [] -> len
+  | _ :: l -> length_aux a (len + 1) l
+  end
+
+
+let length (type a) (l : list a) : int =
+  length_aux a 0 l
+
+let cons (type a) (a : a) (l : list a) : list a =
+  a :: l
+
+let rec rev_append (type a) (l1 : list a) (l2 : list a) : list a =
+  match l1 with
+  | [] -> l2
+  | x :: l -> rev_append a l (x :: l2)
+  end
+
+let rev (type a) (l : list a) : list a =
+  rev_append a l []
+
+let rec map (type a b) (f : a -> b) (ls : list a) : list b =
+  match ls with
+  | [] -> []
+  | a1 :: [] ->
+    let r1 = f a1 in
+    [ r1 ]
+  | a1 :: a2 :: l ->
+    let r1 = f a1 in
+    let r2 = f a2 in
+    r1 :: r2 :: map a b f l
+  end
+
+let rec mapi (type a b) (i : int | i >= 0) (f : int -> a -> b) (ls : list a) : list b =
+  match ls with
+  | [] -> []
+  | a1 :: [] ->
+    let r1 = f i a1 in
+    [ r1 ]
+  | a1 :: a2 :: l ->
+    let r1 = f i a1 in
+    let r2 = f (i + 1) a2 in
+    r1 :: r2 :: mapi a b (i + 2) f l
+  end
+
+let mapi (type a b) (f : int -> a -> b) (l : list a) : list b =
+  mapi a b 0 f l
+
+let partition_map (type a b c) (p : a -> `Left of b | `Right of c) (l : list a) : list b * list c =
+  let rec part (left : list b) (right : list c) (ls : list a) : list b * list c =
+    match ls with
+    | [] -> rev b left, rev c right
+    | x :: l ->
+      match p x with
+      | `Left v -> part (v :: left) right l
+      | `Right v -> part left (v :: right) l
+      end
+    end
+  in
+  part [] [] l
+
+let seq a = mu t. unit ->
+  | `Nil of unit
+  | `Cons of a * t
+
+let to_seq (type a) (l : list a) : seq a =
+  let rec aux (l : list a) : seq a = fun _ ->
+    match l with
+    | [] -> `Nil ()
+    | x :: tail -> `Cons (x, aux tail)
+    end
+  in
+  aux l
+
+let rec of_seq (type a) (seq : seq a) : list a =
+  match seq () with
+  | `Nil () -> []
+  | `Cons (x1, seq) ->
+    match seq () with
+    | `Nil () -> []
+    | `Cons (x2, seq) -> x1 :: x2 :: of_seq a seq
+    end
+  end
