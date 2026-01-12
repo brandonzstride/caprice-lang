@@ -253,7 +253,7 @@ module Make (Atom_cell : Utils.Comparable.P1) = struct
     | VTypeList t ->
       Format.sprintf "(list %s)" (to_string t)
     | VTypeFun { domain ; codomain ; sort } ->
-      let s_arrow = match sort with Funtype.Nondet -> "-->" | Det -> "->" in
+      let s_arrow = match sort with Funtype.Nondet -> "->" | Det -> "-->" in
       begin match codomain with
       | CodValue cod_tval -> Format.sprintf "%s %s %s" (to_string domain) s_arrow (to_string cod_tval)
       | CodDependent (id, _closure) -> Format.sprintf "(%s : %s) %s <closure>" (Ident.to_string id) (to_string domain) s_arrow
