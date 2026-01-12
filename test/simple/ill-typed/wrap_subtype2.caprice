@@ -1,0 +1,10 @@
+(* TEST
+  include refutable;
+*)
+
+let t a = (type r) -> (a -> r) -> r
+
+let g : (type r) -> (int -> r) -> r = fun r k -> k 0
+
+(* ERROR: int is not a subtype of { i : int | i == 0 } *)
+let f : t { i : int | i == 0 } = g
