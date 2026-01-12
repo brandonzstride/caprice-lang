@@ -68,3 +68,8 @@ let rec t_of_statement_list (ls : statement list) : t =
   match ls with
   | [] -> EUnit
   | hd :: tl -> statement_to_t hd (t_of_statement_list tl)
+
+let id_of_var (var : var) : Ident.t =
+  match var with
+  | VarUntyped { name } -> name
+  | VarTyped { item ; tau = _ } -> item

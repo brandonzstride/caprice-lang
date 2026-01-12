@@ -117,8 +117,8 @@ let eval
         fork_on_left ~reason:ApplWrappedFun
           ~left:{ run_failing = check v_arg tau.domain }
           ~right:(
-            let* tval = eval_codomain tau.codomain v_arg in
             let* v_res = eval_appl ~self_fun data v_arg in
+            let* tval = eval_codomain tau.codomain v_arg in
             wrap v_res tval
           )
       | _ -> mismatch @@ apply_non_function v_func
@@ -520,12 +520,8 @@ let eval
 
               We can skip the work on the right if the codomains are equal
                 because the wrapper means its been checked.
-
-              For a cps test program we have, it is very, very important to do
-              some structural equality here, and I am not sure why.
             *)
-            (* if Val.equal_fun_cod codomain codomain' then confirm else *)
-            if codomain = codomain' then confirm else
+            if Val.equal_fun_cod codomain codomain' then confirm else
             (* TODO: remove this duplication with all the above cases
               (this is almost just the "right" side of checking functions but
               with wrapping the result in the wrapping codomain'). *)
@@ -629,7 +625,7 @@ let eval
       end
     | VTypeMu { var ; closure = { captured ; env } } -> (* don't force v *)
       begin match v with
-      | Any VLazy { cell ; wrapping_types = _ } ->
+      | Any VLazy { cell ; wrapping_types } ->
         let lazy_v = State.get_cell cell in
         begin match lazy_v with
         | LValue any_v ->
@@ -639,7 +635,8 @@ let eval
         | LLazy LGenMu { var = var' ; closure = { captured = captured' ; env = env' } } ->
           (* TODO: these names (with the "prime") go the other direction as the spec *)
           (* FIXME: consider wrapping_types. *)
-          if captured' == captured && env == env' then confirm else
+          if Val.equal_closure { captured ; env } { captured = captured' ; env = env' }
+              && wrapping_types = [] then confirm else
           let* a = gen VType in (* fresh type to use as a stub *)
           let* t_body = local' (Env.set var a env) (eval_type captured) in
           let* t_body' = local' (Env.set var' a env') (eval_type captured') in
@@ -1109,11 +1106,18 @@ let eval
       let* tval = eval_type tau in
       let* env = read in
       let* v =
-        if do_splay then
-          let* genned = gen tval in
-          return_any (VFunClosure { param ; closure = { captured = defn ; env = Env.set item genned env }})
-        else
-          return_any (VFunFix { fvar = item ; param ; closure = { captured = defn ; env } })
+        let* self =
+          if do_splay then
+            gen tval
+          else
+            wrap (Any (
+              VFunFix { fvar = item ; param ; closure = { captured = defn ; env } }
+            )) tval
+        in
+        (* we don't just return a wrapped fix fun because that would skip the check *)
+        return_any (VFunClosure { param ; closure =
+          { captured = defn ; env = Env.set item self env } }
+        )
       in
       fork_on_left ~reason:CheckLetExpr
         ~left:{ run_failing = check v tval }
