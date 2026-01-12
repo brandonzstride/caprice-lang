@@ -16,6 +16,7 @@
   ; external
   baby
   cmdliner
+  store
  )
  (instrumentation (backend landmarks --auto))
  (instrumentation (backend bisect_ppx))

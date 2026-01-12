@@ -23,5 +23,6 @@
   mtime
   ppx_deriving
   psq
+  store
   z3
   ))

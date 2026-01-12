@@ -10,6 +10,9 @@ let[@inline always] return_any v = return (Any v)
 let bad_input_env : 'a. unit -> 'a = fun () ->
   raise @@ InvariantException "Input environment is ill-formed"
 
+let make_lazy (lgen : Val.lgen) : Val.dval =
+  VLazy { cell = State.make_cell (LLazy lgen) ; wrapping_types = [] }
+
 open Grammar.Val.Error_messages
 open Input_env.Key
 
@@ -161,8 +164,8 @@ let eval
       begin match v2 with
       | Any (VEmptyList as tl)
       | Any (VListCons _ as tl) -> cons_with_v1 tl
-      | Any (VLazy { symbol ; _ } as tl) ->
-        let* v_lazy = find_symbol symbol in
+      | Any (VLazy { cell ; _ } as tl) ->
+        let v_lazy = State.get_cell cell in
         begin match v_lazy with
         | LLazy LGenList _
         | LValue Any VEmptyList
@@ -368,12 +371,12 @@ let eval
     | VGenFun { funtype = { domain = _ ; codomain ; sort = Nondet } ; _ } ->
       let* cod_tval = eval_codomain codomain v_arg in
       gen cod_tval
-    | VGenFun ({ funtype = { domain = _ ; codomain ; sort = Det } ; mut_alist ; _ } as body) ->
+    | VGenFun { funtype = { domain = _ ; codomain ; sort = Det } ; alist ; _ } ->
       let rec loop = function
         | [] ->
           let* cod_tval = eval_codomain codomain v_arg in
           let* genned = gen cod_tval in
-          body.mut_alist <- (v_arg, genned) :: mut_alist;
+          State.set_cell alist ((v_arg, genned) :: State.get_cell alist);
           return genned
         | (input, output) :: tl ->
           begin match Val.intensional_equal v_arg input with
@@ -387,7 +390,7 @@ let eval
             mismatch "Sort mismatch in intensional equality"
           end
       in
-      loop mut_alist
+      loop (State.get_cell alist)
     | _ -> mismatch @@ apply_non_function (Any v_func)
     
   (*
@@ -626,8 +629,8 @@ let eval
       end
     | VTypeMu { var ; closure = { captured ; env } } -> (* don't force v *)
       begin match v with
-      | Any VLazy { symbol ; wrapping_types = _ } ->
-        let* lazy_v = find_symbol symbol in
+      | Any VLazy { cell ; wrapping_types = _ } ->
+        let lazy_v = State.get_cell cell in
         begin match lazy_v with
         | LValue any_v ->
           check any_v t
@@ -650,8 +653,8 @@ let eval
       end
     | VTypeList t_body -> (* don't force v *)
       begin match v with
-      | Any VLazy { symbol ; wrapping_types } ->
-        let* lazy_v = find_symbol symbol in
+      | Any VLazy { cell ; wrapping_types } ->
+        let lazy_v = State.get_cell cell in
         begin match lazy_v with
         | LValue any_v ->
           let* wrapped = wrap_multi wrapping_types any_v in
@@ -786,7 +789,7 @@ let eval
       return_any (VBool (b, Stepkey.bool_symbol step))
     | VTypeFun funtype ->
       let* Step nonce = step in
-      return_any (VGenFun { funtype ; nonce ; mut_alist = [] })
+      return_any (VGenFun { funtype ; nonce ; alist = State.make_cell [] })
     | VType ->
       let* Step id = step in (* will use step for a fresh integer *)
       return_any (VTypePoly { id })
@@ -832,7 +835,7 @@ let eval
       end
     | VTypeList t ->
       if do_splay then
-        make_new_lazy_value (LGenList t)
+        return_any (make_lazy (LGenList t))
       else
         force_gen_list t
     | VTypeRefine { var ; tau ; predicate = { captured ; env } } ->
@@ -849,7 +852,7 @@ let eval
       end 
     | VTypeMu { var ; closure } ->
       if do_splay then
-        make_new_lazy_value (LGenMu { var ; closure })
+        return_any (make_lazy (LGenMu { var ; closure }))
       else
         force_gen_mu var closure
     | VTypeTuple (t1, t2) ->
@@ -1157,11 +1160,11 @@ let eval
       TODO: fix this.
   *)
   and resolve_lazy
-    : 'env. Val.vlazy -> (Val.any, 'env) m
-    = fun { symbol ; wrapping_types } ->
+    : 'env. Val.lazy_cell -> (Val.any, 'env) m
+    = fun { cell ; wrapping_types } ->
     assert do_splay;
     let* v_any =
-      let* lazy_v = find_symbol symbol in
+      let lazy_v = State.get_cell cell in
       match lazy_v with
       | LLazy lv ->
         let* genned =
@@ -1169,7 +1172,7 @@ let eval
           | LGenMu { var ; closure } -> force_gen_mu var closure
           | LGenList t -> force_gen_list t
         in
-        let* () = add_symbol symbol (LValue genned) in
+        State.set_cell cell (LValue genned);
         return genned
       | LValue v_any ->
         return v_any

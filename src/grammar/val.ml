@@ -43,7 +43,7 @@ let rec is_symbolic : type a. a t -> bool = fun v ->
   | VTypeSingle t ->
     is_symbolic t
   | VTypeFun { domain ; codomain = CodValue t ; sort = _ }
-  | VGenFun { funtype = { domain ; codomain = CodValue t ; sort = _ } ; nonce = _ ; mut_alist = _ } ->
+  | VGenFun { funtype = { domain ; codomain = CodValue t ; sort = _ } ; nonce = _ ; alist = _ } ->
     is_symbolic domain || is_symbolic t
   | VWrapped { data ; tau = { domain ; codomain = CodValue t ; sort = _ } } ->
     is_symbolic data || is_symbolic domain || is_symbolic t
@@ -54,7 +54,7 @@ let rec is_symbolic : type a. a t -> bool = fun v ->
   | VLazy _
   | VTypeMu _
   | VTypeRefine _
-  | VGenFun { funtype = { domain = _ ; codomain = CodDependent _ ; sort = _ } ; nonce = _ ; mut_alist = _ }
+  | VGenFun { funtype = { domain = _ ; codomain = CodDependent _ ; sort = _ } ; nonce = _ ; alist = _ }
   | VTypeFun { domain = _ ; codomain = CodDependent _ ; sort = _ }
   | VWrapped { data = _ ; tau = { domain = _ ; codomain = CodDependent _ ; sort = _ } } -> true
 
@@ -181,8 +181,8 @@ let rec intensional_equal (x : any) (y : any) : bool X.t =
   | Any VTuple (l1, r1), Any VTuple (l2, r2) ->
     let- () = intensional_equal l1 l2 in
     intensional_equal r1 r2
-  | Any VGenFun { nonce = n1 ; funtype = _ ; mut_alist = _ }
-  , Any VGenFun { nonce = n2 ; funtype = _ ; mut_alist = _ } ->
+  | Any VGenFun { nonce = n1 ; funtype = _ ; alist = _ }
+  , Any VGenFun { nonce = n2 ; funtype = _ ; alist = _ } ->
     make (n1 = n2)
   | Any VTypeSingle t1, Any VTypeSingle t2
   | Any VTypeList t1, Any VTypeList t2 ->
@@ -244,7 +244,7 @@ let rec intensional_equal (x : any) (y : any) : bool X.t =
     let- () = intensional_equal (Any w1.data) (Any w2.data) in
     iequal_ftype w1.tau w2.tau
   | Any VLazy s1, Any VLazy s2 ->
-    if s1.symbol.id = s2.symbol.id then
+    if Store.Ref.eq (Obj.magic ()) s1.cell s2.cell then
       fold_lists iequal s1.wrapping_types s2.wrapping_types
     else
       (* for now, say type mismatch if comparing lazy values *)

@@ -4,13 +4,28 @@ open Grammar
 
 exception InvariantException of string
 
+(*
+  IMPORTANT:
+    We are using some mutable state with Store, so this monad
+    will not obey all monad laws because it is not pure. However,
+    in every real use, it is fine.
+
+    This is done to keep the state record small and avoid a map
+    to lookup stateful values. When the monad is forked, we must
+    carefully snapshot the store, and when it is joined back, we
+    restore the original store.
+
+    Since this is a code smell, the choice may be reverted in the
+    future.
+*)
 module State = struct
+  let store = Store.create ()
+
   type t = 
     { rev_stem : Path.t (* we will cons to the path instead of union a log *)
     ; logged_inputs : Input_env.t 
     ; path_len : Path_length.t (* total length of the path to this point (up to and including the stem) *)
     ; runs : Logged_run.t Utils.Diff_list.t
-    ; lazy_values : Lazy_val.t Val.SymbolMap.t
     }
 
   let empty : t =
@@ -18,8 +33,11 @@ module State = struct
     ; logged_inputs = Input_env.empty
     ; path_len = Path_length.zero
     ; runs = Utils.Diff_list.empty
-    ; lazy_values = Val.SymbolMap.empty
     }
+
+  let get_cell : 'a. 'a Store.Ref.t -> 'a = fun c -> Store.Ref.get store c
+  let set_cell : 'a. 'a Store.Ref.t -> 'a -> unit = fun c a -> Store.Ref.set store c a
+  let make_cell : 'a. 'a -> 'a Store.Ref.t = fun a -> Store.Ref.make store a
 end
 
 module Context = struct
@@ -145,12 +163,15 @@ let fork (forked_m : (Eval_result.t, 'env) u) : (unit, 'env) m =
       acc + Path.priority_of_punit punit
       ) 0 s.rev_stem
   );
+  let snapshot = ref None in
   fork forked_m { target }
     ~setup_state:(fun state ->
       (* keeps all the logged runs *)
+      snapshot := Some (Store.capture State.store);
       { state with rev_stem = Path.empty }
     )
     ~restore_state:(fun e ~og ~forked_state ->
+      Store.restore State.store (Option.get !snapshot);
       { og with runs =
         let forked_run =
           { Logged_run.rev_stem = forked_state.rev_stem 
@@ -169,7 +190,7 @@ let fork (forked_m : (Eval_result.t, 'env) u) : (unit, 'env) m =
       else return ())
 
 (* INVARIANT: the symbol must always exist *)
-let find_symbol (symbol : Val.symbol) : (Lazy_val.t, 'env) m =
+(* let find_symbol (symbol : Val.symbol) : (Val.vlazy, 'env) m =
   let* { lazy_values ; _ } = get in
   return (Val.SymbolMap.find symbol lazy_values)
 
@@ -180,7 +201,7 @@ let add_symbol (symbol : Val.symbol) (lazy_v : Lazy_val.t) : (unit, 'env) m =
 let make_new_lazy_value (lgen : Lazy_val.LGen.t) : (Val.any, 'env) m =
   let* Step id = step in (* use step as fresh identifier *)
   let* () = add_symbol { id } (LLazy lgen) in
-  return (Val.Any (VLazy { symbol = { id } ; wrapping_types = [] }))
+  return (Val.Any (VLazy { symbol = { id } ; wrapping_types = [] })) *)
 
 let run' (x : ('a, Val.Env.t) m) (target : Target.t) (s : State.t) (e : Val.Env.t) : Eval_result.t * State.t =
   match run x s e { target } with

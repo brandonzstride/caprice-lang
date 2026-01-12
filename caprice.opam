@@ -13,6 +13,7 @@ depends: [
   "mtime"
   "ppx_deriving"
   "psq"
+  "store"
   "z3"
   "odoc" {with-doc}
 ]

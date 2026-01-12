@@ -10,11 +10,11 @@ module Make (Atom_cell : Utils.Comparable.P1) = struct
   type neither = private Neither [@@deriving eq, ord]
 
   (* symbols to identify lazy things *)
-  type symbol = { id : int } [@@unboxed] [@@deriving eq, ord]
+  (* type symbol = { id : int } [@@unboxed] [@@deriving eq, ord]
 
   module SymbolMap = Baby.H.Map.Make (struct
     type t = symbol [@@deriving eq, ord]
-  end)
+  end) *)
 
   (*
     Data values and type values are all the same type constructor
@@ -36,9 +36,9 @@ module Make (Atom_cell : Utils.Comparable.P1) = struct
     | VEmptyList : data t
     | VListCons : any * data t -> data t
     (* generated values *)
-    | VGenFun : { funtype : (typeval t, fun_cod) Funtype.t ; nonce : int ; mutable mut_alist : (any * any) list } -> data t
+    | VGenFun : { funtype : (typeval t, fun_cod) Funtype.t ; nonce : int ; alist : (any * any) list Store.Ref.t } -> data t
     | VGenPoly : { id : int ; nonce : int } -> data t
-    | VLazy : vlazy -> data t (* lazily evaluated thing, so state must manage this *)
+    | VLazy : lazy_cell -> data t (* lazily evaluated thing, so state must manage this *)
     (* wrapped values *)
     | VWrapped : { data : data t ; tau : (typeval t, fun_cod) Funtype.t }  -> data t
     (* type values only *)
@@ -75,7 +75,15 @@ module Make (Atom_cell : Utils.Comparable.P1) = struct
 
     The lazy state itself is not updated because wrapping is flow sensitive.
   *)
-  and vlazy = { symbol : symbol ; wrapping_types : typeval t list }
+  and lazy_cell = { cell : vlazy Store.Ref.t ; wrapping_types : typeval t list }
+
+  and lgen =
+    | LGenList of typeval t
+    | LGenMu of { var : Ident.t ; closure : Ast.t closure }
+
+  and vlazy =
+    | LLazy of lgen
+    | LValue of any
 
   module Env = Env.Make (struct type t = any end)
 
@@ -162,7 +170,7 @@ module Make (Atom_cell : Utils.Comparable.P1) = struct
     | VWrapped { data ; tau } ->
       contains_mu data || contains_mu (VTypeFun tau)
     | VTypeFun { domain ; codomain = CodValue t ; sort = _ }
-    | VGenFun { funtype = { domain ; codomain = CodValue t ; sort = _  } ; nonce = _ ; mut_alist = _ }->
+    | VGenFun { funtype = { domain ; codomain = CodValue t ; sort = _  } ; nonce = _ ; alist = _ }->
       (* TODO: consider if the negative position makes a difference *)
       contains_mu domain || contains_mu t
     (* Closures cases: assume true, but may want to inspect closure *)
@@ -170,7 +178,7 @@ module Make (Atom_cell : Utils.Comparable.P1) = struct
     | VFunFix _
     | VTypeModule _
     | VLazy _
-    | VGenFun { funtype = { domain = _ ; codomain = CodDependent _ ; sort = _ } ; nonce = _ ; mut_alist = _ }
+    | VGenFun { funtype = { domain = _ ; codomain = CodDependent _ ; sort = _ } ; nonce = _ ; alist = _ }
     | VTypeFun { domain = _ ; codomain = CodDependent _ ; sort = _ } -> true
     (* Refinement types: closure does not escape, so just look at type *)
     | VTypeRefine { tau ; _ } -> contains_mu tau
@@ -216,16 +224,16 @@ module Make (Atom_cell : Utils.Comparable.P1) = struct
       "[]"
     | VListCons (hd, tl) ->
       Format.sprintf "(%s :: %s)" (any_to_string hd) (to_string tl)
-    | VGenFun { funtype ; nonce ; mut_alist = _ } ->
+    | VGenFun { funtype ; nonce ; alist = _ } ->
       Format.sprintf "G(%s, %d)" (to_string (VTypeFun funtype)) nonce
     | VGenPoly { id ; nonce } ->
       Format.sprintf "G(poly id : %d, nonce : %d)" id nonce
     | VWrapped { data ; tau } ->
       Format.sprintf "W(%s, %s)" (to_string data) (to_string (VTypeFun tau))
-    | VLazy { symbol = { id } ; wrapping_types } ->
+    | VLazy { cell = _ ; wrapping_types } ->
       List.fold_right (fun t acc ->
         Format.sprintf "W(%s, %s)" acc (to_string t)
-      ) wrapping_types (Format.sprintf "Lazy(id : %d)" id)
+      ) wrapping_types "<lazy>"
     | VType ->
       "type"
     | VTypePoly { id } ->
@@ -380,7 +388,7 @@ module Make (Atom_cell : Utils.Comparable.P1) = struct
       It's expected that this computation is monadic, so we must pass in
       the monad via a functor.
     *)
-    let matches (type a) (pat : Pattern.t) (v : a t) ~(resolve_lazy : vlazy -> any m) : Match_result.t m =
+    let matches (type a) (pat : Pattern.t) (v : a t) ~(resolve_lazy : lazy_cell -> any m) : Match_result.t m =
       let rec matches 
         : type a. Pattern.t -> a t -> Match_result.t m 
         = fun p v ->
@@ -454,13 +462,14 @@ module Make (Atom_cell : Utils.Comparable.P1) = struct
       in
       matches pat v
 
-    let match_any (pat : Pattern.t) (Any v : any) ~(resolve_lazy : vlazy -> any m) : Match_result.t m =
+    let match_any (pat : Pattern.t) (Any v : any) ~(resolve_lazy : lazy_cell -> any m) : Match_result.t m =
       matches pat v ~resolve_lazy
   end
 end
 
 (*
   Ints and bools have only a concrete component.
+  Also there are no lazy values, so they are empty.
 *)
 module Concrete = Make (Utils.Identity)
 
