@@ -370,6 +370,10 @@ module Make (Atom_cell : Utils.Comparable.P1) = struct
 
     let wrap_non_tuple (v : any) (t : tval) : string =
       bad_wrap "a tuple" v t
+
+    let sort_mismatch (v1 : any) (v2 : any) : string =
+      Format.sprintf "Bad intensional equality: %s and %s are not of the same sort."
+        (any_to_string v1) (any_to_string v2)
   end
 
   module Match_result = struct

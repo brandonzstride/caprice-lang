@@ -4,8 +4,6 @@
 
 (*
   Using nondeterministic function where a deterministic one is expected.
-
-  This is a TODO because we don't check deterministic functions correctly yet.
 *)
 let _ : ((int --> int) -> int) -> (int -> int) -> int =
   fun f g ->

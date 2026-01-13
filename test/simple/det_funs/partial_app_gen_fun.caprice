@@ -1,0 +1,18 @@
+(* TEST
+  include splayable;
+*)
+
+let rec map
+  : (type a) --> (type b) --> (a --> b) --> list a --> list b
+  = fun a b f ls ->
+  match ls with
+  | [] -> []
+  | hd :: tl -> f hd :: map a b f tl
+  end
+
+(* Currently this is incomplete because we don't handle patterns in intensional equality *)
+let _ : ((list int --> list bool) --> bool) -> int =
+  fun f ->
+    if f (map int bool (fun i -> i % 2 == 0)) == f (map int bool (fun i -> i % 2 == 0))
+    then 0
+    else false

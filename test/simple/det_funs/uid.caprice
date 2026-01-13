@@ -1,0 +1,9 @@
+(* TEST
+  include refutable;
+*)
+
+(* ERROR: the deterministic `uid` function can give the same "id" to different values. *)
+let f (type a) (x : a) (y : a) (uid : a --> int) : int =
+  if uid x == uid y
+  then 0
+  else false

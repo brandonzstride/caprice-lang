@@ -41,8 +41,13 @@ module State = struct
 end
 
 module Context = struct
+  type det_context =
+    | Allowed
+    | Disallowed
+
   type t =
-    { target : Target.t } 
+    { target : Target.t
+    ; det_context : det_context }
 end
 
 (*
@@ -77,10 +82,17 @@ let vanish : 'a 'env. ('a, 'env) m =
 let mismatch : 'a 'env. string -> ('a, 'env) m = fun msg ->
   escape (Mismatch msg)
 
+let assert_inputs_allowed : 'env. (unit, 'env) m =
+  { run = fun ~reject ~accept state step _ ctx ->
+    match ctx.det_context with
+    | Allowed -> accept () state step
+    | Disallowed -> reject (Mismatch "Nondeterminism used when not allowed") state step
+  }
+
 (* We will also want to log this tag in input env, but at what time? *)
 let push_tag (tag : Tag.With_alt.t) : (unit, 'env) m =
   let* step = step in
-  let* { target } = read_ctx in
+  let* { target ; _ } = read_ctx in
   modify (fun s -> 
     { s with rev_stem = 
       if Path_length.geq s.path_len (Target.path_length target) then
@@ -93,7 +105,7 @@ let push_tag (tag : Tag.With_alt.t) : (unit, 'env) m =
 (* Pushes the tag to the path and logs it in input environment *)
 let push_and_log_tag (tag : Tag.t) : (unit, 'env) m =
   let* step = step in
-  let* { target } = read_ctx in
+  let* { target ; _ } = read_ctx in
   modify (fun s -> 
     { s with rev_stem =
       if Path_length.geq s.path_len (Target.path_length target) then
@@ -110,7 +122,7 @@ let push_formula ?(allow_flip : bool = true) (formula : (bool, Stepkey.t) Smt.Fo
   then return ()
   else
     let* step = step in
-    let* { target } = read_ctx in
+    let* { target ; _ } = read_ctx in
     modify (fun s -> 
       { s with rev_stem =
         if Path_length.geq s.path_len (Target.path_length target) then
@@ -127,12 +139,14 @@ let log_input (key : 'a Input_env.Key.t) (input : 'a) : (unit, 'env) m =
   modify (fun s -> { s with logged_inputs = Input_env.add key input s.logged_inputs })
 
 let read_input (make_key : Stepkey.t -> 'a Input_env.Key.t) (input_env : Input_env.t) : ('a option, 'env) m =
+  let* () = assert_inputs_allowed in
   let* step = step in
   let key = make_key (Stepkey step) in
   return (Input_env.find key input_env)
 
 let read_and_log_input_with_default (make_key : Stepkey.t -> 'a Input_env.Key.t) 
   (input_env : Input_env.t) ~(default : 'a) : ('a, 'env) m =
+  let* () = assert_inputs_allowed in
   let* step = step in
   let key = make_key (Stepkey step) in
   match Input_env.find key input_env with
@@ -143,7 +157,7 @@ let read_and_log_input_with_default (make_key : Stepkey.t -> 'a Input_env.Key.t)
   Must inline definitions in order to skirt the value restriction.
 *)
 let target_to_here : 'env. (Target.t, 'env) m =
-  { run = fun ~reject:_ ~accept state step _ { target } ->
+  { run = fun ~reject:_ ~accept state step _ { target ; _ } ->
     accept (
       Target.make Formula.trivial
         (Formula.BSet.union target.all_formulas (Path.formulas state.rev_stem))
@@ -164,7 +178,7 @@ let fork (forked_m : (Eval_result.t, 'env) u) : (unit, 'env) m =
       ) 0 s.rev_stem
   );
   let snapshot = ref None in
-  fork forked_m { target }
+  fork forked_m { target ; det_context = ctx.det_context }
     ~setup_state:(fun state ->
       (* keeps all the logged runs *)
       snapshot := Some (Store.capture State.store);
@@ -203,8 +217,14 @@ let make_new_lazy_value (lgen : Lazy_val.LGen.t) : (Val.any, 'env) m =
   let* () = add_symbol { id } (LLazy lgen) in
   return (Val.Any (VLazy { symbol = { id } ; wrapping_types = [] })) *)
 
+let disallow_inputs (x : ('a, 'env) m) : ('a, 'env) m =
+  local_ctx (fun ctx -> { ctx with det_context = Disallowed }) x
+
+let allow_inputs (x : ('a, 'env) m) : ('a, 'env) m =
+  local_ctx (fun ctx -> { ctx with det_context = Allowed }) x
+
 let run' (x : ('a, Val.Env.t) m) (target : Target.t) (s : State.t) (e : Val.Env.t) : Eval_result.t * State.t =
-  match run x s e { target } with
+  match run x s e { target ; det_context = Allowed } with
   | Ok _, state, _ -> Done, state
   | Error e, state, _ -> e, state
 

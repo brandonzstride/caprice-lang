@@ -239,7 +239,7 @@ let rec intensional_equal (x : any) (y : any) : bool X.t =
     if Store.Ref.eq (Obj.magic ()) s1.cell s2.cell then
       fold_lists iequal s1.wrapping_types s2.wrapping_types
     else
-      (* for now, say type mismatch if comparing lazy values *)
+      (* For now, say type mismatch if comparing lazy values. *)
       SortMismatch
       (* TODO: eventually we want to handle these by asking for lazy environment *)
   | _, _ ->

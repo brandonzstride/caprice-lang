@@ -1,0 +1,5 @@
+(* TEST
+  include finite-well-typed;
+*)
+
+let _ : ((int -> int) --> int) --> (int --> int) --> int = fun f -> f

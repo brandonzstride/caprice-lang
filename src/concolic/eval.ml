@@ -13,6 +13,18 @@ let bad_input_env : 'a. unit -> 'a = fun () ->
 let make_lazy (lgen : Val.lgen) : Val.dval =
   VLazy { cell = State.make_cell (LLazy lgen) ; wrapping_types = [] }
 
+(*
+  Get some context in which to evaluate an expression
+  based on the sort of function.
+
+  This is a context that disallows inputs if the sort
+  is deterministic.
+*)
+let ctx_of_sort (sort : Funtype.sort) =
+  match sort with
+  | Nondet -> Fun.id
+  | Det -> disallow_inputs (* deterministic functions must run without inputs *)
+
 open Grammar.Val.Error_messages
 open Input_env.Key
 
@@ -42,7 +54,7 @@ let eval
     Otherwise, fork on the left and continue on the right.
   *)
   let fork_on_left (type a env) ~(left : (Eval_result.t, env) failing) ~(right : (a, env) m) ~reason =
-    let* l_opt = read_input make_tag input_env in
+    let* l_opt = allow_inputs (read_input make_tag input_env) in
     match l_opt with
     | Some Left reason' when reason = reason' -> 
       let* () = push_and_log_tag @@ Left reason in
@@ -375,7 +387,7 @@ let eval
       let rec loop = function
         | [] ->
           let* cod_tval = eval_codomain codomain v_arg in
-          let* genned = gen cod_tval in
+          let* genned = allow_inputs (gen cod_tval) in
           State.set_cell alist ((v_arg, genned) :: State.get_cell alist);
           return genned
         | (input, output) :: tl ->
@@ -387,7 +399,7 @@ let eval
             let* () = push_formula (Formula.not_ s) in
             loop tl
           | SortMismatch ->
-            mismatch "Sort mismatch in intensional equality"
+            mismatch @@ sort_mismatch v_arg input
           end
       in
       loop (State.get_cell alist)
@@ -476,21 +488,21 @@ let eval
       (* TODO: consider a wellformedness check *)
       let* v = force_value v in
       handle_any v ~data:(fun _ -> refute) ~typeval:(fun _ -> confirm)
-    | VTypeFun { domain ; codomain ; sort = _ } ->
+    | VTypeFun { domain ; codomain ; sort } ->
       let* v = force_value v in
       begin match v with
       | Any (VFunClosure _ as vfun)
       | Any (VFunFix _ as vfun) ->
-        (* TODO: if sort is deterministic, check that this evaluates deterministically *)
-        let* genned = gen domain in
-        let* res = eval_appl vfun genned in
+        let* genned = allow_inputs (gen domain) in
+        let* res = ctx_of_sort sort (eval_appl vfun genned) in
         let* cod_tval = eval_codomain codomain genned in
         check res cod_tval
       | Any (VGenFun { funtype = { domain = domain' ; codomain = codomain' ; sort = sort' } ; _ } as v_candidate) ->
         fork_on_left ~reason:CheckGenFun
           ~left:{ run_failing = domain <: domain' }
           ~right:(
-            if Val.equal_fun_cod codomain codomain' then confirm else
+            if Val.equal_fun_cod codomain codomain' 
+              && Funtype.equal_sort sort sort' then confirm else
             match sort' with
             | Nondet ->
               let* cod_tval, cod_tval' =
@@ -498,19 +510,25 @@ let eval
                 | CodValue cod_tval, CodValue cod_tval' -> 
                   return (cod_tval, cod_tval')
                 | _ ->
-                  let* genned = gen domain in
+                  let* genned = allow_inputs (gen domain) in
                   let* cod_tval = eval_codomain codomain genned in
                   let* cod_tval' = eval_codomain codomain' genned in
                   return (cod_tval, cod_tval')
               in
-              cod_tval' <: cod_tval
+              begin match sort with
+              | Nondet -> cod_tval' <: cod_tval
+              | Det ->
+                (* inlining this until it's clear we can extract *)
+                let* genned = disallow_inputs (gen cod_tval') in
+                check genned cod_tval
+              end
             | Det ->
-              let* v_arg = gen domain in
+              let* v_arg = allow_inputs (gen domain) in
               let* res = eval_appl v_candidate v_arg in
               let* cod_tval = eval_codomain codomain v_arg in
               check res cod_tval
           )
-      | Any (VWrapped { data ; tau = { domain = domain' ; codomain = codomain' ; sort = _ } } as self_fun) ->
+      | Any (VWrapped { data ; tau = { domain = domain' ; codomain = codomain' ; sort = sort' } } as self_fun) ->
         fork_on_left ~reason:CheckWrappedFun
           ~left:{ run_failing = domain <: domain' }
           ~right:(
@@ -521,17 +539,18 @@ let eval
               We can skip the work on the right if the codomains are equal
                 because the wrapper means its been checked.
             *)
-            if Val.equal_fun_cod codomain codomain' then confirm else
+            if Val.equal_fun_cod codomain codomain'
+              && Funtype.equal_sort sort sort' then confirm else
             (* TODO: remove this duplication with all the above cases
               (this is almost just the "right" side of checking functions but
               with wrapping the result in the wrapping codomain'). *)
             match data with
             | VFunClosure _
             | VFunFix _ ->
-              let* genned = gen domain in
+              let* genned = allow_inputs (gen domain) in
               let* cod_tval = eval_codomain codomain genned in (* note og codomain uses unwrapped value *)
               let* w = wrap genned domain' in
-              let* res = eval_appl data ~self_fun genned in
+              let* res = ctx_of_sort sort (eval_appl data ~self_fun genned) in
               let* cod_tval' = eval_codomain codomain' w in
               let* w_res = wrap res cod_tval' in
               check w_res cod_tval
@@ -541,15 +560,16 @@ let eval
                 | CodValue cod_tval, CodValue cod_tval', CodValue cod_tval'' -> 
                   return (cod_tval, cod_tval', cod_tval'')
                 | _ ->
-                  let* genned = gen domain in
+                  let* genned = allow_inputs (gen domain) in
                   let* cod_tval = eval_codomain codomain genned in
                   let* w = wrap genned domain' in
                   let* cod_tval' = eval_codomain codomain' w in
                   let* cod_tval'' = eval_codomain codomain'' w in (* TODO: should this "w" be wrapped with domain''? *)
                   return (cod_tval, cod_tval', cod_tval'')
               in
-              if Val.equal cod_tval cod_tval'' then confirm else
-              let* genned = gen cod_tval'' in
+              if Funtype.equal_sort sort Nondet
+                && Val.equal cod_tval cod_tval'' then confirm else
+              let* genned = ctx_of_sort sort (gen cod_tval'') in
               let* w = wrap genned cod_tval' in
               check w cod_tval
             | VGenFun { funtype = { domain = domain'' ; codomain = _ ; sort = Det } ; _ } ->
@@ -557,7 +577,7 @@ let eval
                 ~left:{ run_failing = domain <: domain'' }
                 ~right:(
                   if Val.equal_fun_cod codomain codomain' then confirm else
-                  let* v_arg = gen domain in
+                  let* v_arg = allow_inputs (gen domain) in
                   let* w_arg = wrap v_arg domain' in
                   let* res = eval_appl data w_arg in
                   let* cod_tval = eval_codomain codomain v_arg in
@@ -637,7 +657,7 @@ let eval
           (* FIXME: consider wrapping_types. *)
           if Val.equal_closure { captured ; env } { captured = captured' ; env = env' }
               && wrapping_types = [] then confirm else
-          let* a = gen VType in (* fresh type to use as a stub *)
+          let* a = allow_inputs (gen VType) in (* fresh type to use as a stub *)
           let* t_body = local' (Env.set var a env) (eval_type captured) in
           let* t_body' = local' (Env.set var' a env') (eval_type captured') in
           (* we would need to address the fixme by wrapping the generated
@@ -660,7 +680,7 @@ let eval
           refute (* see todo on mu check about error messages *)
         | LLazy LGenList t' ->
           if wrapping_types = [] && Val.equal t' t_body then confirm else
-          let* genned = gen t' in
+          let* genned = allow_inputs (gen t') in
           (* genned is only a single element of the list, so wrap it
             by extracting the type bodies out of the list type *)
           let* wrapping_bodies =
@@ -726,7 +746,7 @@ let eval
       t_labels:Labels.Record.Set.t -> v_labels:Labels.Record.Set.t -> (a, env) m
     = fun check_label ~refute ~t_labels ~v_labels ->
       if Labels.Record.Set.subset t_labels v_labels then
-        let* l_opt = read_input make_tag input_env in
+        let* l_opt = allow_inputs (read_input make_tag input_env) in
         match l_opt with
         | Some Label (id, Check) -> (check_label (Labels.Record.RecordLabel id)).run_failing
         | Some _ -> bad_input_env ()
@@ -759,7 +779,7 @@ let eval
       if Val.equal t1 t2 then
         escape Confirmation
       else
-        let* genned = gen t1 in
+        let* genned = allow_inputs (gen t1) in
         check genned t2
 
   (*
@@ -832,6 +852,7 @@ let eval
       end
     | VTypeList t ->
       if do_splay then
+        let* () = assert_inputs_allowed in
         return_any (make_lazy (LGenList t))
       else
         force_gen_list t
@@ -849,6 +870,9 @@ let eval
       end 
     | VTypeMu { var ; closure } ->
       if do_splay then
+        (* Be overly cautious and assume that the generated value
+          will have several choices and hence uses an input. *)
+        let* () = assert_inputs_allowed in
         return_any (make_lazy (LGenMu { var ; closure }))
       else
         force_gen_mu var closure
@@ -1159,9 +1183,10 @@ let eval
     Forces the value to weak head normal form and wraps
     with any lazily-done wrappings.
 
-    Since this changes the order of when inputs happen, this
-    messes up the checking of deterministic functions.
-      TODO: fix this.
+    Since it is asserted that inputs are allowed when the
+    lazy value is made, we allow all inputs here. The inputs
+    here only realize any choices that could have been made
+    when the lazy value was first created.
   *)
   and resolve_lazy
     : 'env. Val.lazy_cell -> (Val.any, 'env) m
@@ -1172,6 +1197,7 @@ let eval
       match lazy_v with
       | LLazy lv ->
         let* genned =
+          allow_inputs @@
           match lv with
           | LGenMu { var ; closure } -> force_gen_mu var closure
           | LGenList t -> force_gen_list t
