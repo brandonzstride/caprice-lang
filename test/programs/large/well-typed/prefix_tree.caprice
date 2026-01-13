@@ -1,0 +1,103 @@
+(* TEST
+  include splayable;
+*)
+
+(*
+  This program is taken from
+  
+    Learn Programming with OCaml
+    
+  by Sylvain Conchon and Jean-Christophe Filliâtre.
+
+  (Section 5.4)
+*)
+
+let LETTER = sig
+  val t : type
+  val compare : t -> t -> int
+end
+
+let Option = struct
+  let t a =
+    | `Some of a
+    | `None of unit
+end
+
+let Map T = struct
+  let t a =
+    list (T.t * a)
+
+  let empty = []
+
+  let rec add (type a) (m : t a) (k : T.t) (x : a) : t a =
+    match m with
+    | [] -> [ k, x ]
+    | ((k_hd, _) as p) :: tl -> 
+      if T.compare k_hd k == 0 then
+        (k, x) :: tl
+      else
+        p :: add a tl k x
+    end
+
+  let rec find (type a) (m : t a) (k : T.t) : Option.t a =
+    match m with
+    | [] -> `None ()
+    | (k_hd, x) :: tl -> 
+      if T.compare k_hd k == 0 then
+        `Some x
+      else
+        find a tl k
+    end
+end
+
+let Make (dep L : LETTER) : sig
+  val elt : type
+  val t : type
+  val empty : t
+  val add : elt -> t -> t
+  val mem : elt -> t -> bool
+
+  (* For now, let's not worry about further functionality. This seems like enough. *)
+  (* val remove : elt -> t -> t
+  val inter : t -> t -> t
+  val compare : t -> t -> int *)
+end = struct
+  let elt = list L.t
+
+  let M = Map L
+
+  let t = mu t. { word : bool ; branches : M.t t }
+
+  let empty = { word = false ; branches = M.empty }
+
+  let rec mem (e : elt) (trie : t) : bool =
+    match e with
+    | [] -> trie.word
+    | i :: l ->
+      match M.find t trie.branches i with
+      | `Some x -> mem l x
+      | `None () ->
+        false
+      end
+    end
+
+  let rec add (e : elt) (trie : t) : t =
+    match e with
+    | [] ->
+      if trie.word then
+        trie
+      else
+        { word = true ; branches = trie.branches }
+    | i :: l ->
+      let b =
+        match M.find t trie.branches i with
+        | `Some b -> b
+        | `None () -> empty
+        end
+      in
+      { word = trie.word
+      ; branches =
+        M.add t trie.branches i (add l b)
+      }
+    end
+end

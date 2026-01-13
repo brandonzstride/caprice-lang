@@ -54,6 +54,7 @@ let eval
     Otherwise, fork on the left and continue on the right.
   *)
   let fork_on_left (type a env) ~(left : (Eval_result.t, env) failing) ~(right : (a, env) m) ~reason =
+    let* () = incr_step ~max_step in
     let* l_opt = allow_inputs (read_input make_tag input_env) in
     match l_opt with
     | Some Left reason' when reason = reason' -> 
