@@ -430,9 +430,15 @@ and iequal_closure bindings closure1 closure2 =
       | _ ->
         make false
       end
-    | EMatch _l1, EMatch _l2 ->
-      (* TODO: implement equal match *)
-      make false
+    | EMatch r1, EMatch r2 ->
+      let- () = ieq r1.subject r2.subject in
+      fold_lists (fun (pat1, body1) (pat2, body2) ->
+        match check_pattern pat1 pat2 with
+        | Some bindings' ->
+          iequal_expr (bindings' @ bindings) body1 body2
+        | None ->
+          make false
+      ) r1.patterns r2.patterns
     | _ -> make false
 
   (*
@@ -494,6 +500,41 @@ and iequal_closure bindings closure1 closure2 =
       iequal_expr bindings t1.tau t2.tau
     | _ ->
       make false
+
+  and check_pattern p1 p2 =
+    match p1, p2 with
+    | Pattern.PAny, Pattern.PAny
+    | PUnit, PUnit
+    | PEmptyList, PEmptyList ->
+      Some []
+      (* iequal_expr bindings body1 body2 *)
+    | PVariable id1, PVariable id2 ->
+      Some [id1, id2]
+    | PVariant v1, PVariant v2 ->
+      if Labels.Variant.equal v1.label v2.label then
+        check_pattern v1.payload v2.payload
+      else
+        None
+    | PTuple (l1, r1), PTuple (l2, r2)
+    | PDestructList (l1, r1), PDestructList (l2, r2) ->
+      check_several_patterns [ l1 ; r1 ] [ l2 ; r2 ]
+    | PPatternOr ls1, PPatternOr ls2 ->
+      check_several_patterns ls1 ls2
+    | PPatternAs (pat1, id1), PPatternAs (pat2, id2) ->
+      Option.map (fun ls ->
+        (id1, id2) :: ls
+      ) (check_pattern pat1 pat2)
+    | _ -> None
+
+  and check_several_patterns l1 l2 =
+    List.fold_left2 (fun acc_m p1 p2 ->
+      Option.bind acc_m (fun b ->
+        Option.bind (check_pattern p1 p2) (fun b' ->
+          Some (b @ b')
+        )
+      )
+    ) (Some []) l1 l2
+
   in
 
   iequal_expr bindings closure1.captured closure2.captured
