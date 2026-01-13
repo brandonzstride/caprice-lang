@@ -93,7 +93,7 @@ let push_tag (tag : Tag.With_alt.t) : (unit, 'env) m =
   let* { target ; _ } = read_ctx in
   modify (fun s -> 
     { s with rev_stem = 
-      Rev_stem.cons (Tag (tag, Stepkey step)) s.rev_stem
+      Rev_stem.cons (Tag (tag, Stepkey step, s.logged_inputs)) s.rev_stem
         ~if_exceeds:(Target.path_length target)
     }
   )
@@ -104,7 +104,7 @@ let push_and_log_tag (tag : Tag.t) : (unit, 'env) m =
   let* { target ; _ } = read_ctx in
   modify (fun s -> 
     { s with rev_stem =
-      Rev_stem.cons (Tag ({ main = tag ; alts = [] }, Stepkey step)) s.rev_stem
+      Rev_stem.cons (Tag ({ main = tag ; alts = [] }, Stepkey step, s.logged_inputs)) s.rev_stem
         ~if_exceeds:(Target.path_length target)
     ; logged_inputs = Input_env.add (KTag (Stepkey step)) tag s.logged_inputs
     }
@@ -114,13 +114,12 @@ let push_formula ?(allow_flip : bool = true) (formula : (bool, Stepkey.t) Smt.Fo
   if Smt.Formula.is_const formula
   then return ()
   else
-    let* step = step in
     let* { target ; _ } = read_ctx in
     modify (fun s -> 
       { s with rev_stem =
         let punit =
           if allow_flip then
-            Path_item.Formula (formula, (Stepkey step))
+            Path_item.Formula (formula, s.logged_inputs)
           else
             Nonflipping formula
         in
@@ -181,7 +180,6 @@ let fork (forked_m : (Eval_result.t, 'env) u) : (unit, 'env) m =
       { og with runs =
         let forked_run =
           { Logged_run.rev_stem = forked_state.rev_stem 
-          ; inputs = forked_state.logged_inputs 
           ; target 
           ; answer = Eval_result.to_answer e }
         in

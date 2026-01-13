@@ -2,7 +2,7 @@
 open Grammar
 
 let make_targets ~(max_tree_depth : int) (target : Target.t)
-  (stem : Path.t) (ienv : Input_env.t) : Target.t list * bool =
+  (stem : Path.t) : Target.t list * bool =
   Utils.List_utils.fold_left_until (fun (acc_set, len, formulas) p_item ->
     if Path_length.to_int len > max_tree_depth then
       `Stop (acc_set, true)
@@ -11,21 +11,19 @@ let make_targets ~(max_tree_depth : int) (target : Target.t)
       match p_item with
       | Path_item.Nonflipping formula ->
         `Continue (acc_set, path_length, Formula.BSet.add formula formulas)
-      | Formula (formula, key) ->
-        let new_ienv = Input_env.remove_greater key ienv in
+      | Formula (formula, ienv) ->
         let new_target =
-          Target.make (Formula.not_ formula) formulas new_ienv 
+          Target.make (Formula.not_ formula) formulas ienv 
             ~path_length
         in
         `Continue (new_target :: acc_set, path_length, Formula.BSet.add formula formulas)
-      | Tag ({ main = _ ; alts }, key) ->
-        let new_ienv = Input_env.remove_greater key ienv in
+      | Tag ({ main = _ ; alts }, key, ienv) ->
         `Continue (
           List.fold_left (fun acc alt_tag ->
             Target.make 
               Formula.trivial
               formulas
-              (Input_env.add (KTag key) alt_tag new_ienv)
+              (Input_env.add (KTag key) alt_tag ienv)
               ~path_length:(Path_length.plus_int len (Tag.priority alt_tag))
             :: acc
           ) acc_set alts
@@ -38,7 +36,7 @@ let collect_logged_runs ~(max_tree_depth : int) (runs : Logged_run.t list) : Tar
   List.fold_left (fun (targets, is_pruned, answer) run ->
     let new_targets, new_is_pruned = 
       let open Logged_run in
-      make_targets run.target (Rev_stem.to_forward_path run.rev_stem) run.inputs ~max_tree_depth
+      make_targets run.target (Rev_stem.to_forward_path run.rev_stem) ~max_tree_depth
     in
     new_targets @ targets, is_pruned || new_is_pruned, Answer.min answer run.answer
   ) ([], false, Exhausted) runs

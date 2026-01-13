@@ -1,8 +1,8 @@
 
 type t =
-  | Formula of bool Formula.t * Stepkey.t
+  | Formula of bool Formula.t * Input_env.t
   | Nonflipping of bool Formula.t
-  | Tag of Tag.With_alt.t * Stepkey.t
+  | Tag of Tag.With_alt.t * Stepkey.t * Input_env.t
 
 (*
   Nonflipping formulas must count for the priority because priority is
@@ -20,4 +20,4 @@ type t =
 let to_priority (u : t) : int =
   match u with
   | Formula _ | Nonflipping _ -> 1
-  | Tag ({ main ; _ }, _) -> Tag.priority main
+  | Tag ({ main ; _ }, _, _) -> Tag.priority main

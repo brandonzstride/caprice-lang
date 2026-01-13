@@ -747,6 +747,8 @@ let eval
       t_labels:Labels.Record.Set.t -> v_labels:Labels.Record.Set.t -> (a, env) m
     = fun check_label ~refute ~t_labels ~v_labels ->
       if Labels.Record.Set.subset t_labels v_labels then
+        (* incr step because about to read an input *)
+        let* () = incr_step ~max_step in
         let* l_opt = allow_inputs (read_input make_tag input_env) in
         match l_opt with
         | Some Label (id, Check) -> (check_label (Labels.Record.RecordLabel id)).run_failing
@@ -1216,7 +1218,6 @@ let eval
   let answer = Eval_result.to_answer result in
   let this_logged_run =
     { Logged_run.target 
-    ; inputs = state.logged_inputs 
     ; rev_stem = state.rev_stem
     ; answer }
   in
