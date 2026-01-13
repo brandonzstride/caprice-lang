@@ -1,0 +1,96 @@
+(* TEST
+  include splayable;
+*)
+
+(*
+  Implemented according to Okasaki's Purely Functional Data Structures.
+    (Section 3.1)
+
+  We add the invariants about emptyness via refinement types.
+  Then we use smart constructors to implement the same thing again.
+*)
+
+let t a =
+  | `Queue of { t : list a * list a |
+    (*
+      Will maintain invariant that front is empty only
+      when rear is empty.
+    *)
+    match t with
+    | [], _::_ -> false
+    | _ -> true
+    end
+  }
+
+let empty : (type a) -> t a =
+  fun _ -> `Queue ([], [])
+
+let is_nonempty q =
+  match q with
+  | `Queue (_ :: _, _) -> true
+  | _ -> false
+  end
+
+let head (type a) (q : t a | is_nonempty q) : a =
+  match q with
+  | `Queue (hd :: _, _) -> hd
+  end
+
+let list_rev (type a) (dep l : list a) : list a =
+  let rec aux (dep l : list a) (dep acc : list a) : { ls : list a |
+      match l, ls with
+      | _ :: _, _ :: _ -> true
+      | _ :: _, [] -> false
+      | [], _ ->
+        match acc, ls with
+        | [], []
+        | _ :: _, _ :: _ -> true
+        | _ -> false
+        end
+      end
+    } =
+    match l with
+    | [] -> acc
+    | hd :: tl -> aux tl (hd :: acc)
+    end
+  in
+  aux l []
+
+let snoc (type a) (q : t a) (x : a) : { q : t a | is_nonempty q } =
+  match q with
+  | `Queue ([], []) ->
+    `Queue ([x], [])
+  | `Queue (f, r) ->
+    `Queue (f, x :: r)
+  end
+
+let tail (type a) (q : t a | is_nonempty q) : t a =
+  match q with
+  | `Queue (_ :: [], r) ->
+    `Queue (list_rev a r, [])
+  | `Queue (_ :: f, r) ->
+    `Queue (f, r)
+  end
+
+(*
+  Reimplement the above using smart constructors.
+*)
+
+let queue (type a) (t : list a * list a) : t a =
+  match t with
+  | [], r -> `Queue (list_rev a r, [])
+  | f, r -> `Queue (f, r)
+  end
+
+let snoc (type a) (q : t a) (x : a) : { q : t a | is_nonempty q } =
+  match q with
+  | `Queue (f, r) ->
+    queue a (f, x :: r)
+  end
+
+let tail (type a) (q : t a | is_nonempty q) : t a =
+  match q with
+  | `Queue (_ :: f, r) ->
+    queue a (f, r)
+  end
+
