@@ -22,16 +22,14 @@ module State = struct
   let store = Store.create ()
 
   type t = 
-    { rev_stem : Path.t (* we will cons to the path instead of union a log *)
+    { rev_stem : Rev_stem.t (* we will cons to the path instead of union a log *)
     ; logged_inputs : Input_env.t 
-    ; path_len : Path_length.t (* total length of the path to this point (up to and including the stem) *)
     ; runs : Logged_run.t Utils.Diff_list.t
     }
 
   let empty : t =
-    { rev_stem = Path.empty
+    { rev_stem = Rev_stem.empty
     ; logged_inputs = Input_env.empty
-    ; path_len = Path_length.zero
     ; runs = Utils.Diff_list.empty
     }
 
@@ -95,11 +93,9 @@ let push_tag (tag : Tag.With_alt.t) : (unit, 'env) m =
   let* { target ; _ } = read_ctx in
   modify (fun s -> 
     { s with rev_stem = 
-      if Path_length.geq s.path_len (Target.path_length target) then
-        Path.cons_tag tag (Stepkey step) s.rev_stem 
-      else
-        s.rev_stem
-    ; path_len = Path_length.plus_int s.path_len (Tag.priority tag.main) }
+      Rev_stem.cons (Tag (tag, Stepkey step)) s.rev_stem
+        ~if_exceeds:(Target.path_length target)
+    }
   )
 
 (* Pushes the tag to the path and logs it in input environment *)
@@ -108,11 +104,8 @@ let push_and_log_tag (tag : Tag.t) : (unit, 'env) m =
   let* { target ; _ } = read_ctx in
   modify (fun s -> 
     { s with rev_stem =
-      if Path_length.geq s.path_len (Target.path_length target) then
-        Path.cons_tag { main = tag ; alts = [] } (Stepkey step) s.rev_stem 
-      else
-        s.rev_stem
-    ; path_len = Path_length.plus_int s.path_len (Tag.priority tag)
+      Rev_stem.cons (Tag ({ main = tag ; alts = [] }, Stepkey step)) s.rev_stem
+        ~if_exceeds:(Target.path_length target)
     ; logged_inputs = Input_env.add (KTag (Stepkey step)) tag s.logged_inputs
     }
   )
@@ -125,14 +118,15 @@ let push_formula ?(allow_flip : bool = true) (formula : (bool, Stepkey.t) Smt.Fo
     let* { target ; _ } = read_ctx in
     modify (fun s -> 
       { s with rev_stem =
-        if Path_length.geq s.path_len (Target.path_length target) then
+        let punit =
           if allow_flip then
-            Path.cons_formula formula (Stepkey step) s.rev_stem
+            Path_item.Formula (formula, (Stepkey step))
           else
-            Path.cons_nonflipping formula s.rev_stem 
-        else
-          s.rev_stem
-      ; path_len = Path_length.plus_int s.path_len 1 }
+            Nonflipping formula
+        in
+        Rev_stem.cons punit s.rev_stem
+          ~if_exceeds:(Target.path_length target)
+      }
     )
 
 let log_input (key : 'a Input_env.Key.t) (input : 'a) : (unit, 'env) m =
@@ -160,9 +154,9 @@ let target_to_here : 'env. (Target.t, 'env) m =
   { run = fun ~reject:_ ~accept state step _ { target ; _ } ->
     accept (
       Target.make Formula.trivial
-        (Formula.BSet.union target.all_formulas (Path.formulas state.rev_stem))
+        (Formula.BSet.union target.all_formulas (Path.formulas state.rev_stem.rev_stem))
         state.logged_inputs
-        ~path_length:state.path_len
+        ~path_length:state.rev_stem.total_len
     ) state step
   }
 
@@ -171,18 +165,16 @@ let fork (forked_m : (Eval_result.t, 'env) u) : (unit, 'env) m =
   let* s = get in
   let* ctx = read_ctx in
   assert (
-    let Len n = s.path_len in
-    let Len n' = Target.path_length ctx.target in
-    n = n' + List.fold_left (fun acc punit ->
-      acc + Path.priority_of_punit punit
-      ) 0 s.rev_stem
+    let n = s.rev_stem.total_len in
+    let n' = Target.path_length ctx.target in
+    Path_length.geq n n'
   );
   let snapshot = ref None in
   fork forked_m { target ; det_context = ctx.det_context }
     ~setup_state:(fun state ->
       (* keeps all the logged runs *)
       snapshot := Some (Store.capture State.store);
-      { state with rev_stem = Path.empty }
+      { state with rev_stem = Rev_stem.of_len state.rev_stem.total_len }
     )
     ~restore_state:(fun e ~og ~forked_state ->
       Store.restore State.store (Option.get !snapshot);

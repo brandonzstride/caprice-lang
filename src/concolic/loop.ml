@@ -3,13 +3,13 @@ open Grammar
 
 let make_targets ~(max_tree_depth : int) (target : Target.t)
   (stem : Path.t) (ienv : Input_env.t) : Target.t list * bool =
-  Utils.List_utils.fold_left_until (fun (acc_set, len, formulas) pathunit ->
+  Utils.List_utils.fold_left_until (fun (acc_set, len, formulas) p_item ->
     if Path_length.to_int len > max_tree_depth then
       `Stop (acc_set, true)
     else
-      let path_length = Path_length.plus_int len (Path.priority_of_punit pathunit) in
-      match pathunit with
-      | Path.Nonflipping formula ->
+      let path_length = Path_length.plus_int len (Path_item.to_priority p_item) in
+      match p_item with
+      | Path_item.Nonflipping formula ->
         `Continue (acc_set, path_length, Formula.BSet.add formula formulas)
       | Formula (formula, key) ->
         let new_ienv = Input_env.remove_greater key ienv in
@@ -38,7 +38,7 @@ let collect_logged_runs ~(max_tree_depth : int) (runs : Logged_run.t list) : Tar
   List.fold_left (fun (targets, is_pruned, answer) run ->
     let new_targets, new_is_pruned = 
       let open Logged_run in
-      make_targets run.target (List.rev run.rev_stem) run.inputs ~max_tree_depth
+      make_targets run.target (Rev_stem.to_forward_path run.rev_stem) run.inputs ~max_tree_depth
     in
     new_targets @ targets, is_pruned || new_is_pruned, Answer.min answer run.answer
   ) ([], false, Exhausted) runs
