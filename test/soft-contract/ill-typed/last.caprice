@@ -11,7 +11,7 @@ let Y f =
     (fun x -> f (fun z -> (x x) z))
     y
 
-let last (type a_) (l : list a_) : a_ =
+let last (type a') (l : list a') : a' =
   Y (
     fun self x ->
       match x with

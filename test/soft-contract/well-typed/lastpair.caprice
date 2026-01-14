@@ -8,11 +8,11 @@ let is_nonempty ls =
   | _ -> true
   end
 
-let rec lastpair (type a_) (x : list a_ | is_nonempty x) : { l : list a_ | is_nonempty l } =
+let rec lastpair (type a') (x : list a' | is_nonempty x) : { l : list a' | is_nonempty l } =
   match x with
   | h :: xs ->
     match xs with
     | [] -> [ h ]
-    | _ -> lastpair a_ xs
+    | _ -> lastpair a' xs
     end
   end

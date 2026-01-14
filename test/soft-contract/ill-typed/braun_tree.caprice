@@ -26,9 +26,9 @@ let rec is_braun_tree x =
 
 let bt a = { tree : t a | is_braun_tree tree }
 
-let rec insert (type a_) (tree : bt a_) (x : a_) : bt a_ =
+let rec insert (type a') (tree : bt a') (x : a') : bt a' =
   match tree with
   | `Leaf () -> `Node { v = x ; l = `Leaf () ; r = `Leaf () }
   | `Node node ->
-    `Node { l = insert a_ node.l x ; r = node.r ; v = node.v } (* ERROR: only inserts to left; so won't be balanced *)
+    `Node { l = insert a' node.l x ; r = node.r ; v = node.v } (* ERROR: only inserts to left; so won't be balanced *)
   end

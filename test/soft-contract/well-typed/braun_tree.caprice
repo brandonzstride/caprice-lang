@@ -26,11 +26,11 @@ let rec is_braun_tree x =
 
 let bt a = { tree : t a | is_braun_tree tree }
 
-let rec insert (type a_) (tree : bt a_) (x : a_) : bt a_ =
+let rec insert (type a') (tree : bt a') (x : a') : bt a' =
   match tree with
   | `Leaf () -> `Node { v = x ; l = `Leaf () ; r = `Leaf () }
   | `Node node ->
     if size node.l > size node.r
-    then `Node { l = node.l ; r = insert a_ node.r x ; v = node.v }
-    else `Node { l = insert a_ node.l x ; r = node.r ; v = node.v }
+    then `Node { l = node.l ; r = insert a' node.r x ; v = node.v }
+    else `Node { l = insert a' node.l x ; r = node.r ; v = node.v }
   end

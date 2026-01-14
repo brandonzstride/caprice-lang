@@ -18,7 +18,7 @@ let is_nonempty ls =
   | _ -> true
   end
 
-let last (type a_) (l : list a_ | is_nonempty l) : a_ =
+let last (type a') (l : list a' | is_nonempty l) : a' =
   Y (
     fun self x ->
       match x with

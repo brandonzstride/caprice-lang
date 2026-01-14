@@ -8,8 +8,8 @@ let is_nonempty ls =
   | _ -> true
   end
 
-let rec append (type a_) (a : list a_) (b : list a_ | is_nonempty b) : { l : list a_ | is_nonempty l } =
+let rec append (type a') (a : list a') (b : list a' | is_nonempty b) : { l : list a' | is_nonempty l } =
   match a with
   | [] -> b
-  | hd :: tl -> hd :: append a_ tl b
+  | hd :: tl -> hd :: append a' tl b
   end

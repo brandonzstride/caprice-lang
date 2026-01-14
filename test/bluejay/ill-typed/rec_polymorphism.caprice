@@ -2,9 +2,9 @@
   include refutable;
 *)
 
-let rec f (type a_) (a : a_) (i : int) : a_ =
+let rec f (type a') (a : a') (i : int) : a' =
   if i == 0
   then i (* ERROR: should be a *)
-  else f a_ a (i - 1)
+  else f a' a (i - 1)
 
 let res = f int 1 2

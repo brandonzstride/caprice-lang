@@ -11,13 +11,11 @@
 
 let digit = ['0'-'9']
 let alpha = ['a'-'z'] | ['A'-'Z']
-let alpha_upper = ['A'-'Z']
 let whitespace = [' ' '\t']
 let newline = '\n'
-let string_contents = [^'"']*
 
 let ident_start = alpha
-let ident_cont = alpha | digit | '_'
+let ident_cont = alpha | digit | '_' | '\''
 
 rule token = parse
 | eof                  { EOF }

@@ -8,9 +8,9 @@ let t a b i =
   else a
 
 (* 'a and 'b alternate by call here; so can't assume 'a stays the same in recursive calls *)
-let rec f (type a_ b_) (dependent i : int) (a : a_) (b : b_) : t a_ b_ i =
+let rec f (type a' b') (dependent i : int) (a : a') (b : b') : t a' b' i =
   if i == 0
   then b
-  else f b_ a_ (i - 1) b a
+  else f b' a' (i - 1) b a
 
 let res = f int bool 2 0 true

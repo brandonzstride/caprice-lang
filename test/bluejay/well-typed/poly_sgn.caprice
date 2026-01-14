@@ -4,12 +4,12 @@
 
 let sign : type = `Even of { even : bool } | `Odd of { odd : bool }
 
-let rec list_count (type a_) (ls : list a_) (f : a_ -> bool) : int =
+let rec list_count (type a') (ls : list a') (f : a' -> bool) : int =
   match ls with
   | [] -> 0
   | hd :: tl ->
     let a = if f hd then 1 else 0 in
-    a + list_count a_ tl f
+    a + list_count a' tl f
   end
 
 (* Computes sgn of permutation *)
