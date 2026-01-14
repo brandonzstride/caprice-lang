@@ -53,3 +53,11 @@ let rec f (_ : unit) : t =
     end
   )
 
+(* member of recursive type is a type *)
+
+let t : type = mu t. singletype { a : type ; b : t }
+
+let f (x : t) : type = x
+
+let g (dep x : t) (dep r : x) (y : r.a) : `T of r.a =
+  `T y
