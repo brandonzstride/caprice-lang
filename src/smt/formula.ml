@@ -67,12 +67,11 @@ let rec binop : type a b. (a * a * b) Binop.t -> (a, 'k) t -> (a, 'k) t -> (b, '
     end
   | Equal -> begin
       match x, y with
-      | Const_bool true, Key k -> Key k
-      | Key k, Const_bool true -> Key k
-      | Const_bool false, Key k -> Not (Key k)
-      | Key k, Const_bool false -> Not (Key k)
+      | Const_bool true, e -> e
+      | e, Const_bool true -> e
+      | Const_bool false, e -> not_ e
+      | e, Const_bool false -> not_ e
       | Key k1, Key k2 when Symbol.equal k1 k2 -> Const_bool true
-      | Const_bool b1, Const_bool b2 -> Const_bool (Bool.equal b1 b2)
       | Const_int i1, Const_int i2 -> Const_bool (i1 = i2)
       | Const_int _, Key _ -> Binop (Equal, y, x)
       | e1, e2 -> Binop (Equal, e1, e2)
