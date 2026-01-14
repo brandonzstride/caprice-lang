@@ -520,6 +520,7 @@ let eval
               | Nondet -> cod_tval' <: cod_tval
               | Det ->
                 (* inlining this until it's clear we can extract *)
+                (* it looks a lot like `cod_tval' <: cod_tval` but disallowing inputs. *)
                 let* genned = disallow_inputs (gen cod_tval') in
                 check genned cod_tval
               end
@@ -655,15 +656,13 @@ let eval
           refute (* TODO: make error message description; it will be cryptic like this *)
         | LLazy LGenMu { var = var' ; closure = { captured = captured' ; env = env' } } ->
           (* TODO: these names (with the "prime") go the other direction as the spec *)
-          (* FIXME: consider wrapping_types. *)
-          if Val.equal_closure { captured ; env } { captured = captured' ; env = env' }
-              && wrapping_types = [] then confirm else
           let* a = allow_inputs (gen VType) in (* fresh type to use as a stub *)
           let* t_body = local' (Env.set var a env) (eval_type captured) in
           let* t_body' = local' (Env.set var' a env') (eval_type captured') in
-          (* we would need to address the fixme by wrapping the generated
-            member inside the call to (<:) *)
-          t_body' <: t_body
+          if Val.equal t_body t_body' && wrapping_types = [] then confirm else
+          let* genned = allow_inputs (gen t_body') in
+          let* wrapped = wrap_multi wrapping_types genned in
+          check wrapped t_body
         end
       | _ ->
         let* t_body = local' (Env.set var (Any t) env) (eval_type captured) in
@@ -946,6 +945,12 @@ let eval
     ----
 
     Does not use the environment.
+
+    Does not fail with any type mismatches if the wrapping type
+    is wrong for the value. In such a case, it simply returns the
+    value unaffected. This is useful for checking recursive types
+    by putting a polymorphic type in place of the recursive type,
+    and letting wrapping gloss over that polymorphic value.
   *)
   and wrap 
     : 'env. Val.any -> Val.tval -> (Val.any, 'env) m
@@ -965,8 +970,8 @@ let eval
       begin match v with
       | Any VLazy vlazy ->
         (* Always lazily wrap, even if the value is forced already. *)
-        (* It is safe to put this off because any error when wrapping would be an
-          error when checking, which is already done eagerly. *)
+        (* It is safe to put this off because the act itself of wrapping
+          is never the sole way to find an error. *)
         if does_wrap_matter tval then
           return_any (VLazy { vlazy with wrapping_types = tval :: vlazy.wrapping_types })
         else
@@ -976,28 +981,32 @@ let eval
       end
     | VTypeList t_body ->
       begin match v with
-      | Any VLazy vlazy ->
-        if does_wrap_matter t then
-          return_any (VLazy { vlazy with wrapping_types = t :: vlazy.wrapping_types })
-        else
-          return v
-      | Any VEmptyList ->
-        return v
+      | Any VLazy vlazy when does_wrap_matter t ->
+        return_any (VLazy { vlazy with wrapping_types = t :: vlazy.wrapping_types })
       | Any VListCons (v_hd, v_tl) ->
         let* w_hd = wrap v_hd t_body in
         let* Any w_tl = wrap (Any v_tl) t in
         handle w_tl
-          ~data:(fun w_tl_data -> return_any (VListCons (w_hd, w_tl_data)))
+          ~data:(fun w_tl_data -> 
+            if w_hd == v_hd && w_tl_data == v_tl then
+              return v
+            else
+              return_any (VListCons (w_hd, w_tl_data))
+          )
           ~typeval:(fun _ -> raise @@ InvariantException "Wrapped list is not data")
-      | _ -> mismatch @@ wrap_non_list v t
+      | Any VLazy _ (* wrap must not matter due to pattern guard above *)
+      | Any VEmptyList (* wrapping empty list does nothing *)
+      | _ -> (* ignore mismatches, and just do nothing *)
+        return v
       end
     | VTypeFun tfun ->
       begin match v with
-      | Any VWrapped { data ; tau = _ } -> return_any (VWrapped { data ; tau = tfun })
+      | Any VWrapped { data ; tau = _ } ->
+        return_any (VWrapped { data ; tau = tfun })
       | Any v' ->
         handle v'
           ~data:(fun data -> return_any (VWrapped { data ; tau = tfun }))
-          ~typeval:(fun t' -> mismatch @@ wrap_typeval_fun t' t)
+          ~typeval:(fun _ -> return v)
       end
     | VTypeRecord t_body ->
       begin match v with
@@ -1009,11 +1018,12 @@ let eval
             | Some v' -> 
               let* w = wrap v' t in
               return (Labels.Record.Map.add k w acc)
-            | None -> mismatch @@ wrap_missing_label v k
+            | None -> return acc
           ) t_body (return Labels.Record.Map.empty)
         in
         return_any (VRecord w_body)
-      | _ -> mismatch @@ wrap_non_record v t
+      | _ ->
+        return v
       end
     | VTypeModule { captured = t_ls ; env } ->
       begin match v with
@@ -1030,7 +1040,7 @@ let eval
                 fold_labels (return @@ Labels.Record.Map.add item v acc) tl
               )
             | None ->
-              mismatch @@ wrap_missing_label v item
+              return acc
             end
         in
         let* wrapped_body =
@@ -1039,7 +1049,8 @@ let eval
           )
         in
         return_any (VModule wrapped_body)
-      | _ -> mismatch @@ wrap_non_module v t
+      | _ ->
+        return v
       end
     | VTypeVariant t_body ->
       begin match v with
@@ -1052,9 +1063,10 @@ let eval
           else
             return_any (VVariant { label ; payload = w })
         | None -> 
-          mismatch @@ wrap_missing_constructor v t
+          return v
         end
-      | _ -> mismatch @@ wrap_non_variant v t
+      | _ ->
+        return v
       end
     | VTypeTuple (t1, t2) ->
       begin match v with
@@ -1065,7 +1077,8 @@ let eval
           return v (* return value unchanged because wrapping did nothing *)
         else
           return_any (VTuple (w1, w2))
-      | _ -> mismatch @@ wrap_non_tuple v t
+      | _ ->
+        return v
       end
     | VTypeRefine { var = _ ; tau ; predicate = _ } ->
       wrap v tau

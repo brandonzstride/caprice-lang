@@ -10,5 +10,8 @@ let lst a = mu t.
   | `Cons of a * t
 
 let f (ls : lst (int -> int)) : lst (int -> int) =
-  let w : lst ({ i : int | i > 0 } -> int) = ls in
+  let t : type = lst ({ i : int | i > 0 } -> int) in (* pulls on the type *)
+  (* now wrap the homemade list with the once-unrolled recursive type *)
+  let w : t = ls in
   w (* ERROR: the wrapper conflicts with the return type *)
+
