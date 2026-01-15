@@ -82,11 +82,6 @@ let compose f g chars =
     if hd==-1 then if a==[] then {eq=true; s=[]} else {eq=true; s=(drop_char long)}
     else if hd==a then str_compare (drop_char short) (drop_char long) else {eq=false; s=[]} *)
 
-let rec get_input (x : int) : string =
-  let var = input in
-  if var == eof then [] 
-  else var :: get_input 1
-
 let rec make_tokenize (codes : list int | match codes with [] -> false | _ -> true end) 
   (tok : Token) (s : string) : TokResult =
   match s, codes with
