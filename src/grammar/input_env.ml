@@ -2,37 +2,21 @@
 module Make (K : Smt.Symbol.KEY) = struct
   module K = Smt.Symbol.Make_comparable_key (K)
 
-  module Key = struct
-    type _ t =
-      | KBool : K.t -> bool t
-      | KInt : K.t -> int t
-      | KTag : K.t -> Tag.t t
-
-    let make_bool k = KBool k
-    let make_int k = KInt k
-    let make_tag k = KTag k
-  end
-
   type t = Input.t Utils.Uid.Map.t
 
   let empty : t = Utils.Uid.Map.empty
 
-  (* propagates failing extraction *)
-  let find_and_extract_exn (extract_exn : Input.t -> 'a) (k : K.t) (m : t) : 'a option =
-    Option.map extract_exn (Utils.Uid.Map.find_opt (K.uid k) m)
+  (* Propagates failing extraction. Is None if the key doesn't exist at all *)
+  let find (type a) (kind : a Input.Kind.t) (key : K.t) (m : t) : a option =
+    Option.map (Input.extract_exn kind) (Utils.Uid.Map.find_opt (K.uid key) m)
 
-  let find (type a) (key : a Key.t) (m : t) : a option =
-    match key with
-    | KBool k -> find_and_extract_exn Input.bool_exn k m
-    | KInt k -> find_and_extract_exn Input.int_exn k m
-    | KTag k -> find_and_extract_exn Input.tag_exn k m
-
-  let add (type a) (key : a Key.t) (input : a) (m : t) : t =
-    let add k i = Utils.Uid.Map.add (K.uid k) i m in
-    match key with
-    | KBool k -> add k (Input.IBool input)
-    | KInt k -> add k (Input.IInt input)
-    | KTag k -> add k (Input.ITag input)
+  let add (type a) (kind : a Input.Kind.t) (key : K.t) (input : a) (m : t) : t =
+    Utils.Uid.Map.add (K.uid key) (
+      match kind with
+      | Input.Kind.KBool -> Input.IBool input
+      | KInt -> IInt input
+      | KTag -> ITag input
+    ) m
 
   let extend (base_map : t) (extending_map : t) : t =
     Utils.Uid.Map.union (fun _ _ v -> Some v)

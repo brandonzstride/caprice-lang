@@ -1,35 +1,32 @@
 
 exception ExtractionException
 
+module Kind = struct
+  type _ t =
+    | KBool : bool t
+    | KInt : int t
+    | KTag : Tag.t t
+end
+
 type t =
   | IBool of bool
   | IInt of int
   | ITag of Tag.t
   [@@deriving eq, ord]
 
-let bool_opt = function
-  | IBool b -> Some b
-  | _ -> None
-
-let int_opt = function
-  | IInt i -> Some i
-  | _ -> None
-
-let tag_opt = function
-  | ITag t -> Some t
-  | _ -> None
-
-let bool_exn = function
-  | IBool b -> b
+let extract_exn (type a) (kind : a Kind.t) (input : t) : a =
+  match kind, input with
+  | KBool, IBool b -> b
+  | KInt, IInt i -> i
+  | KTag, ITag t -> t
   | _ -> raise ExtractionException
 
-let int_exn = function
-  | IInt i -> i
-  | _ -> raise ExtractionException
-
-let tag_exn = function
-  | ITag t -> t
-  | _ -> raise ExtractionException
+let extract_opt (type a) (kind : a Kind.t) (input : t) : a option =
+  match kind, input with
+  | KBool, IBool b -> Some b
+  | KInt, IInt i -> Some i
+  | KTag, ITag t -> Some t
+  | _ -> None
 
 let to_string = function
   | IBool b -> Bool.to_string b

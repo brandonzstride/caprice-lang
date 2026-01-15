@@ -23,7 +23,7 @@ let make_targets ~(max_tree_depth : int) (target : Target.t)
             Target.make 
               Formula.trivial
               formulas
-              (Input_env.add (KTag key) alt_tag ienv)
+              (Input_env.add KTag key alt_tag ienv)
               ~path_length:(Path_length.plus_int len (Tag.priority alt_tag))
             :: acc
           ) acc_set alts

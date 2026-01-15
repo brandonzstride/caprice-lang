@@ -108,7 +108,7 @@ let push_and_log_tag (tag : Tag.t) : (unit, 'env) m =
     { s with rev_stem =
       Rev_stem.cons (Tag ({ main = tag ; alts = [] }, Stepkey step, s.logged_inputs)) s.rev_stem
         ~if_exceeds:(Target.path_length target)
-    ; logged_inputs = Input_env.add (KTag (Stepkey step)) tag s.logged_inputs
+    ; logged_inputs = Input_env.add KTag (Stepkey step) tag s.logged_inputs
     }
   )
 
@@ -134,23 +134,22 @@ let push_formula_to_path ?(allow_flip : bool = true) (formula : (bool, Stepkey.t
       }
     )
 
-let log_input (key : 'a Input_env.Key.t) (input : 'a) : (unit, 'env) m =
-  modify (fun s -> { s with logged_inputs = Input_env.add key input s.logged_inputs })
+let log_input (kind : 'a Input.Kind.t) (input : 'a) : (unit, 'env) m =
+  let* step = step in
+  modify (fun s -> { s with logged_inputs = Input_env.add kind (Stepkey step) input s.logged_inputs })
 
-let read_input (make_key : Stepkey.t -> 'a Input_env.Key.t) (input_env : Input_env.t) : ('a option, 'env) m =
+let read_input (kind : 'a Input.Kind.t) (input_env : Input_env.t) : ('a option, 'env) m =
   let* () = assert_inputs_allowed in
   let* step = step in
-  let key = make_key (Stepkey step) in
-  return (Input_env.find key input_env)
+  return (Input_env.find kind (Stepkey step) input_env)
 
-let read_and_log_input_with_default (make_key : Stepkey.t -> 'a Input_env.Key.t) 
-  (input_env : Input_env.t) ~(default : 'a) : ('a, 'env) m =
+let read_and_log_input_with_default (kind : 'a Input.Kind.t) (input_env : Input_env.t)
+  ~(default : 'a) : ('a, 'env) m =
   let* () = assert_inputs_allowed in
   let* step = step in
-  let key = make_key (Stepkey step) in
-  match Input_env.find key input_env with
-  | Some i -> let* () = log_input key i in return i
-  | None -> let* () = log_input key default in return default
+  match Input_env.find kind (Stepkey step) input_env with
+  | Some i -> let* () = log_input kind i in return i
+  | None -> let* () = log_input kind default in return default
 
 (*
   Must inline definitions in order to skirt the value restriction.

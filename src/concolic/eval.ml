@@ -26,7 +26,6 @@ let ctx_of_sort (sort : Funtype.sort) =
   | Det -> disallow_inputs (* deterministic functions must run without inputs *)
 
 open Grammar.Val.Error_messages
-open Input_env.Key
 
 let eval
   (pgm : Ast.statement list)
@@ -40,11 +39,11 @@ let eval
   : Answer.t * Logged_run.t list
   =
   let read_and_log_bool () =
-    read_and_log_input_with_default make_bool input_env ~default:(default_bool ())
+    read_and_log_input_with_default KBool input_env ~default:(default_bool ())
   in
 
   let read_and_log_int () =
-    read_and_log_input_with_default make_int input_env ~default:(default_int ())
+    read_and_log_input_with_default KInt input_env ~default:(default_int ())
   in
 
   (*
@@ -55,7 +54,7 @@ let eval
   *)
   let fork_on_left (type a env) ~(left : (Eval_result.t, env) failing) ~(right : (a, env) m) ~reason =
     let* () = incr_step ~max_step in
-    let* l_opt = allow_inputs (read_input make_tag input_env) in
+    let* l_opt = allow_inputs (read_input KTag input_env) in
     match l_opt with
     | Some Left reason' when reason = reason' -> 
       let* () = push_and_log_tag @@ Left reason in
@@ -746,7 +745,7 @@ let eval
       if Labels.Record.Set.subset t_labels v_labels then
         (* incr step because about to read an input *)
         let* () = incr_step ~max_step in
-        let* l_opt = allow_inputs (read_input make_tag input_env) in
+        let* l_opt = allow_inputs (read_input KTag input_env) in
         match l_opt with
         | Some Label (id, Check) -> (check_label (Labels.Record.RecordLabel id)).run_failing
         | Some _ -> bad_input_env ()
@@ -833,7 +832,7 @@ let eval
     | VTypeVariant variant_t ->
       let t_labels = Labels.Variant.B.domain variant_t in
       let* l =
-        read_and_log_input_with_default make_tag input_env
+        read_and_log_input_with_default KTag input_env
           ~default:(default_constructor variant_t |> Grammar.Tag.of_variant_label Gen)
       in
       begin match l with
@@ -909,7 +908,7 @@ let eval
   and force_gen_list 
     : 'env. Val.tval -> (Val.any, 'env) m
     = fun body ->
-    let* l = read_and_log_input_with_default make_tag input_env ~default:(Left GenList) in
+    let* l = read_and_log_input_with_default KTag input_env ~default:(Left GenList) in
     match l with
     | Left GenList ->
       let* () = push_tag_to_path (Left GenList) ~alternates:[ Right GenList ] in
