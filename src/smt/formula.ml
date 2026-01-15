@@ -38,7 +38,7 @@ include T
 
 (* Polymorphic equality is good enough here because keys just use ints
   underneath. I would only write structural equality anyways. *)
-let equal = Repr.phys_equal
+let equal = Repr.equal
 
 let compare a b =
   Repr.compare a b (* polymorphic compare is also fine *)
@@ -111,22 +111,22 @@ let rec binop : type a b. (a * a * b) Binop.t -> (a, 'k) t -> (a, 'k) t -> (b, '
   | Less_than -> begin
       match x, y with
       | Const_int i1, Const_int i2 -> Const_bool (i1 < i2)
-      | e1, e2 -> Binop (Less_than, e1, e2)
+      | e1, e2 -> if equal e1 e2 then false_ else Binop (Less_than, e1, e2)
     end
   | Less_than_eq -> begin
       match x, y with
       | Const_int i1, Const_int i2 -> Const_bool (i1 <= i2)
-      | e1, e2 -> Binop (Less_than_eq, e1, e2)
+      | e1, e2 -> if equal e1 e2 then true_ else Binop (Less_than_eq, e1, e2)
     end
   | Greater_than -> begin
       match x, y with
       | Const_int i1, Const_int i2 -> Const_bool (i1 > i2)
-      | e1, e2 -> Binop (Less_than, e2, e1)
+      | e1, e2 -> if equal e1 e2 then false_ else Binop (Less_than, e2, e1)
     end
   | Greater_than_eq -> begin
       match x, y with
       | Const_int i1, Const_int i2 -> Const_bool (i1 >= i2)
-      | e1, e2 -> Binop (Less_than_eq, e2, e1)
+      | e1, e2 -> if equal e1 e2 then true_ else Binop (Less_than_eq, e2, e1)
   end
 
 and not_ (e : (bool, 'k) t) : (bool, 'k) t =
