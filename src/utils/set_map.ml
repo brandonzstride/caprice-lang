@@ -25,5 +25,13 @@ module Make_H (K : Baby.OrderedType) = struct
 
     let random_elt_opt (s : t) : elt option =
       random_from_seq ~size:(cardinal s) (to_seq s)
+
+    let list_map (f : elt -> 'b) (t : t) : 'b list =
+      let[@tail_mod_cons] rec aux enum =
+        match Enum.head_opt enum with
+        | Some a -> f a :: aux (Enum.tail enum)
+        | None -> []
+      in
+      aux (Enum.enum t)
   end
 end

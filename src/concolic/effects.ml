@@ -87,13 +87,15 @@ let assert_inputs_allowed : 'env. (unit, 'env) m =
     | Disallowed -> reject (Mismatch "Nondeterminism used when not allowed") state step
   }
 
-(* We will also want to log this tag in input env, but at what time? *)
-let push_tag (tag : Tag.With_alt.t) : (unit, 'env) m =
+(*
+  Pushes the tag to the path.
+*)
+let push_tag_to_path ?(alternates : Tag.t list = []) (tag : Tag.t) : (unit, 'env) m =
   let* step = step in
   let* { target ; _ } = read_ctx in
   modify (fun s -> 
     { s with rev_stem = 
-      Rev_stem.cons (Tag (tag, Stepkey step, s.logged_inputs)) s.rev_stem
+      Rev_stem.cons (Tag ({ main = tag ; alts = alternates }, Stepkey step, s.logged_inputs)) s.rev_stem
         ~if_exceeds:(Target.path_length target)
     }
   )
@@ -110,6 +112,10 @@ let push_and_log_tag (tag : Tag.t) : (unit, 'env) m =
     }
   )
 
+(*
+  Pushes the formula to the path as one that is necessarily true
+  to have taken the current path.
+*)
 let push_formula ?(allow_flip : bool = true) (formula : (bool, Stepkey.t) Smt.Formula.t) : (unit, 'env) m =
   if Smt.Formula.is_const formula
   then return ()

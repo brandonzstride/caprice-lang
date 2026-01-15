@@ -607,7 +607,6 @@ let eval
         let v_labels = Record.label_set record_v in
           let push_and_check label =
             { run_failing =
-              (* alternatives do not matter when we are running every label right now *)
               let* () = push_and_log_tag (Grammar.Tag.of_record_label Check label) in
               check
                 (Labels.Record.Map.find label record_v)
@@ -626,7 +625,6 @@ let eval
         let v_labels = Record.label_set module_v in
         let push_and_check label =
           { run_failing =
-            (* alternatives do not matter when we are running every label right now *)
             let* () = push_and_log_tag (Grammar.Tag.of_record_label Check label) in
             let new_env, tau = 
               (* think about sharing this computation because rn it is redone on every fork *)
@@ -754,13 +752,14 @@ let eval
         | Some _ -> bad_input_env ()
         | None ->
           (* is in exploration mode, so we want to check every label *)
-          let rec go = function
-            | [] -> escape Confirmation
-            | label :: tl ->
+          let rec go enum =
+            match Labels.Record.Set.Enum.head_opt enum with
+            | Some label ->
               let* () = fork (check_label label).run_failing in
-              go tl
+              go (Labels.Record.Set.Enum.tail enum)
+            | None -> escape Confirmation
           in
-          go (Labels.Record.Set.to_list t_labels)
+          go (Labels.Record.Set.Enum.enum t_labels)
       else
         refute
 
@@ -842,11 +841,11 @@ let eval
         let to_gen = Labels.Variant.of_ident id in
         let t = Labels.Variant.Map.find to_gen variant_t in
         let* () =
-          push_tag Grammar.Tag.With_alt.{ main = l ; alts =
-            Labels.Variant.Set.remove to_gen t_labels
-            |> Labels.Variant.Set.to_list
-            |> List.map (Grammar.Tag.of_variant_label Gen)
-          }
+          push_tag_to_path l
+            ~alternates:(
+              Labels.Variant.Set.remove to_gen t_labels
+              |> Labels.Variant.Set.list_map (Grammar.Tag.of_variant_label Gen)
+            )
         in
         let* payload = gen t in
         return_any (VVariant { label = to_gen ; payload })
@@ -913,11 +912,11 @@ let eval
     let* l = read_and_log_input_with_default make_tag input_env ~default:(Left GenList) in
     match l with
     | Left GenList ->
-      let* () = push_tag Grammar.Tag.With_alt.{ main = Left GenList ; alts = [ Right GenList ] } in
+      let* () = push_tag_to_path (Left GenList) ~alternates:[ Right GenList ] in
       let* () = incr_step ~max_step in (* doesn't call gen, so need to increment step manually *)
       return_any VEmptyList
     | Right GenList ->
-      let* () = push_tag Grammar.Tag.With_alt.{ main = Right GenList ; alts = [ Left GenList ] } in
+      let* () = push_tag_to_path (Right GenList) ~alternates:[ Left GenList ] in
       let* hd = gen body in
       let* Any v_tl = gen (VTypeList body) in
       handle v_tl
