@@ -235,13 +235,12 @@ let rec intensional_equal (x : any) (y : any) : bool X.t =
   | Any VWrapped w1, Any VWrapped w2 ->
     let- () = intensional_equal (Any w1.data) (Any w2.data) in
     iequal_ftype w1.tau w2.tau
-  | Any VLazy s1, Any VLazy s2 ->
-    if Store.Ref.eq (Obj.magic ()) s1.cell s2.cell then
-      fold_lists iequal s1.wrapping_types s2.wrapping_types
-    else
-      (* For now, say type mismatch if comparing lazy values. *)
-      SortMismatch
-      (* TODO: eventually we want to handle these by asking for lazy environment *)
+  | Any VLazy s1, Any VLazy s2 when s1.cell == s2.cell ->
+    fold_lists iequal s1.wrapping_types s2.wrapping_types
+  | Any VLazy _, _ | _, Any VLazy _ ->
+    (* For now, say false if comparing lazy values. It may be more safe to say sort mismatch. *)
+    make false
+    (* TODO: eventually we want to handle these by asking for lazy environment *)
   | _, _ ->
     (*
       All data has been handled, and anything that is not
@@ -477,12 +476,11 @@ and iequal_closure bindings closure1 closure2 =
       begin match Env.find id1 closure1.env, Env.find id2 closure2.env with
       | Some v1, Some v2 ->
         (* Found the values. Now compare, and turn sort mismatches into false *)
-        intensional_equal v1 v2
-        (* begin match intensional_equal v1 v2 with
+        begin match intensional_equal v1 v2 with
         | SortMismatch -> make false
         | res ->
           res
-        end *)
+        end
       | None, None ->
         (* Both are not bound. This is strange, but technically they can be equal *)
         make (Ident.equal id1 id2)
