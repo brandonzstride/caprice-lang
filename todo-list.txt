@@ -1,6 +1,4 @@
 
-- wrap lazyily generated mu members when doing final stubbed check
-- add deterministic functions
 - mutually recursive functions
 - mu type parameters (must be careful about divergence from eager evaluation of the type)
 - language docs
