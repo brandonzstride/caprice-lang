@@ -116,7 +116,7 @@ let push_and_log_tag (tag : Tag.t) : (unit, 'env) m =
   Pushes the formula to the path as one that is necessarily true
   to have taken the current path.
 *)
-let push_formula ?(allow_flip : bool = true) (formula : (bool, Stepkey.t) Smt.Formula.t) : (unit, 'env) m =
+let push_formula_to_path ?(allow_flip : bool = true) (formula : (bool, Stepkey.t) Smt.Formula.t) : (unit, 'env) m =
   if Smt.Formula.is_const formula
   then return ()
   else

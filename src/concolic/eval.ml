@@ -210,7 +210,7 @@ let eval
       begin match v with
       | Any VBool (b, s) ->
         let cont = if b then then_ else else_ in
-        let* () = push_formula (if b then s else Smt.Formula.not_ s) in
+        let* () = push_formula_to_path (if b then s else Smt.Formula.not_ s) in
         eval cont 
       | _ -> mismatch @@ if_non_bool v
       end
@@ -219,10 +219,10 @@ let eval
       begin match v with
       | Any VBool (b, s) ->
         if b then
-          let* () = push_formula s in
+          let* () = push_formula_to_path s in
           return_any VUnit
         else
-          let* () = push_formula (Smt.Formula.not_ s) in
+          let* () = push_formula_to_path (Smt.Formula.not_ s) in
           escape Assert_false
       | _ -> mismatch @@ assert_non_bool v
       end
@@ -231,10 +231,10 @@ let eval
       begin match v with
       | Any VBool (b, s) ->
         if b then
-          let* () = push_formula ~allow_flip:false s in
+          let* () = push_formula_to_path ~allow_flip:false s in
           return_any VUnit
         else
-          let* () = push_formula (Smt.Formula.not_ s) in
+          let* () = push_formula_to_path (Smt.Formula.not_ s) in
           escape Vanish
       | _ -> mismatch @@ assume_non_bool v
       end
@@ -296,11 +296,11 @@ let eval
       | Any VBool (b, s) when (not b && op = BAnd) || (b && op = BOr) ->
         (* Cases here are: false AND rhs, true OR rhs *)
         (* The short-circuiting is effectively a branch, so log the formula *)
-        let* () = push_formula (Smt.Formula.binop Equal s (Smt.Formula.const_bool b)) in
+        let* () = push_formula_to_path (Smt.Formula.binop Equal s (Smt.Formula.const_bool b)) in
         return vleft
       | Any VBool (b, s) ->
         (* Need to evaluate RHS here *)
-        let* () = push_formula (Smt.Formula.binop Equal s (Smt.Formula.const_bool b)) in
+        let* () = push_formula_to_path (Smt.Formula.binop Equal s (Smt.Formula.const_bool b)) in
         let* vright = force_eval right in
         begin match vright with
         | Any VBool _ -> return vright
@@ -331,10 +331,10 @@ let eval
       | BGreaterThan, Any VInt (n1, e1) , Any VInt (n2, e2)  -> k (v_bool (n1 > n2)) e1 e2 Greater_than
       | BGeq        , Any VInt (n1, e1) , Any VInt (n2, e2)  -> k (v_bool (n1 >= n2)) e1 e2 Greater_than_eq
       | BDivide, Any VInt (n1, e1), Any VInt (n2, e2) when n2 <> 0 ->
-        let* () = push_formula (Smt.Formula.binop Not_equal e2 (Smt.Formula.const_int 0)) in
+        let* () = push_formula_to_path (Smt.Formula.binop Not_equal e2 (Smt.Formula.const_int 0)) in
         k (v_int (n1 / n2)) e1 e2 Divide
       | BModulus, Any VInt (n1, e1), Any VInt (n2, e2) when n2 <> 0 ->
-        let* () = push_formula (Smt.Formula.binop Not_equal e2 (Smt.Formula.const_int 0)) in
+        let* () = push_formula_to_path (Smt.Formula.binop Not_equal e2 (Smt.Formula.const_int 0)) in
         k (v_int (n1 mod n2)) e1 e2 Modulus
       | BTimes, Any v1, Any v2 ->
         (* Make tuple if v1 and v2 are types. Note that integer muliplication is handled above. *)
@@ -394,10 +394,10 @@ let eval
         | (input, output) :: tl ->
           begin match Val.intensional_equal v_arg input with
           | Value (true, s) ->
-            let* () = push_formula s in
+            let* () = push_formula_to_path s in
             return output
           | Value (false, s) ->
-            let* () = push_formula (Formula.not_ s) in
+            let* () = push_formula_to_path (Formula.not_ s) in
             loop tl
           | SortMismatch ->
             mismatch @@ sort_mismatch v_arg input
@@ -708,10 +708,10 @@ let eval
           match p with
           | Any VBool (b, s) ->
             if b then 
-              let* () = push_formula s in
+              let* () = push_formula_to_path s in
               confirm
             else 
-              let* () = push_formula ~allow_flip:false (Smt.Formula.not_ s) in
+              let* () = push_formula_to_path ~allow_flip:false (Smt.Formula.not_ s) in
               refute
           | _ -> mismatch @@ non_bool_predicate p
         )
@@ -862,10 +862,10 @@ let eval
       let* p = local' (Env.set var v env) (eval captured) in
       begin match p with
       | Any VBool (true, s) ->
-        let* () = push_formula ~allow_flip:false s in
+        let* () = push_formula_to_path ~allow_flip:false s in
         return v
       | Any VBool (false, s) ->
-        let* () = push_formula (Smt.Formula.not_ s) in
+        let* () = push_formula_to_path (Smt.Formula.not_ s) in
         escape Vanish
       | _ -> mismatch @@ non_bool_predicate p
       end 
