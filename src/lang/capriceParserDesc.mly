@@ -397,6 +397,8 @@ op_expr:
 %inline record_expr_item:
   | record_label EQUALS expr
       { $1, $3 }
+  | record_label
+      { $1, EVar (Labels.Record.to_ident $1) }
   ;
 
 record_type_body:

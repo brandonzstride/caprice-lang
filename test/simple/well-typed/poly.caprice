@@ -10,7 +10,7 @@ let id (type a) (x : a) : a =
 (* in structures *)
 
 let r (type a) (x : a) (type b) (y : b) : { a : list a ; y : b } =
-  { a = [ x ] ; y = y }
+  { a = [ x ] ; y }
 
 (* multiple poly types *)
 
@@ -42,4 +42,4 @@ let t = { id : (type a) -> a -> a }
 
 let id _ x = x
 
-let _ : t = id t { id = id }
+let _ : t = id t { id }

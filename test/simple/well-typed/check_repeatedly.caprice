@@ -8,7 +8,7 @@ let make_zipper (type a) (left : list a) (right : list a) : zipper a =
   (* do something to use the lists, even if pointless *)
   match left, right with
   | [], [] -> empty_zipper
-  | (a, b) -> { left = a ; right = b }
+  | (left, right) -> { left ; right }
   end
 
 let f1 : (type a) -> list a -> list a -> zipper a = make_zipper

@@ -32,6 +32,6 @@ let y = bind int (list int) r x f
 let z = y.continuation (fun ls ->
   match ls with
   | [] -> { r = 0 }
-  | hd :: _ -> { r = hd }
+  | r :: _ -> { r }
   end
 )

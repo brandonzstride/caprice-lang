@@ -56,3 +56,12 @@ let _ =
   else
     let _ : { a : int ; b : bool } = { a = x ; b = true } in
     ()
+
+(* punning *)
+
+let _ =
+  let left = 0 in
+  let right = 1 in
+  let middle = 2 in
+  let r = { left ; middle = middle ; right } in
+  assert (r.left == 0 && r.middle == 2 && r.right == 1)

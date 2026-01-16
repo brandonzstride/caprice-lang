@@ -43,11 +43,11 @@ let M = struct
     end
 end
 
-(* let MM = F M
+let MM = F M
 
 let x = MM.of_list int [ 1 ; 2 ; 3 ]
 
 let y = MM.map int bool x (fun i -> i % 2 == 0)
 
-let _ : MM.t bool = [ true ] *)
+let _ : MM.t bool = [ true ]
 

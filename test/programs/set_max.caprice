@@ -15,11 +15,11 @@ let bind (type a b) (x : t a) (f : a -> t b) : t b =
     f v.body v.state
 
 let return (type a) (a : a) : t a =
-  fun s -> { state = s ; body = a }
+  fun state -> { state ; body = a }
 
-let set s = fun _ -> { state = s ; body = () }
+let set state = fun _ -> { state ; body = () }
 
-let read = fun s -> { state = s ; body = s }
+let read = fun state -> { state ; body = state }
 
 let set_max (dependent x : int) : t { i : int | i >= x } =
   bind int int read (fun max ->

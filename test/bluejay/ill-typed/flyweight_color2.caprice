@@ -36,8 +36,8 @@ end = struct
       fun self ->
         { flyweight = cs
         ; intrinsic =
-          { x = x
-          ; y = y
+          { x
+          ; y
           ; get_deg = 
               fun _ ->
                 let s = (self self) in

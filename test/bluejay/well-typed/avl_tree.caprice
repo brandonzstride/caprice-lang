@@ -98,7 +98,7 @@ let is_bst x =
 let avl_tree = { tree : t | is_balanced tree && is_bst tree }
 
 let create_node item left right =
-  `Node { item = item ; left = left ; right = right }
+  `Node { item ; left ; right }
 
 let rotate_left x = 
   match x with
