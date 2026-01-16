@@ -1,6 +1,6 @@
 (* TEST
   typing = ill-typed;
-  flags = " -s -w";
+  flags = " -s -w yes";
   typecheck;
 *)
 

@@ -1,6 +1,6 @@
 (* TEST
   typing = ill-typed;
-  flags = " -s -w"; # the goal is to test that splaying finds errors
+  flags = " -s"; # the goal is to test that splaying finds errors
   speed = fast;
 *)
 

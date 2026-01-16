@@ -32,7 +32,8 @@ let of_argv =
   and+ do_splay = 
     value & flag & info ["s"; "splay"] ~doc:"Do type splay"
   and+ do_wrap = 
-    value & flag & info ["w"; "wrap"] ~doc:"Do wrap"
+    value & opt (enum (["yes", true; "no", false])) true
+    & info ["w"; "wrap"] ~doc:"Wrap flag: yes or no. Default is yes."
   and+ is_random = 
     value & flag & info ["r"; "random"] ~doc:"Randomize"
   in

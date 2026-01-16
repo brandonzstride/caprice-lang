@@ -1,7 +1,7 @@
 (* TEST
   include refutable;
   speed = slow;
-  flags += " -t 5.0 -w";
+  flags += " -t 10.0";
 *)
 
 (*

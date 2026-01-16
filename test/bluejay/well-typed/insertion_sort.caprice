@@ -1,7 +1,7 @@
 (* TEST
   typing = no-error;
   speed = slow;
-  flags += " -t 2.0 -w";
+  flags += " -t 2.0";
   typecheck;
 *)
 
