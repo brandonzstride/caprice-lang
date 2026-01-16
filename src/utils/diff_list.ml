@@ -6,9 +6,9 @@ type 'a t = 'a list -> 'a list
 let empty : 'a t = fun ls -> ls
 
 let ( -:: ) a dls =
-  fun ls -> dls (a :: ls)
+  fun ls -> a :: dls ls
 
 let ( -@ ) dls1 dls2 =
-  fun ls -> dls2 (dls1 ls)
+  fun ls -> dls1 (dls2 ls)
 
 let to_list dls = dls []

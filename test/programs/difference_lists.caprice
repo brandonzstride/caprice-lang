@@ -1,0 +1,18 @@
+(* TEST
+  include splayable;
+*)
+
+let t a = list a -> list a
+
+let empty : (type a) -> t a = fun _ l -> l
+
+let cons (type a) (x : a) (dl : t a) : t a =
+  fun l ->
+    x :: dl l
+
+let append (type a) (dl1 : t a) (dl2 : t a) : t a =
+  fun l ->
+    dl1 (dl2 l)
+
+let to_list (type a) (dl : t a) : list a =
+  dl []
