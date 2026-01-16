@@ -29,21 +29,17 @@ type dir =
   | Check (* the label is used to check something *)
   [@@deriving eq, ord, show]
 
-module T = struct
-  type t =
-    | Left of reason
-    | Right of reason
-    | Label of Lang.Ident.t * dir
-    [@@deriving eq, ord]
+type t =
+  | Left of reason
+  | Right of reason
+  | Label of Lang.Ident.t * dir
+  [@@deriving eq, ord]
 
-  let of_variant_label dir vlabel =
-    Label (Lang.Labels.Variant.to_ident vlabel, dir)
+let of_variant_label dir vlabel =
+  Label (Lang.Labels.Variant.to_ident vlabel, dir)
 
-  let of_record_label dir rlabel =
-    Label (Lang.Labels.Record.to_ident rlabel, dir)
-end
-
-include T
+let of_record_label dir rlabel =
+  Label (Lang.Labels.Record.to_ident rlabel, dir)
 
 let priority = function
   | Label (_, Gen) -> 1
@@ -57,9 +53,3 @@ let to_string = function
   | Left reason -> Format.sprintf "Left (%s)" (reason_to_string reason)
   | Right reason -> Format.sprintf "Right (%s)" (reason_to_string reason)
   | Label (Ident s, dir) -> Format.sprintf "%s (%s)" s (show_dir dir)
-
-(* Tags with alternatives *)
-module With_alt = struct
-  type t = { main : T.t ; alts : T.t list }
-    [@@deriving eq, ord]
-end

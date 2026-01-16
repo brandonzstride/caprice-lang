@@ -4,33 +4,33 @@ open Grammar
 let make_targets ~(max_tree_depth : int) (target : Target.t)
   (stem : Path.t) : Target.t list * bool =
   Utils.List_utils.fold_left_until (fun (acc_set, len, formulas) p_item ->
-    if Path_length.to_int len > max_tree_depth then
+    if Path_priority.to_int len > max_tree_depth then
       `Stop (acc_set, true)
     else
-      let path_length = Path_length.plus_int len (Path_item.to_priority p_item) in
+      let path_priority = Path_priority.plus_int len (Path_item.to_priority p_item) in
       match p_item with
       | Path_item.Nonflipping formula ->
-        `Continue (acc_set, path_length, Formula.BSet.add formula formulas)
-      | Formula (formula, ienv) ->
+        `Continue (acc_set, path_priority, Formula.BSet.add formula formulas)
+      | Formula { cond ; logged_inputs } ->
         let new_target =
-          Target.make (Formula.not_ formula) formulas ienv 
-            ~path_length
+          Target.make (Formula.not_ cond) formulas logged_inputs
+            ~path_priority
         in
-        `Continue (new_target :: acc_set, path_length, Formula.BSet.add formula formulas)
-      | Tag ({ main = _ ; alts }, key, ienv) ->
+        `Continue (new_target :: acc_set, path_priority, Formula.BSet.add cond formulas)
+      | Tag { tag = _ ; alternatives ; key ; logged_inputs } ->
         `Continue (
           List.fold_left (fun acc alt_tag ->
             Target.make 
               Formula.trivial
               formulas
-              (Input_env.add KTag key alt_tag ienv)
-              ~path_length:(Path_length.plus_int len (Tag.priority alt_tag))
+              (Input_env.add KTag key alt_tag logged_inputs)
+              ~path_priority:(Path_priority.plus_int len (Tag.priority alt_tag))
             :: acc
-          ) acc_set alts
-          , path_length, formulas
+          ) acc_set alternatives
+          , path_priority, formulas
         )
   ) (fun (acc_set, _, _) -> acc_set, false)
-  ([], Target.path_length target, target.all_formulas) stem
+  ([], Target.priority target, target.all_formulas) stem
 
 let collect_logged_runs ~(max_tree_depth : int) (runs : Logged_run.t list) : Target.t list * bool * Answer.t =
   List.fold_left (fun (targets, is_pruned, answer) run ->

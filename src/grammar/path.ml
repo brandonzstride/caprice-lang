@@ -8,7 +8,7 @@ let cons (pitem : Path_item.t) (t : t) : t =
 
 let formulas (t : t) : Formula.BSet.t =
   List.fold_left (fun set -> function
-    | Path_item.Formula (formula, _)
-    | Nonflipping formula -> Formula.BSet.add formula set
+    | Path_item.Formula { cond ; _ }
+    | Nonflipping cond -> Formula.BSet.add cond set
     | Tag _ -> set
   ) Formula.BSet.empty t

@@ -62,6 +62,10 @@ module Matches = Val.Make_match (struct
   include (M : Utils.Types.MONAD with type 'a m := 'a m)
 end)
 
+(**
+  [fetch id] is the value associated with [id] in the environment,
+    or failure if [id] is unbound.
+*)
 let[@inline always] fetch (id : Ident.t) : (Val.any, Val.Env.t) m =
   { run = fun ~reject ~accept state step env _ ->
       match Env.find id env with
@@ -80,6 +84,9 @@ let vanish : 'a 'env. ('a, 'env) m =
 let mismatch : 'a 'env. string -> ('a, 'env) m = fun msg ->
   escape (Mismatch msg)
 
+(**
+  [assert_inputs_allowed] is a failure if the context disallows inputs.
+*)
 let assert_inputs_allowed : 'env. (unit, 'env) m =
   { run = fun ~reject ~accept state step _ ctx ->
     match ctx.det_context with
@@ -87,72 +94,103 @@ let assert_inputs_allowed : 'env. (unit, 'env) m =
     | Disallowed -> reject (Mismatch "Nondeterminism used when not allowed") state step
   }
 
-(*
-  Pushes the tag to the path.
+(**
+  [push_tag_to_path ?alternatives tag] pushes [tag] onto the path stem, and records
+    the [alternatives] as the other inputs possible so that a target can be made
+    from them.
 *)
-let push_tag_to_path ?(alternates : Tag.t list = []) (tag : Tag.t) : (unit, 'env) m =
+let push_tag_to_path ?(alternatives : Tag.t list = []) (tag : Tag.t) : (unit, 'env) m =
   let* step = step in
   let* { target ; _ } = read_ctx in
   modify (fun s -> 
     { s with rev_stem = 
-      Rev_stem.cons (Tag ({ main = tag ; alts = alternates }, Stepkey step, s.logged_inputs)) s.rev_stem
-        ~if_exceeds:(Target.path_length target)
+      let path_item =
+        Path_item.Tag { tag ; alternatives ; key =
+          Stepkey step ; logged_inputs = s.logged_inputs }
+      in
+      Rev_stem.cons path_item 
+        s.rev_stem ~if_exceeds:(Target.priority target)
     }
   )
 
-(* Pushes the tag to the path and logs it in input environment *)
+(**
+  [push_and_log_tag tag] pushes the [tag] to the path stem without alternatives
+    and logs [tag] as the input. Both actions are with respect to the current
+    time.
+*)
 let push_and_log_tag (tag : Tag.t) : (unit, 'env) m =
   let* step = step in
   let* { target ; _ } = read_ctx in
   modify (fun s -> 
-    { s with rev_stem =
-      Rev_stem.cons (Tag ({ main = tag ; alts = [] }, Stepkey step, s.logged_inputs)) s.rev_stem
-        ~if_exceeds:(Target.path_length target)
+    { s with rev_stem = begin
+      let path_item =
+        Path_item.Tag { tag ; alternatives = [] ; key =
+          Stepkey step ; logged_inputs = s.logged_inputs }
+      in
+      Rev_stem.cons path_item s.rev_stem
+        ~if_exceeds:(Target.priority target)
+    end
     ; logged_inputs = Input_env.add KTag (Stepkey step) tag s.logged_inputs
     }
   )
 
-(*
-  Pushes the formula to the path as one that is necessarily true
-  to have taken the current path.
+(**
+  [push_formula_to_path ?allow_flip formula] pushes the formula to the path stem
+    as a true formula, such that any evaluation following the same path again must
+    satifisfy the formula. By default, a target will be made from the negation
+    of the formula, unless [allow_flip] is false.
 *)
-let push_formula_to_path ?(allow_flip : bool = true) (formula : (bool, Stepkey.t) Smt.Formula.t) : (unit, 'env) m =
+let push_formula_to_path ?(allow_flip : bool = true)
+  (formula : (bool, Stepkey.t) Smt.Formula.t) : (unit, 'env) m =
   if Smt.Formula.is_const formula
   then return ()
   else
     let* { target ; _ } = read_ctx in
     modify (fun s -> 
       { s with rev_stem =
-        let punit =
+        let path_item =
           if allow_flip then
-            Path_item.Formula (formula, s.logged_inputs)
+            Path_item.Formula { cond = formula ; logged_inputs = s.logged_inputs }
           else
             Nonflipping formula
         in
-        Rev_stem.cons punit s.rev_stem
-          ~if_exceeds:(Target.path_length target)
+        Rev_stem.cons path_item s.rev_stem
+          ~if_exceeds:(Target.priority target)
       }
     )
 
-let log_input (kind : 'a Input.Kind.t) (input : 'a) : (unit, 'env) m =
-  let* step = step in
-  modify (fun s -> { s with logged_inputs = Input_env.add kind (Stepkey step) input s.logged_inputs })
-
+(**
+  [read_input kind input_env] is an optional input from [input_env] with the
+    kind [kind], read from the current time. Does not log the input as read
+    because the default behavior is to return [None], in which case there
+    is no input to log.
+*)
 let read_input (kind : 'a Input.Kind.t) (input_env : Input_env.t) : ('a option, 'env) m =
   let* () = assert_inputs_allowed in
   let* step = step in
   return (Input_env.find kind (Stepkey step) input_env)
 
-let read_and_log_input_with_default (kind : 'a Input.Kind.t) (input_env : Input_env.t)
+(**
+  [read_and_log_input kind input_env ~default] is an input from [input_env]
+    of the kind [kind], or [default] if the input was unplanned. Then, the
+    input is logged as read from the environment, and it is returned.
+*)
+let read_and_log_input (kind : 'a Input.Kind.t) (input_env : Input_env.t)
   ~(default : 'a) : ('a, 'env) m =
   let* () = assert_inputs_allowed in
   let* step = step in
+  let log_input input = 
+    modify (fun s -> { s with logged_inputs =
+      Input_env.add kind (Stepkey step) input s.logged_inputs })
+  in
   match Input_env.find kind (Stepkey step) input_env with
-  | Some i -> let* () = log_input kind i in return i
-  | None -> let* () = log_input kind default in return default
+  | Some i -> let* () = log_input i in return i
+  | None -> let* () = log_input default in return default
 
-(*
-  Must inline definitions in order to skirt the value restriction.
+(**
+  [target_to_here] is a target representing the path to the current
+    program point. It is trivial to solve because its solution is
+    the logged input environment.
 *)
 let target_to_here : 'env. (Target.t, 'env) m =
   { run = fun ~reject:_ ~accept state step _ { target ; _ } ->
@@ -160,25 +198,31 @@ let target_to_here : 'env. (Target.t, 'env) m =
       Target.make Formula.trivial
         (Formula.BSet.union target.all_formulas (Path.formulas state.rev_stem.rev_stem))
         state.logged_inputs
-        ~path_length:state.rev_stem.total_len
+        ~path_priority:state.rev_stem.total_priority
     ) state step
   }
 
+(**
+  [fork forked_m] runs [forked_m] with the current state, environment, and
+    step count. If [forked_m] is a failure case, then the result is a failure.
+    Otherwise, the original state is restored, and the fork is logged as a
+    run.
+*)
 let fork (forked_m : (Eval_result.t, 'env) u) : (unit, 'env) m =
   let* target = target_to_here in
   let* s = get in
   let* ctx = read_ctx in
   assert (
-    let n = s.rev_stem.total_len in
-    let n' = Target.path_length ctx.target in
-    Path_length.geq n n'
+    let n = s.rev_stem.total_priority in
+    let n' = Target.priority ctx.target in
+    Path_priority.geq n n'
   );
   let snapshot = ref None in
   fork forked_m { target ; det_context = ctx.det_context }
     ~setup_state:(fun state ->
       (* keeps all the logged runs *)
       snapshot := Some (Store.capture State.store);
-      { state with rev_stem = Rev_stem.of_len state.rev_stem.total_len }
+      { state with rev_stem = Rev_stem.discard_stem state.rev_stem }
     )
     ~restore_state:(fun e ~og ~forked_state ->
       Store.restore State.store (Option.get !snapshot);
@@ -212,9 +256,17 @@ let make_new_lazy_value (lgen : Lazy_val.LGen.t) : (Val.any, 'env) m =
   let* () = add_symbol { id } (LLazy lgen) in
   return (Val.Any (VLazy { symbol = { id } ; wrapping_types = [] })) *)
 
+(**
+  [disallow_inputs x] runs [x] such that any [assert_inputs_allowed]
+    is a failure.
+*)
 let disallow_inputs (x : ('a, 'env) m) : ('a, 'env) m =
   local_ctx (fun ctx -> { ctx with det_context = Disallowed }) x
 
+(**
+  [allow_inputs x] runs [x] such that any [assert_inputs_allowed]
+    is NOT a failure.
+*)
 let allow_inputs (x : ('a, 'env) m) : ('a, 'env) m =
   local_ctx (fun ctx -> { ctx with det_context = Allowed }) x
 
@@ -223,5 +275,9 @@ let run' (x : ('a, Val.Env.t) m) (target : Target.t) (s : State.t) (e : Val.Env.
   | Ok _, state, _ -> Done, state
   | Error e, state, _ -> e, state
 
+(**
+  [run x target] runs [x] with [target] as the context, beginning with
+    empty state and environment.
+*)
 let run (x : ('a, Val.Env.t) m) (target : Target.t) : Eval_result.t * State.t =
   run' x target State.empty Env.empty

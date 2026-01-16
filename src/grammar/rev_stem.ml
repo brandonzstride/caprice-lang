@@ -9,19 +9,19 @@
 
 type t =
   { rev_stem  : Path.t
-  ; total_len : Path_length.t }
+  ; total_priority : Path_priority.t }
 
 let empty : t =
   { rev_stem  = Path.empty
-  ; total_len = Path_length.zero }
+  ; total_priority = Path_priority.zero }
 
-let of_len (total_len : Path_length.t) : t =
-  { empty with total_len }
+let discard_stem ({ total_priority ; _ } : t) : t =
+  { empty with total_priority }
 
-let cons (p_item : Path_item.t) ~(if_exceeds : Path_length.t) (t : t) : t =
-  { total_len = Path_length.plus_int t.total_len (Path_item.to_priority p_item)
+let cons (p_item : Path_item.t) ~(if_exceeds : Path_priority.t) (t : t) : t =
+  { total_priority = Path_priority.plus_int t.total_priority (Path_item.to_priority p_item)
   ; rev_stem =
-    if Path_length.geq t.total_len if_exceeds then
+    if Path_priority.geq t.total_priority if_exceeds then
       Path.cons p_item t.rev_stem
     else
       t.rev_stem

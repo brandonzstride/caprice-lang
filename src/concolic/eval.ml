@@ -7,18 +7,18 @@ open Grammar.Val
 (* `Any` is unboxed, so this is zero overhead *)
 let[@inline always] return_any v = return (Any v)
 
-let bad_input_env : 'a. unit -> 'a = fun () ->
-  raise @@ InvariantException "Input environment is ill-formed"
+let bad_input_env =
+  InvariantException "Input environment is ill-formed"
 
 let make_lazy (lgen : Val.lgen) : Val.dval =
   VLazy { cell = State.make_cell (LLazy lgen) ; wrapping_types = [] }
 
-(*
-  Get some context in which to evaluate an expression
-  based on the sort of function.
+(**
+  [ctx_of_sort sort] is an environment in which to run a
+    monadic expression based on the [sort] of the function
+    type that is being checked.
 
-  This is a context that disallows inputs if the sort
-  is deterministic.
+    The context disallows inputs if the sort is deterministic.
 *)
 let ctx_of_sort (sort : Funtype.sort) =
   match sort with
@@ -38,14 +38,6 @@ let eval
   ~(do_wrap : bool)
   : Answer.t * Logged_run.t list
   =
-  let read_and_log_bool () =
-    read_and_log_input_with_default KBool input_env ~default:(default_bool ())
-  in
-
-  let read_and_log_int () =
-    read_and_log_input_with_default KInt input_env ~default:(default_int ())
-  in
-
   (*
     Reads a tag from the input environment. If the tag was planned,
     then run the left or right accordingly (pushing the tag to this
@@ -63,7 +55,7 @@ let eval
       let* () = push_and_log_tag @@ Right reason in
       right
     | Some _ ->
-      bad_input_env ()
+      raise bad_input_env
     | None ->
       let* () = fork (
         let* () = push_and_log_tag @@ Left reason in
@@ -194,7 +186,7 @@ let eval
     (* symbolic values and branching *)
     | EPick_i ->
       let* step = step in
-      let* i = read_and_log_int () in
+      let* i = read_and_log_input KInt input_env ~default:(default_int ()) in
       return_any (VInt (i, Stepkey.int_symbol step))
     | ENot e ->
       let* v = force_eval e in
@@ -748,7 +740,7 @@ let eval
         let* l_opt = allow_inputs (read_input KTag input_env) in
         match l_opt with
         | Some Label (id, Check) -> (check_label (Labels.Record.RecordLabel id)).run_failing
-        | Some _ -> bad_input_env ()
+        | Some _ -> raise bad_input_env
         | None ->
           (* is in exploration mode, so we want to check every label *)
           let rec go enum =
@@ -798,11 +790,11 @@ let eval
       return_any VUnit
     | VTypeInt ->
       let* step = step in
-      let* i = read_and_log_int () in
+      let* i = read_and_log_input KInt input_env ~default:(default_int ()) in
       return_any (VInt (i, Stepkey.int_symbol step))
     | VTypeBool ->
       let* step = step in
-      let* b = read_and_log_bool () in
+      let* b = read_and_log_input KBool input_env ~default:(default_bool ()) in
       return_any (VBool (b, Stepkey.bool_symbol step))
     | VTypeFun funtype ->
       let* Step nonce = step in
@@ -832,7 +824,7 @@ let eval
     | VTypeVariant variant_t ->
       let t_labels = Labels.Variant.B.domain variant_t in
       let* l =
-        read_and_log_input_with_default KTag input_env
+        read_and_log_input KTag input_env
           ~default:(default_constructor variant_t |> Grammar.Tag.of_variant_label Gen)
       in
       begin match l with
@@ -841,14 +833,14 @@ let eval
         let t = Labels.Variant.Map.find to_gen variant_t in
         let* () =
           push_tag_to_path l
-            ~alternates:(
+            ~alternatives:(
               Labels.Variant.Set.remove to_gen t_labels
               |> Labels.Variant.Set.list_map (Grammar.Tag.of_variant_label Gen)
             )
         in
         let* payload = gen t in
         return_any (VVariant { label = to_gen ; payload })
-      | _ -> bad_input_env ()
+      | _ -> raise bad_input_env
       end
     | VTypeList t ->
       if do_splay then
@@ -908,20 +900,20 @@ let eval
   and force_gen_list 
     : 'env. Val.tval -> (Val.any, 'env) m
     = fun body ->
-    let* l = read_and_log_input_with_default KTag input_env ~default:(Left GenList) in
+    let* l = read_and_log_input KTag input_env ~default:(Left GenList) in
     match l with
     | Left GenList ->
-      let* () = push_tag_to_path (Left GenList) ~alternates:[ Right GenList ] in
+      let* () = push_tag_to_path (Left GenList) ~alternatives:[ Right GenList ] in
       let* () = incr_step ~max_step in (* doesn't call gen, so need to increment step manually *)
       return_any VEmptyList
     | Right GenList ->
-      let* () = push_tag_to_path (Right GenList) ~alternates:[ Left GenList ] in
+      let* () = push_tag_to_path (Right GenList) ~alternatives:[ Left GenList ] in
       let* hd = gen body in
       let* Any v_tl = gen (VTypeList body) in
       handle v_tl
         ~data:(fun tl -> return_any @@ VListCons (hd, tl))
         ~typeval:(fun _ -> raise @@ InvariantException "List generation makes a type value")
-    | _ -> bad_input_env ()
+    | _ -> raise bad_input_env
 
   (*
     Generate a member of a recursive type. Does not make a symbol for a lazy member.

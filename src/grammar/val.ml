@@ -3,8 +3,10 @@ open Lang
 
 include Value.Make (Cdata)
 
-(* 
-  True if the value has any non-constant symbolic formula in it.
+(**
+  [is_symbolic v] is [true] if [v] has any non-constant symbolic
+    formula in it, recursively, or [v] contains a closure, which
+    is not reasoned about and therefore [true] by default.
 
   This is used to see if recursive functions are called with symbolic
   values when type splaying.
@@ -283,7 +285,12 @@ and iequal_cod cod1 cod2 =
       a dependent function is not a non-dependent function. *)
     X.make false
 
-(*
+(**
+  [iequal_closure bindings closure1 closure2] is intensional
+    equality on [closure1] and [closure2], supposing the association
+    list [bindings] are the equivalent bindings in the expressions
+    that overwrite the environments.
+
   Closure equality will not be a sort mismatch, even if the
   expression references values in the environment of different
   sorts in the same spot. Instead, it is just false.
@@ -499,6 +506,10 @@ and iequal_closure bindings closure1 closure2 =
     | _ ->
       make false
 
+  (** Check that patterns are equal, returning [None] if they cannot
+    be equal and [Some bindings] if they are, as well as the assocation
+    list [bindings] that are equal in an expression bodies depending on
+    the patterns. *)
   and check_pattern p1 p2 =
     match p1, p2 with
     | Pattern.PAny, Pattern.PAny
@@ -544,6 +555,9 @@ let equal_any x y =
   | Value (b, _) -> b
   | SortMismatch -> false
 
+(**
+  [equal v1 v2] is intensional equality of [v1] and [v2].
+*)
 let equal (type a) (x : a t) (y : a t) : bool =
   equal_any (Any x) (Any y)
 
