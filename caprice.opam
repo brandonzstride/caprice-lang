@@ -8,6 +8,7 @@ depends: [
   "dune" {>= "3.19"}
   "alcotest"
   "baby"
+  "benchmark"
   "lwt"
   "menhir"
   "mtime"

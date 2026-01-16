@@ -18,6 +18,7 @@
  (depends
   alcotest
   baby
+  benchmark
   lwt
   menhir
   mtime
